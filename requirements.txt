@@ -1,0 +1,48 @@
+# Atlas Autonomous System Requirements
+# Core dependencies for the Atlas autonomous macOS management system
+
+# LLM and AI
+ollama>=0.2.0
+openai>=1.0.0
+
+# Web framework and async
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+aiohttp>=3.9.0
+
+# System automation
+pyautogui>=0.9.54
+pynput>=1.7.6
+psutil>=5.9.0
+
+# Audio processing (TTS/STT)
+pyttsx3>=2.90
+SpeechRecognition>=3.10.0
+pyaudio>=0.2.11
+
+# Vector database and memory
+qdrant-client>=1.6.0
+numpy>=1.24.0
+sentence-transformers>=2.2.0
+
+# Data processing
+pandas>=2.0.0
+pydantic>=2.0.0
+
+# Monitoring and observability
+prometheus-client>=0.17.0
+
+# Configuration and utilities
+python-dotenv>=1.0.0
+pyyaml>=6.0.0
+click>=8.1.0
+
+# Development and testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+black>=23.0.0
+flake8>=6.0.0
+
+# macOS specific (optional, will be handled gracefully if not available)
+py-applescript>=1.0.3; sys_platform == "darwin"
+appscript>=1.2.2; sys_platform == "darwin"
