@@ -142,9 +142,13 @@ async def ukrainian_tts_speak(text: str, voice: str | None) -> Dict[str, Any]:
         filename = f"uk_{uuid.uuid4().hex}.wav"
         out_path = TTS_OUTPUT_DIR / filename
         try:
+            import io
+            # Use BytesIO buffer to match API expectations, then write to file
+            wav_buf = io.BytesIO()
+            tts.tts(text, uk_voice, Stress.Dictionary.value, wav_buf)
+            wav_buf.seek(0)
             with open(out_path, "wb") as f:
-                # API returns (audio, accented_text); passing file handle writes audio
-                tts.tts(text, uk_voice, Stress.Dictionary.value, f)
+                f.write(wav_buf.getvalue())
             return {"url": f"/audio/{filename}", "provider": "ukrainian_tts"}
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to synthesize wav: {e}")
