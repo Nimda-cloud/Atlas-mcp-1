@@ -1,23 +1,27 @@
-version: '3.8'
-
 services:
   atlas-core:
     build: .
     container_name: atlas-autonomous-system
     ports:
-      - "8000:8000"   # Web interface
-      - "11434:11434" # Ollama API
+      - "8000:8000"
+      - "11434:11434"
     volumes:
       - atlas-data:/app/data
       - atlas-logs:/app/logs
-      - /var/run/docker.sock:/var/run/docker.sock  # For container management
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - ATLAS_WEB_HOST=0.0.0.0
-      - ATLAS_WEB_PORT=8000
-      - ATLAS_LOG_LEVEL=INFO
-      - ATLAS_DATA_DIR=/app/data
-      - OLLAMA_HOST=0.0.0.0:11434
-      - ATLAS_MCP_SERVERS=automation,macos-automator,tts
+      ATLAS_WEB_HOST: 0.0.0.0
+      ATLAS_WEB_PORT: "8000"
+      ATLAS_LOG_LEVEL: INFO
+      ATLAS_DATA_DIR: /app/data
+      OLLAMA_URL: http://host.docker.internal:11434
+      USE_EMBEDDED_OLLAMA: "${USE_EMBEDDED_OLLAMA:-false}"
+      ATLAS_LLM_PROVIDER: ollama
+      ATLAS_LLM1_MODEL: "${ATLAS_LLM1_MODEL:-llama3.1:8b}"
+      ATLAS_LLM2_MODEL: "${ATLAS_LLM2_MODEL:-gpt-oss:latest}"
+      ATLAS_LLM3_MODEL: "${ATLAS_LLM3_MODEL:-llama3.1:8b}"
+      ATLAS_MCP_SERVERS: automation,macos-automator,tts
+      ATLAS_MCP_TTS_URL: http://mcp-tts:4004
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/status"]
@@ -26,7 +30,6 @@ services:
       retries: 3
       start_period: 60s
 
-  # MCP Automation Server
   mcp-automation:
     image: ghcr.io/atlas/automation-mcp:latest
     container_name: atlas-automation-mcp
@@ -38,7 +41,6 @@ services:
     restart: unless-stopped
     profiles: ["mcp"]
 
-  # macOS Automator MCP Server  
   mcp-automator:
     image: ghcr.io/atlas/macos-automator-mcp:latest
     container_name: atlas-automator-mcp
@@ -50,32 +52,40 @@ services:
     restart: unless-stopped
     profiles: ["mcp", "macos"]
 
-  # TTS MCP Server
   mcp-tts:
-    image: ghcr.io/atlas/tts-mcp:latest
+    build: ./services/tts_mcp_adapter
     container_name: atlas-tts-mcp
     ports:
       - "4004:4004"
     environment:
       - MCP_PORT=4004
-      - TTS_PROVIDERS=say_tts,openai_tts,elevenlabs_tts,google_tts,coqui_tts
+      - TTS_PROVIDERS=google_tts,coqui_tts
+      - TTS_DEFAULT_PROVIDER=${TTS_DEFAULT_PROVIDER:-google_tts}
+      - GOOGLE_TTS_API_KEY=${GOOGLE_TTS_API_KEY}
+      - GOOGLE_TTS_LANGUAGE=${GOOGLE_TTS_LANGUAGE}
       - COQUI_TTS_BASE_URL=http://coqui-tts:5002
+      - ATLAS_TTS_LANG=${ATLAS_TTS_LANG:-uk}
+      - TTS_OUTPUT_DIR=/data/tts
+    volumes:
+      - atlas-tts-audio:/data/tts
     depends_on:
       - coqui-tts
     restart: unless-stopped
     profiles: ["mcp", "tts"]
 
-  # Local Coqui TTS Server
   coqui-tts:
-    image: ghcr.io/coqui-ai/tts-cpu:latest
+    image: ghcr.io/coqui-ai/tts:latest
+    platform: linux/amd64
     container_name: atlas-coqui-tts
     ports:
       - "5002:5002"
-    command: ["python3", "TTS/server/server.py", "--model_name", "tts_models/en/vctk/vits"]
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["python3 -m TTS.server.server --model_name tts_models/multilingual/multi-dataset/xtts_v2 --port 5002 --debug"]
+    environment:
+      - COQUI_TOS_AGREED=1
     restart: unless-stopped
     profiles: ["tts"]
 
-  # Redis for memory and caching
   redis:
     image: redis:7-alpine
     container_name: atlas-redis
@@ -86,7 +96,18 @@ services:
     command: redis-server --appendonly yes
     restart: unless-stopped
 
-  # Qdrant vector database for RAG memory
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.66.0
+    container_name: atlas-redis-exporter
+    ports:
+      - "9121:9121"
+    environment:
+      - REDIS_ADDR=redis:6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+    profiles: ["monitoring"]
+
   qdrant:
     image: qdrant/qdrant:latest
     container_name: atlas-qdrant
@@ -100,7 +121,6 @@ services:
       - QDRANT__SERVICE__GRPC_PORT=6334
     restart: unless-stopped
 
-  # Prometheus for monitoring
   prometheus:
     image: prom/prometheus:latest
     container_name: atlas-prometheus
@@ -110,15 +130,14 @@ services:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
       - atlas-prometheus-data:/prometheus
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--web.enable-lifecycle'
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+      - "--web.enable-lifecycle"
     restart: unless-stopped
     profiles: ["monitoring"]
 
-  # Grafana for visualization
   grafana:
     image: grafana/grafana:latest
     container_name: atlas-grafana
@@ -145,6 +164,8 @@ volumes:
   atlas-prometheus-data:
     driver: local
   atlas-grafana-data:
+    driver: local
+  atlas-tts-audio:
     driver: local
 
 networks:

@@ -35,11 +35,13 @@ import platform
 try:
     import aiohttp
     import ollama
-    from fastapi import FastAPI, HTTPException
+    from fastapi import FastAPI, HTTPException, Response
     from fastapi.staticfiles import StaticFiles
     from fastapi.responses import HTMLResponse
     import uvicorn
     from dotenv import load_dotenv
+    # Prometheus metrics
+    from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 except ImportError as e:
     print(f"Missing required packages. Please run: pip install -r requirements.txt")
     print(f"Error: {e}")
@@ -165,12 +167,12 @@ class MacOSAutomation:
 
 class LLMAgent:
     """Base class for LLM agents"""
-    
+
     def __init__(self, config: AgentConfig):
         self.config = config
         self.client = None
         self.setup_client()
-    
+
     def setup_client(self):
         """Setup the LLM client based on provider"""
         if self.config.provider == "ollama":
@@ -181,21 +183,23 @@ class LLMAgent:
             self.client = ollama.Client(host=api_base)
         else:
             logger.warning(f"Provider {self.config.provider} not yet implemented")
-    
+
     async def generate_response(self, prompt: str, context: str = "") -> str:
         """Generate response from the LLM"""
         try:
+            if self.client is None:
+                logger.error("LLM client is not initialized")
+                return "Error: LLM client not initialized"
             full_prompt = f"{context}\n\nUser: {prompt}\nAssistant:" if context else prompt
-            
+
             response = self.client.generate(
                 model=self.config.model,
                 prompt=full_prompt,
                 options={
                     'temperature': self.config.temperature,
-                    'num_predict': self.config.max_tokens
-                }
+                    'num_predict': self.config.max_tokens,
+                },
             )
-            
             return response['response']
         except Exception as e:
             logger.error(f"Failed to generate response for {self.config.name}: {e}")
@@ -262,6 +266,29 @@ class AtlasCore:
     
     def setup_web_interface(self):
         """Setup FastAPI web interface"""
+        # Basic Prometheus metrics for requests
+        REQUEST_COUNT = Counter(
+            "atlas_requests_total", "Total HTTP requests", ["method", "path", "status"]
+        )
+        REQUEST_LATENCY = Histogram(
+            "atlas_request_latency_seconds", "Request latency in seconds", ["method", "path"]
+        )
+
+        @self.app.middleware("http")
+        async def metrics_middleware(request, call_next):
+            method = request.method
+            path = request.url.path
+            start = asyncio.get_event_loop().time()
+            try:
+                response = await call_next(request)
+                status = str(response.status_code)
+                REQUEST_COUNT.labels(method, path, status).inc()
+                REQUEST_LATENCY.labels(method, path).observe(asyncio.get_event_loop().time() - start)
+                return response
+            except Exception:
+                REQUEST_COUNT.labels(method, path, "500").inc()
+                REQUEST_LATENCY.labels(method, path).observe(asyncio.get_event_loop().time() - start)
+                raise
         
         @self.app.get("/", response_class=HTMLResponse)
         async def dashboard():
@@ -302,6 +329,8 @@ class AtlasCore:
                         height: 100vh;
                         gap: 2px;
                         background: #001100;
+                        /* Prevent grid children from pushing layout vertically */
+                        overflow: hidden;
                     }
                     
                     /* Left side - 3D Model and status */
@@ -311,6 +340,9 @@ class AtlasCore:
                         background: rgba(0, 20, 0, 0.8);
                         border: 1px solid #00ff00;
                         position: relative;
+                        /* Ensure status bar stays visible within viewport */
+                        min-height: 0;
+                        overflow: hidden;
                     }
                     
                     .header {
@@ -420,6 +452,9 @@ class AtlasCore:
                         flex-direction: column;
                         background: rgba(0, 20, 0, 0.9);
                         border: 1px solid #00ff00;
+                        /* Allow flex children to shrink to fit height */
+                        min-height: 0;
+                        overflow: hidden;
                     }
                     
                     .chat-section {
@@ -428,6 +463,8 @@ class AtlasCore:
                         flex-direction: column;
                         border-bottom: 1px solid #00ff00;
                         position: relative;
+                        /* Critical for preventing content from pushing layout */
+                        min-height: 0;
                     }
                     
                     .chat-header {
@@ -467,6 +504,8 @@ class AtlasCore:
                         padding: 10px;
                         overflow-y: auto;
                         background: rgba(0, 0, 0, 0.5);
+                        /* Avoid min-content height overflow */
+                        min-height: 0;
                     }
                     
                     .message {
@@ -940,6 +979,10 @@ class AtlasCore:
         @self.app.get("/status")
         async def status():
             return await self.get_system_status()
+
+        @self.app.get("/metrics")
+        async def metrics():
+            return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
     
     async def process_user_message(self, message: str) -> str:
         """Process user message through the agent system"""
@@ -1047,7 +1090,11 @@ def main():
     # Check if Ollama is available
     try:
         import ollama
-        client = ollama.Client()
+        # Respect environment configuration for Ollama endpoint
+        api_base = os.getenv("OLLAMA_URL") or os.getenv("OLLAMA_HOST") or "http://localhost:11434"
+        if api_base and not str(api_base).startswith("http"):
+            api_base = f"http://{api_base}"
+        client = ollama.Client(host=str(api_base))
         models = client.list()
         print(f"✅ Ollama available with {len(models.get('models', []))} models")
     except Exception as e:
