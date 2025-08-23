@@ -59,32 +59,24 @@ services:
       - "4004:4004"
     environment:
       - MCP_PORT=4004
-      - TTS_PROVIDERS=google_tts,coqui_tts
-      - TTS_DEFAULT_PROVIDER=${TTS_DEFAULT_PROVIDER:-google_tts}
+      - TTS_PROVIDERS=${TTS_PROVIDERS:-ukrainian_tts,google_tts}
+      - TTS_DEFAULT_PROVIDER=${TTS_DEFAULT_PROVIDER:-ukrainian_tts}
       - GOOGLE_TTS_API_KEY=${GOOGLE_TTS_API_KEY}
       - GOOGLE_TTS_LANGUAGE=${GOOGLE_TTS_LANGUAGE}
-      - COQUI_TTS_BASE_URL=http://coqui-tts:5002
       - ATLAS_TTS_LANG=${ATLAS_TTS_LANG:-uk}
       - TTS_OUTPUT_DIR=/data/tts
+      - UK_TTS_DEVICE=${UK_TTS_DEVICE:-cpu}
+      - UK_TTS_PREFERRED_FORMAT=${UK_TTS_PREFERRED_FORMAT:-wav}
     volumes:
       - atlas-tts-audio:/data/tts
-    depends_on:
-      - coqui-tts
     restart: unless-stopped
     profiles: ["mcp", "tts"]
-
-  coqui-tts:
-    image: ghcr.io/coqui-ai/tts:latest
-    platform: linux/amd64
-    container_name: atlas-coqui-tts
-    ports:
-      - "5002:5002"
-    entrypoint: ["/bin/sh", "-c"]
-    command: ["python3 -m TTS.server.server --model_name tts_models/multilingual/multi-dataset/xtts_v2 --port 5002 --debug"]
-    environment:
-      - COQUI_TOS_AGREED=1
-    restart: unless-stopped
-    profiles: ["tts"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   redis:
     image: redis:7-alpine
