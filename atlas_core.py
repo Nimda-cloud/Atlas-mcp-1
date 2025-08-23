@@ -244,66 +244,524 @@ class AtlasCore:
             <!DOCTYPE html>
             <html>
             <head>
-                <title>Atlas Autonomous System</title>
+                <title>ATLAS // HACKER TERMINAL</title>
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">
+                <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Source+Code+Pro:wght@300;400;600&display=swap" rel="stylesheet">
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f7; }
-                    .container { max-width: 1200px; margin: 0 auto; }
-                    .header { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-                    .card { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-                    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-                    .button { background: #007AFF; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; }
-                    .button:hover { background: #0056b3; }
-                    .status { display: inline-block; padding: 4px 8px; border-radius: 4px; color: white; font-size: 12px; }
-                    .status.active { background: #34C759; }
-                    .status.inactive { background: #FF3B30; }
-                    textarea { width: 100%; height: 100px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
-                    #response { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 10px; white-space: pre-wrap; }
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    
+                    body { 
+                        font-family: 'Source Code Pro', monospace; 
+                        background: #000; 
+                        color: #00ff00; 
+                        overflow: hidden; 
+                        height: 100vh;
+                        position: relative;
+                    }
+                    
+                    /* Matrix rain background effect */
+                    #matrix-bg {
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        z-index: -1;
+                        opacity: 0.1;
+                    }
+                    
+                    .container {
+                        display: grid;
+                        grid-template-columns: 1fr 400px;
+                        height: 100vh;
+                        gap: 2px;
+                        background: #001100;
+                    }
+                    
+                    /* Left side - 3D Model and status */
+                    .main-area {
+                        display: flex;
+                        flex-direction: column;
+                        background: rgba(0, 20, 0, 0.8);
+                        border: 1px solid #00ff00;
+                        position: relative;
+                    }
+                    
+                    .header {
+                        padding: 10px 20px;
+                        background: linear-gradient(45deg, #001100, #003300);
+                        border-bottom: 1px solid #00ff00;
+                        text-align: center;
+                    }
+                    
+                    .header h1 {
+                        font-family: 'Orbitron', monospace;
+                        font-weight: 900;
+                        font-size: 24px;
+                        color: #00ff00;
+                        text-shadow: 0 0 10px #00ff00;
+                        letter-spacing: 3px;
+                    }
+                    
+                    .header .subtitle {
+                        font-size: 12px;
+                        color: #00aa00;
+                        opacity: 0.8;
+                        margin-top: 5px;
+                    }
+                    
+                    /* 3D Model Area */
+                    .model-area {
+                        flex: 1;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        position: relative;
+                        background: radial-gradient(circle, rgba(0,40,0,0.3) 0%, rgba(0,0,0,0.8) 100%);
+                    }
+                    
+                    .ai-avatar {
+                        width: 200px;
+                        height: 200px;
+                        border: 2px solid #00ff00;
+                        border-radius: 50%;
+                        background: radial-gradient(circle, rgba(0,255,0,0.1) 0%, rgba(0,100,0,0.05) 100%);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-family: 'Orbitron', monospace;
+                        font-size: 48px;
+                        color: #00ff00;
+                        text-shadow: 0 0 20px #00ff00;
+                        animation: pulse 2s infinite;
+                        cursor: pointer;
+                        transition: all 0.3s ease;
+                    }
+                    
+                    .ai-avatar:hover {
+                        box-shadow: 0 0 30px #00ff00;
+                        transform: scale(1.05);
+                    }
+                    
+                    .ai-avatar.speaking {
+                        animation: speak 0.5s infinite alternate;
+                        box-shadow: 0 0 40px #00ff00;
+                    }
+                    
+                    @keyframes pulse {
+                        0%, 100% { opacity: 0.7; }
+                        50% { opacity: 1; }
+                    }
+                    
+                    @keyframes speak {
+                        0% { transform: scale(1); }
+                        100% { transform: scale(1.1); }
+                    }
+                    
+                    .status-bar {
+                        padding: 10px 20px;
+                        background: rgba(0, 40, 0, 0.9);
+                        border-top: 1px solid #00ff00;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        font-size: 12px;
+                    }
+                    
+                    .status-item {
+                        display: flex;
+                        align-items: center;
+                        gap: 5px;
+                    }
+                    
+                    .status-led {
+                        width: 8px;
+                        height: 8px;
+                        border-radius: 50%;
+                        background: #00ff00;
+                        box-shadow: 0 0 5px #00ff00;
+                        animation: blink 1s infinite;
+                    }
+                    
+                    @keyframes blink {
+                        0%, 50% { opacity: 1; }
+                        51%, 100% { opacity: 0.3; }
+                    }
+                    
+                    /* Right side - Chat and Logs */
+                    .right-panel {
+                        display: flex;
+                        flex-direction: column;
+                        background: rgba(0, 20, 0, 0.9);
+                        border: 1px solid #00ff00;
+                    }
+                    
+                    .chat-section {
+                        flex: 1;
+                        display: flex;
+                        flex-direction: column;
+                        border-bottom: 1px solid #00ff00;
+                        position: relative;
+                    }
+                    
+                    .chat-header {
+                        padding: 10px;
+                        background: linear-gradient(45deg, #001100, #003300);
+                        border-bottom: 1px solid #00ff00;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    }
+                    
+                    .chat-title {
+                        font-family: 'Orbitron', monospace;
+                        font-weight: 700;
+                        color: #00ff00;
+                        font-size: 14px;
+                    }
+                    
+                    .admin-btn {
+                        background: rgba(0, 255, 0, 0.1);
+                        border: 1px solid #00ff00;
+                        color: #00ff00;
+                        padding: 4px 8px;
+                        font-size: 10px;
+                        cursor: pointer;
+                        font-family: 'Source Code Pro', monospace;
+                        transition: all 0.3s ease;
+                    }
+                    
+                    .admin-btn:hover {
+                        background: rgba(0, 255, 0, 0.2);
+                        box-shadow: 0 0 10px #00ff00;
+                    }
+                    
+                    .chat-messages {
+                        flex: 1;
+                        padding: 10px;
+                        overflow-y: auto;
+                        background: rgba(0, 0, 0, 0.5);
+                    }
+                    
+                    .message {
+                        margin-bottom: 10px;
+                        padding: 8px;
+                        background: rgba(0, 40, 0, 0.3);
+                        border-left: 2px solid #00ff00;
+                        font-size: 12px;
+                        line-height: 1.4;
+                    }
+                    
+                    .message.user {
+                        background: rgba(0, 60, 0, 0.3);
+                        border-left-color: #00aa00;
+                    }
+                    
+                    .message.system {
+                        background: rgba(0, 80, 0, 0.3);
+                        border-left-color: #00ffaa;
+                    }
+                    
+                    .chat-input-area {
+                        padding: 10px;
+                        background: rgba(0, 40, 0, 0.8);
+                        border-top: 1px solid #00ff00;
+                    }
+                    
+                    .chat-input {
+                        width: 100%;
+                        background: rgba(0, 0, 0, 0.7);
+                        border: 1px solid #00ff00;
+                        color: #00ff00;
+                        padding: 8px;
+                        font-family: 'Source Code Pro', monospace;
+                        font-size: 12px;
+                        resize: none;
+                        height: 60px;
+                    }
+                    
+                    .chat-input:focus {
+                        outline: none;
+                        box-shadow: 0 0 10px #00ff00;
+                    }
+                    
+                    .send-btn {
+                        margin-top: 5px;
+                        background: rgba(0, 255, 0, 0.1);
+                        border: 1px solid #00ff00;
+                        color: #00ff00;
+                        padding: 8px 16px;
+                        cursor: pointer;
+                        font-family: 'Source Code Pro', monospace;
+                        font-size: 12px;
+                        width: 100%;
+                        transition: all 0.3s ease;
+                    }
+                    
+                    .send-btn:hover {
+                        background: rgba(0, 255, 0, 0.2);
+                        box-shadow: 0 0 15px #00ff00;
+                    }
+                    
+                    /* Logs section */
+                    .logs-section {
+                        height: 200px;
+                        display: flex;
+                        flex-direction: column;
+                        background: rgba(0, 0, 0, 0.8);
+                    }
+                    
+                    .logs-header {
+                        padding: 8px 10px;
+                        background: linear-gradient(45deg, #001100, #003300);
+                        border-bottom: 1px solid #00ff00;
+                        font-family: 'Orbitron', monospace;
+                        font-weight: 700;
+                        color: #00ff00;
+                        font-size: 12px;
+                    }
+                    
+                    .logs-content {
+                        flex: 1;
+                        overflow-y: auto;
+                        padding: 5px;
+                        font-size: 10px;
+                        line-height: 1.2;
+                    }
+                    
+                    .log-entry {
+                        margin-bottom: 2px;
+                        opacity: 0.8;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+                    
+                    .log-entry.info { color: #00aa00; }
+                    .log-entry.warning { color: #ffaa00; }
+                    .log-entry.error { color: #ff4444; }
+                    .log-entry.success { color: #00ff88; }
+                    
+                    /* Scrollbar styling */
+                    ::-webkit-scrollbar {
+                        width: 6px;
+                    }
+                    
+                    ::-webkit-scrollbar-track {
+                        background: rgba(0, 0, 0, 0.3);
+                    }
+                    
+                    ::-webkit-scrollbar-thumb {
+                        background: #00ff00;
+                        border-radius: 3px;
+                    }
+                    
+                    ::-webkit-scrollbar-thumb:hover {
+                        background: #00aa00;
+                    }
+                    
+                    /* Admin Panel (hidden by default) */
+                    .admin-panel {
+                        position: fixed;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        width: 400px;
+                        height: 300px;
+                        background: rgba(0, 0, 0, 0.95);
+                        border: 2px solid #00ff00;
+                        padding: 20px;
+                        display: none;
+                        z-index: 1000;
+                        box-shadow: 0 0 50px #00ff00;
+                    }
+                    
+                    .admin-panel.active {
+                        display: block;
+                    }
+                    
+                    .admin-panel h3 {
+                        font-family: 'Orbitron', monospace;
+                        color: #00ff00;
+                        margin-bottom: 15px;
+                        text-align: center;
+                    }
+                    
+                    .admin-grid {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 10px;
+                    }
+                    
+                    .admin-button {
+                        background: rgba(0, 255, 0, 0.1);
+                        border: 1px solid #00ff00;
+                        color: #00ff00;
+                        padding: 10px;
+                        cursor: pointer;
+                        font-family: 'Source Code Pro', monospace;
+                        font-size: 11px;
+                        text-align: center;
+                        transition: all 0.3s ease;
+                    }
+                    
+                    .admin-button:hover {
+                        background: rgba(0, 255, 0, 0.2);
+                        box-shadow: 0 0 10px #00ff00;
+                    }
+                    
+                    .close-admin {
+                        position: absolute;
+                        top: 10px;
+                        right: 15px;
+                        background: none;
+                        border: none;
+                        color: #00ff00;
+                        font-size: 18px;
+                        cursor: pointer;
+                    }
                 </style>
             </head>
             <body>
+                <canvas id="matrix-bg"></canvas>
+                
                 <div class="container">
-                    <div class="header">
-                        <h1>🤖 Atlas Autonomous System</h1>
-                        <p>Intelligent macOS Management & Automation</p>
-                    </div>
-                    
-                    <div class="grid">
-                        <div class="card">
-                            <h3>System Status</h3>
-                            <p>Platform: macOS <span class="status active">ACTIVE</span></p>
-                            <p>Agents: 3/3 <span class="status active">ONLINE</span></p>
-                            <p>Automation: <span class="status active">READY</span></p>
-                            <button class="button" onclick="refreshStatus()">Refresh Status</button>
+                    <!-- Left side - Main Area with 3D Model -->
+                    <div class="main-area">
+                        <div class="header">
+                            <h1>ATLAS</h1>
+                            <div class="subtitle">AUTONOMOUS NEURAL INTERFACE</div>
                         </div>
                         
-                        <div class="card">
-                            <h3>Quick Actions</h3>
-                            <button class="button" onclick="performAction('system_info')" style="display: block; margin: 5px 0;">Get System Info</button>
-                            <button class="button" onclick="performAction('open_app')" style="display: block; margin: 5px 0;">Open Application</button>
-                            <button class="button" onclick="performAction('monitor_system')" style="display: block; margin: 5px 0;">Monitor System</button>
+                        <div class="model-area">
+                            <div class="ai-avatar" id="aiAvatar" onclick="speakStatus()">
+                                ⬢
+                            </div>
+                        </div>
+                        
+                        <div class="status-bar">
+                            <div class="status-item">
+                                <div class="status-led"></div>
+                                <span>AGENTS: 3/3 ONLINE</span>
+                            </div>
+                            <div class="status-item">
+                                <div class="status-led"></div>
+                                <span>SYSTEM: READY</span>
+                            </div>
+                            <div class="status-item">
+                                <div class="status-led"></div>
+                                <span>AUTOMATION: ACTIVE</span>
+                            </div>
                         </div>
                     </div>
                     
-                    <div class="card">
-                        <h3>Chat with Atlas</h3>
-                        <textarea id="userInput" placeholder="Ask Atlas to perform a task or ask a question..."></textarea>
-                        <br><br>
-                        <button class="button" onclick="sendMessage()">Send Message</button>
-                        <div id="response"></div>
+                    <!-- Right side - Chat and Logs -->
+                    <div class="right-panel">
+                        <div class="chat-section">
+                            <div class="chat-header">
+                                <div class="chat-title">NEURAL LINK</div>
+                                <button class="admin-btn" onclick="toggleAdmin()">ADMIN</button>
+                            </div>
+                            
+                            <div class="chat-messages" id="chatMessages">
+                                <div class="message system">
+                                    <strong>[SYSTEM]</strong> Atlas Neural Interface initialized.<br>
+                                    All agents online. Awaiting commands.
+                                </div>
+                            </div>
+                            
+                            <div class="chat-input-area">
+                                <textarea id="userInput" class="chat-input" placeholder="Enter command..."></textarea>
+                                <button class="send-btn" onclick="sendMessage()">TRANSMIT</button>
+                            </div>
+                        </div>
+                        
+                        <div class="logs-section">
+                            <div class="logs-header">SYSTEM LOGS</div>
+                            <div class="logs-content" id="systemLogs">
+                                <div class="log-entry info">[INFO] System initialization complete</div>
+                                <div class="log-entry success">[OK] LLM1 Interface Agent: ONLINE</div>
+                                <div class="log-entry success">[OK] LLM2 Orchestrator Agent: ONLINE</div>
+                                <div class="log-entry success">[OK] LLM3 Monitor Agent: ONLINE</div>
+                                <div class="log-entry info">[INFO] Web interface loaded</div>
+                                <div class="log-entry info">[INFO] Awaiting user input...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Admin Panel -->
+                <div class="admin-panel" id="adminPanel">
+                    <button class="close-admin" onclick="toggleAdmin()">×</button>
+                    <h3>ADMIN CONTROL MATRIX</h3>
+                    <div class="admin-grid">
+                        <button class="admin-button" onclick="performAction('system_info')">SYSTEM INFO</button>
+                        <button class="admin-button" onclick="performAction('monitor_system')">DEEP SCAN</button>
+                        <button class="admin-button" onclick="performAction('open_app')">LAUNCH APP</button>
+                        <button class="admin-button" onclick="refreshStatus()">REFRESH</button>
+                        <button class="admin-button" onclick="clearLogs()">CLEAR LOGS</button>
+                        <button class="admin-button" onclick="toggleVoice()">VOICE TOGGLE</button>
                     </div>
                 </div>
                 
                 <script>
+                    // Matrix rain effect
+                    function initMatrix() {
+                        const canvas = document.getElementById('matrix-bg');
+                        const ctx = canvas.getContext('2d');
+                        
+                        canvas.width = window.innerWidth;
+                        canvas.height = window.innerHeight;
+                        
+                        const chars = "ATLAS0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+                        const charArray = chars.split("");
+                        const columns = canvas.width / 20;
+                        const drops = [];
+                        
+                        for(let x = 0; x < columns; x++) {
+                            drops[x] = 1;
+                        }
+                        
+                        function draw() {
+                            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+                            ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            
+                            ctx.fillStyle = '#00ff00';
+                            ctx.font = '15px Source Code Pro';
+                            
+                            for(let i = 0; i < drops.length; i++) {
+                                const text = charArray[Math.floor(Math.random() * charArray.length)];
+                                ctx.fillText(text, i * 20, drops[i] * 20);
+                                
+                                if(drops[i] * 20 > canvas.height && Math.random() > 0.975) {
+                                    drops[i] = 0;
+                                }
+                                drops[i]++;
+                            }
+                        }
+                        
+                        setInterval(draw, 35);
+                    }
+                    
+                    // Initialize matrix effect
+                    initMatrix();
+                    
+                    // Chat functionality
                     async function sendMessage() {
                         const input = document.getElementById('userInput');
-                        const response = document.getElementById('response');
+                        const messages = document.getElementById('chatMessages');
                         const message = input.value.trim();
                         
                         if (!message) return;
                         
-                        response.innerHTML = 'Processing...';
+                        // Add user message
+                        addMessage(message, 'user');
+                        input.value = '';
+                        
+                        // Show processing
+                        addMessage('Processing command...', 'system');
+                        animateAvatar(true);
                         
                         try {
                             const result = await fetch('/chat', {
@@ -313,16 +771,65 @@ class AtlasCore:
                             });
                             
                             const data = await result.json();
-                            response.innerHTML = data.response;
-                            input.value = '';
+                            
+                            // Remove processing message
+                            const lastMsg = messages.lastElementChild;
+                            if (lastMsg && lastMsg.textContent.includes('Processing')) {
+                                messages.removeChild(lastMsg);
+                            }
+                            
+                            addMessage(data.response, 'system');
+                            addLog('Command executed: ' + message, 'success');
+                            
                         } catch (error) {
-                            response.innerHTML = 'Error: ' + error.message;
+                            addMessage('ERROR: ' + error.message, 'system');
+                            addLog('Error: ' + error.message, 'error');
+                        }
+                        
+                        animateAvatar(false);
+                    }
+                    
+                    function addMessage(text, type) {
+                        const messages = document.getElementById('chatMessages');
+                        const msgDiv = document.createElement('div');
+                        msgDiv.className = 'message ' + type;
+                        
+                        const prefix = type === 'user' ? '[USER]' : '[ATLAS]';
+                        msgDiv.innerHTML = '<strong>' + prefix + '</strong> ' + text;
+                        
+                        messages.appendChild(msgDiv);
+                        messages.scrollTop = messages.scrollHeight;
+                    }
+                    
+                    function addLog(text, level = 'info') {
+                        const logs = document.getElementById('systemLogs');
+                        const logDiv = document.createElement('div');
+                        logDiv.className = 'log-entry ' + level;
+                        
+                        const timestamp = new Date().toTimeString().split(' ')[0];
+                        logDiv.textContent = '[' + timestamp + '] ' + text;
+                        
+                        logs.appendChild(logDiv);
+                        logs.scrollTop = logs.scrollHeight;
+                        
+                        // Keep max 50 log entries
+                        while (logs.children.length > 50) {
+                            logs.removeChild(logs.firstChild);
+                        }
+                    }
+                    
+                    function animateAvatar(speaking) {
+                        const avatar = document.getElementById('aiAvatar');
+                        if (speaking) {
+                            avatar.classList.add('speaking');
+                        } else {
+                            avatar.classList.remove('speaking');
                         }
                     }
                     
                     async function performAction(action) {
-                        const response = document.getElementById('response');
-                        response.innerHTML = 'Executing action...';
+                        addLog('Executing action: ' + action, 'info');
+                        animateAvatar(true);
                         
                         try {
                             const result = await fetch('/action', {
@@ -332,23 +839,62 @@ class AtlasCore:
                             });
                             
                             const data = await result.json();
-                            response.innerHTML = data.result;
+                            addMessage(data.result, 'system');
+                            addLog('Action completed: ' + action, 'success');
+                            
                         } catch (error) {
-                            response.innerHTML = 'Error: ' + error.message;
+                            addMessage('ERROR: ' + error.message, 'system');
+                            addLog('Action failed: ' + error.message, 'error');
                         }
+                        
+                        animateAvatar(false);
+                    }
+                    
+                    function toggleAdmin() {
+                        const panel = document.getElementById('adminPanel');
+                        panel.classList.toggle('active');
+                    }
+                    
+                    function speakStatus() {
+                        addMessage('All systems operational. 3 agents online. Automation ready.', 'system');
+                        animateAvatar(true);
+                        setTimeout(() => animateAvatar(false), 2000);
                     }
                     
                     function refreshStatus() {
                         location.reload();
                     }
                     
-                    // Allow Enter key to send message
+                    function clearLogs() {
+                        document.getElementById('systemLogs').innerHTML = '';
+                        addLog('Logs cleared', 'info');
+                    }
+                    
+                    function toggleVoice() {
+                        addLog('Voice system toggle requested', 'info');
+                        addMessage('Voice synthesis system status: READY', 'system');
+                    }
+                    
+                    // Enter key to send message
                     document.getElementById('userInput').addEventListener('keypress', function(e) {
                         if (e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault();
                             sendMessage();
                         }
                     });
+                    
+                    // Window resize handler
+                    window.addEventListener('resize', () => {
+                        const canvas = document.getElementById('matrix-bg');
+                        canvas.width = window.innerWidth;
+                        canvas.height = window.innerHeight;
+                    });
+                    
+                    // Initial log entries
+                    setTimeout(() => {
+                        addLog('Neural link established', 'success');
+                        addLog('Monitoring system events...', 'info');
+                    }, 1000);
                 </script>
             </body>
             </html>
