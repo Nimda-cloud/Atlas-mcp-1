@@ -39,6 +39,7 @@ try:
     from fastapi.staticfiles import StaticFiles
     from fastapi.responses import HTMLResponse
     import uvicorn
+    from dotenv import load_dotenv
 except ImportError as e:
     print(f"Missing required packages. Please run: pip install -r requirements.txt")
     print(f"Error: {e}")
@@ -54,6 +55,13 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger('Atlas')
+
+# Load environment variables from .env if present
+try:
+    load_dotenv()
+except Exception:
+    # It's safe to proceed if dotenv isn't available or .env is missing
+    pass
 
 @dataclass
 class AgentConfig:
@@ -166,7 +174,11 @@ class LLMAgent:
     def setup_client(self):
         """Setup the LLM client based on provider"""
         if self.config.provider == "ollama":
-            self.client = ollama.Client(host=self.config.api_base)
+            # Allow both OLLAMA_URL (with scheme) and OLLAMA_HOST (host:port)
+            api_base = os.getenv("OLLAMA_URL") or os.getenv("OLLAMA_HOST") or self.config.api_base
+            if api_base and not api_base.startswith("http"):
+                api_base = f"http://{api_base}"
+            self.client = ollama.Client(host=api_base)
         else:
             logger.warning(f"Provider {self.config.provider} not yet implemented")
     
@@ -203,28 +215,41 @@ class AtlasCore:
         
     def setup_agents(self):
         """Initialize the three main LLM agents"""
+        # Resolve common settings from env
+        default_provider = os.getenv("ATLAS_LLM_PROVIDER", "ollama")
+        # Prefer per-agent model envs, then common, then sensible defaults available in repo
+        llm1_model = os.getenv("ATLAS_LLM1_MODEL") or os.getenv("ATLAS_LLM_MODEL") or "llama3.1:8b"
+        llm2_model = os.getenv("ATLAS_LLM2_MODEL") or os.getenv("ATLAS_LLM_MODEL") or "gpt-oss:latest"
+        llm3_model = os.getenv("ATLAS_LLM3_MODEL") or os.getenv("ATLAS_LLM_MODEL") or "llama3.1:8b"
+        api_base = os.getenv("OLLAMA_URL") or os.getenv("OLLAMA_HOST") or "http://localhost:11434"
+        if api_base and not str(api_base).startswith("http"):
+            api_base = f"http://{api_base}"
+
         # LLM1 - Interface & Memory Agent
         llm1_config = AgentConfig(
             name="LLM1_Interface",
             role="User interface and memory management",
-            model="llama3.1:8b-instruct",
-            provider="ollama"
+            model=llm1_model,
+            provider=os.getenv("ATLAS_LLM1_PROVIDER", default_provider),
+            api_base=str(api_base)
         )
         
         # LLM2 - Orchestrator Agent  
         llm2_config = AgentConfig(
             name="LLM2_Orchestrator", 
             role="Task orchestration and planning",
-            model="llama3.1:8b-instruct",
-            provider="ollama"
+            model=llm2_model,
+            provider=os.getenv("ATLAS_LLM2_PROVIDER", default_provider),
+            api_base=str(api_base)
         )
         
         # LLM3 - Monitor Agent
         llm3_config = AgentConfig(
             name="LLM3_Monitor",
             role="System monitoring and security",
-            model="llama3.1:8b-instruct", 
-            provider="ollama"
+            model=llm3_model,
+            provider=os.getenv("ATLAS_LLM3_PROVIDER", default_provider),
+            api_base=str(api_base)
         )
         
         self.agents = {
