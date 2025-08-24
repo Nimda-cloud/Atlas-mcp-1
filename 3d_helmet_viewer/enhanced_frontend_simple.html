@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atlas 3D Helmet - Enhanced Frontend</title>
+    
+    <!-- Local 3D fallback since CDN is blocked -->
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #000000;
+            color: #00ff41;
+            overflow: hidden;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* 3D Model Viewer Fallback - CSS-only helmet representation */
+        .helmet-fallback {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+            background: radial-gradient(circle at center, #001a00 0%, #000000 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .helmet-container {
+            width: 300px;
+            height: 300px;
+            position: relative;
+            transform-style: preserve-3d;
+            animation: rotate-helmet 20s infinite linear;
+        }
+
+        .helmet-shape {
+            width: 200px;
+            height: 240px;
+            background: linear-gradient(135deg, #2a4a2a 0%, #1a3a1a 50%, #0a2a0a 100%);
+            border-radius: 50% 50% 40% 40%;
+            position: relative;
+            margin: 0 auto;
+            box-shadow: 
+                0 0 30px rgba(0, 255, 65, 0.3),
+                inset 0 0 30px rgba(0, 255, 65, 0.1);
+            border: 2px solid rgba(0, 255, 65, 0.5);
+        }
+
+        .helmet-visor {
+            width: 160px;
+            height: 80px;
+            background: linear-gradient(45deg, rgba(0, 255, 65, 0.1), rgba(0, 150, 255, 0.1));
+            border-radius: 50%;
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 1px solid rgba(0, 255, 65, 0.6);
+            box-shadow: inset 0 0 20px rgba(0, 255, 65, 0.2);
+        }
+
+        .helmet-glow {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            border-radius: 50% 50% 40% 40%;
+            background: rgba(0, 255, 65, 0.1);
+            animation: pulse-glow 3s ease-in-out infinite alternate;
+        }
+
+        @keyframes rotate-helmet {
+            from { transform: rotateY(0deg) rotateX(10deg); }
+            to { transform: rotateY(360deg) rotateX(10deg); }
+        }
+
+        @keyframes pulse-glow {
+            from { 
+                box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+                opacity: 0.7;
+            }
+            to { 
+                box-shadow: 0 0 40px rgba(0, 255, 65, 0.6);
+                opacity: 1;
+            }
+        }
+
+        /* Chat Panel - Left Transparent Overlay */
+        .chat-panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 350px;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            border: none;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            pointer-events: auto;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 15px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            max-width: 85%;
+            word-wrap: break-word;
+        }
+
+        .message.user {
+            margin-left: 30px;
+            text-align: left;
+        }
+
+        .message.atlas {
+            margin-right: 30px;
+            text-align: left;
+        }
+
+        .message-text {
+            color: #cccccc;
+            padding: 8px 12px;
+            border-radius: 8px;
+            background: rgba(0, 255, 65, 0.05);
+            border: 1px solid rgba(0, 255, 65, 0.1);
+        }
+
+        .message.user .message-text {
+            background: rgba(0, 150, 255, 0.05);
+            border-color: rgba(0, 150, 255, 0.2);
+        }
+
+        .chat-input-area {
+            padding: 15px;
+            border-top: 1px solid rgba(0, 255, 65, 0.3);
+        }
+
+        .chat-input {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid rgba(0, 255, 65, 0.5);
+            color: #00ff41;
+            padding: 12px;
+            font-family: inherit;
+            font-size: 13px;
+            resize: none;
+            border-radius: 6px;
+            outline: none;
+        }
+
+        .chat-input:focus {
+            border-color: #00ff41;
+            box-shadow: 0 0 8px rgba(0, 255, 65, 0.3);
+        }
+
+        /* Logs Panel - Right Transparent Overlay */
+        .logs-panel {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 400px;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            border: none;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            pointer-events: auto;
+        }
+
+        .logs-header {
+            padding: 15px;
+            border-bottom: 1px solid rgba(0, 255, 65, 0.3);
+            font-size: 14px;
+            font-weight: 500;
+            text-align: center;
+            background: rgba(0, 255, 65, 0.05);
+        }
+
+        .logs-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            font-size: 11px;
+            line-height: 1.3;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 6px 8px;
+            border-left: 2px solid rgba(0, 255, 65, 0.3);
+            background: rgba(0, 255, 65, 0.02);
+            border-radius: 3px;
+        }
+
+        .log-timestamp {
+            color: #666666;
+            font-size: 10px;
+        }
+
+        .log-level {
+            color: #00ff41;
+            font-weight: 500;
+            display: inline;
+            margin-right: 5px;
+        }
+
+        .log-message {
+            color: #cccccc;
+            display: inline;
+        }
+
+        /* Voice Controls */
+        .voice-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 20;
+            display: flex;
+            gap: 10px;
+        }
+
+        .voice-btn {
+            background: rgba(0, 255, 65, 0.1);
+            border: 1px solid rgba(0, 255, 65, 0.5);
+            color: #00ff41;
+            padding: 10px 15px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .voice-btn:hover {
+            background: rgba(0, 255, 65, 0.2);
+            border-color: #00ff41;
+        }
+
+        .voice-btn.active {
+            background: rgba(0, 255, 65, 0.3);
+            border-color: #00ff41;
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+        }
+
+        /* Status Indicator */
+        .status-indicator {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 20;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(0, 255, 65, 0.3);
+            padding: 8px 16px;
+            border-radius: 15px;
+            font-size: 12px;
+            color: #cccccc;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 65, 0.3);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 255, 65, 0.5);
+        }
+
+        /* Animation for helmet response to activity */
+        .helmet-responding {
+            animation: subtle-glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes subtle-glow {
+            from {
+                filter: brightness(1) drop-shadow(0 0 10px rgba(0, 255, 65, 0.3));
+            }
+            to {
+                filter: brightness(1.1) drop-shadow(0 0 20px rgba(0, 255, 65, 0.5));
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Status Indicator -->
+    <div class="status-indicator" id="statusIndicator">
+        Atlas System Ready
+    </div>
+
+    <!-- 3D Helmet Fallback (CSS-based since CDN is blocked) -->
+    <div class="helmet-fallback" id="helmetViewer">
+        <div class="helmet-container">
+            <div class="helmet-shape">
+                <div class="helmet-visor"></div>
+                <div class="helmet-glow"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Panel (Left Overlay) -->
+    <div class="chat-panel">
+        <div class="chat-messages" id="chatMessages">
+            <div class="message atlas">
+                <div class="message-text">
+                    🤖 Привіт! Я Атлас. Готовий до спілкування. Використовуй голосові команди або пиши повідомлення.
+                </div>
+            </div>
+        </div>
+        <div class="chat-input-area">
+            <textarea 
+                id="chatInput" 
+                class="chat-input"
+                placeholder="Введіть повідомлення або використайте голосові команди..."
+                rows="2"
+            ></textarea>
+        </div>
+    </div>
+
+    <!-- Logs Panel (Right Overlay) -->
+    <div class="logs-panel">
+        <div class="logs-header">
+            📊 System Logs (Full Stack)
+        </div>
+        <div class="logs-content" id="logsContent">
+            <!-- Logs will be populated here -->
+        </div>
+    </div>
+
+    <!-- Voice Controls -->
+    <div class="voice-controls">
+        <button class="voice-btn" id="voiceBtn">🎤 Voice Input</button>
+        <button class="voice-btn" id="muteBtn">🔊 TTS On</button>
+    </div>
+
+    <script>
+        class AtlasEnhancedFrontend {
+            constructor() {
+                this.helmetViewer = document.getElementById('helmetViewer');
+                
+                // State management
+                this.isListening = false;
+                this.isSpeaking = false;
+                this.ttsEnabled = true;
+                this.logIntensity = 0;
+                this.chatActivity = false;
+                
+                // WebSocket connection
+                this.websocket = null;
+                
+                // Initialize
+                this.initEventListeners();
+                this.initWebSocket();
+                this.initHelmetBehavior();
+                this.startLogSimulation();
+                
+                console.log("Atlas Enhanced Frontend initialized");
+            }
+
+            initWebSocket() {
+                const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+                
+                this.websocket = new WebSocket(wsUrl);
+                
+                this.websocket.onopen = () => {
+                    console.log('WebSocket connected');
+                    this.updateStatus("Connected to Atlas System");
+                };
+                
+                this.websocket.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    this.handleWebSocketMessage(data);
+                };
+                
+                this.websocket.onclose = () => {
+                    console.log('WebSocket disconnected');
+                    this.updateStatus("Disconnected - Reconnecting...");
+                    // Reconnect after 3 seconds
+                    setTimeout(() => this.initWebSocket(), 3000);
+                };
+                
+                this.websocket.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                };
+            }
+
+            handleWebSocketMessage(data) {
+                switch (data.type) {
+                    case 'system_status':
+                        this.updateStatus(data.message);
+                        break;
+                    case 'chat_response':
+                        this.addChatMessage('atlas', data.response);
+                        if (this.ttsEnabled) {
+                            this.speakText(data.response);
+                        }
+                        break;
+                    case 'logs_update':
+                        this.updateLogsFromServer(data.logs);
+                        break;
+                }
+            }
+
+            initEventListeners() {
+                // Mouse tracking for helmet gaze
+                document.addEventListener('mousemove', (event) => {
+                    this.updateHelmetGaze(event);
+                });
+
+                // Chat input
+                const chatInput = document.getElementById('chatInput');
+                chatInput.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                        event.preventDefault();
+                        this.sendChatMessage();
+                    }
+                });
+
+                chatInput.addEventListener('focus', () => {
+                    this.chatActivity = true;
+                    this.updateHelmetBehavior();
+                });
+
+                chatInput.addEventListener('blur', () => {
+                    this.chatActivity = false;
+                    this.updateHelmetBehavior();
+                });
+
+                // Voice controls
+                document.getElementById('voiceBtn').addEventListener('click', () => {
+                    this.toggleVoiceInput();
+                });
+
+                document.getElementById('muteBtn').addEventListener('click', () => {
+                    this.toggleTTS();
+                });
+            }
+
+            initHelmetBehavior() {
+                // Initial setup for helmet behavior
+                this.updateHelmetBehavior();
+                
+                // Periodic natural movement
+                setInterval(() => {
+                    if (!this.chatActivity && this.logIntensity < 0.3) {
+                        this.addNaturalMovement();
+                    }
+                }, 5000);
+            }
+
+            updateHelmetGaze(event) {
+                const helmetContainer = this.helmetViewer.querySelector('.helmet-container');
+                if (!helmetContainer) return;
+
+                if (this.chatActivity) {
+                    // Look towards chat area (left)
+                    helmetContainer.style.transform = 'rotateY(-30deg) rotateX(10deg)';
+                } else if (this.logIntensity > 0.5) {
+                    // Look towards logs (right) if logs are active
+                    helmetContainer.style.transform = 'rotateY(30deg) rotateX(10deg)';
+                } else if (event) {
+                    // Follow mouse movement
+                    const mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+                    const mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+                    
+                    const rotateY = mouseX * 30; // Convert to degrees
+                    const rotateX = 10 + mouseY * 15; // Keep within reasonable range
+                    
+                    helmetContainer.style.transform = `rotateY(${rotateY}deg) rotateX(${rotateX}deg)`;
+                }
+            }
+
+            addNaturalMovement() {
+                // Add subtle natural movement when idle
+                const helmetContainer = this.helmetViewer.querySelector('.helmet-container');
+                if (!helmetContainer) return;
+
+                const randomX = (Math.random() - 0.5) * 40;
+                const randomY = 10 + (Math.random() - 0.5) * 20;
+                
+                helmetContainer.style.transform = `rotateY(${randomX}deg) rotateX(${randomY}deg)`;
+                
+                // Return to center after a moment
+                setTimeout(() => {
+                    if (!this.chatActivity && this.logIntensity < 0.3) {
+                        helmetContainer.style.transform = 'rotateY(0deg) rotateX(10deg)';
+                    }
+                }, 2000);
+            }
+
+            updateHelmetBehavior() {
+                const helmetContainer = this.helmetViewer.querySelector('.helmet-container');
+                if (!helmetContainer) return;
+
+                if (this.chatActivity) {
+                    this.helmetViewer.classList.add('helmet-responding');
+                    helmetContainer.style.transform = 'rotateY(-30deg) rotateX(10deg)';
+                } else {
+                    this.helmetViewer.classList.remove('helmet-responding');
+                }
+            }
+
+            sendChatMessage() {
+                const chatInput = document.getElementById('chatInput');
+                const message = chatInput.value.trim();
+                
+                if (!message) return;
+
+                // Add user message
+                this.addChatMessage('user', message);
+                chatInput.value = '';
+
+                // Send via WebSocket if available, otherwise use API
+                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                    this.websocket.send(JSON.stringify({
+                        type: 'chat',
+                        message: message
+                    }));
+                } else {
+                    // Fallback to direct API call
+                    this.sendChatViaAPI(message);
+                }
+            }
+
+            async sendChatViaAPI(message) {
+                try {
+                    const response = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ message: message })
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.addChatMessage('atlas', data.response);
+                        if (this.ttsEnabled) {
+                            this.speakText(data.response);
+                        }
+                    } else {
+                        this.addChatMessage('atlas', 'Вибачте, сталася помилка при обробці вашого запиту.');
+                    }
+                } catch (error) {
+                    console.error('Error sending chat message:', error);
+                    this.addChatMessage('atlas', 'Не можу підключитися до системи. Спробуйте пізніше.');
+                }
+            }
+
+            addChatMessage(sender, text) {
+                const messagesContainer = document.getElementById('chatMessages');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${sender}`;
+                
+                const textDiv = document.createElement('div');
+                textDiv.className = 'message-text';
+                textDiv.textContent = text;
+                
+                messageDiv.appendChild(textDiv);
+                messagesContainer.appendChild(messageDiv);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+                // Update helmet activity
+                this.chatActivity = true;
+                this.updateHelmetBehavior();
+                setTimeout(() => {
+                    this.chatActivity = false;
+                    this.updateHelmetBehavior();
+                }, 2000);
+            }
+
+            processAtlasResponse(userMessage) {
+                // Simulate Atlas thinking and response
+                const responses = [
+                    `Розумію вашу вимогу: "${userMessage}". Обробляю...`,
+                    `Цікаво! Ви сказали: "${userMessage}". Дозвольте мені проаналізувати.`,
+                    `Зрозуміло. Щодо "${userMessage}" - я вже працюю над цим.`,
+                    `Дякую за повідомлення: "${userMessage}". Виконую аналіз системи.`,
+                    `Команда "${userMessage}" отримана. Переключаюся в режим виконання.`,
+                ];
+                
+                const response = responses[Math.floor(Math.random() * responses.length)];
+                this.addChatMessage('atlas', response);
+                
+                // Trigger TTS if enabled
+                if (this.ttsEnabled) {
+                    this.speakText(response);
+                }
+            }
+
+            speakText(text) {
+                if (!this.ttsEnabled) return;
+                
+                // Use Web Speech API as fallback
+                if ('speechSynthesis' in window) {
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = 'uk-UA';
+                    utterance.rate = 0.9;
+                    utterance.pitch = 1.1;
+                    
+                    utterance.onstart = () => {
+                        this.isSpeaking = true;
+                        this.updateStatus("Atlas Speaking...");
+                        this.animateHelmetSpeaking(true);
+                    };
+                    
+                    utterance.onend = () => {
+                        this.isSpeaking = false;
+                        this.updateStatus("Atlas System Ready");
+                        this.animateHelmetSpeaking(false);
+                    };
+                    
+                    speechSynthesis.speak(utterance);
+                }
+                
+                // Try to integrate with TTS MCP service
+                this.callTTSService(text);
+            }
+
+            async callTTSService(text) {
+                try {
+                    // Call the TTS service via our backend
+                    const response = await fetch('/api/tts/speak', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            text: text,
+                            voice: 'uk:Dmytro',
+                            agent: 'atlas'
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log('TTS Service response:', data);
+                        // Play the audio from the TTS service
+                        if (data.url) {
+                            const audio = new Audio(data.url);
+                            audio.play();
+                        }
+                    }
+                } catch (error) {
+                    console.log('TTS Service not available, using browser TTS');
+                }
+            }
+
+            updateLogsFromServer(logs) {
+                // Update logs from WebSocket data
+                logs.forEach(log => {
+                    this.addLogEntry(log.level, `[${log.service}] ${log.message}`);
+                });
+            }
+
+            startLogSimulation() {
+                // Initialize with some basic logs, real logs will come via WebSocket
+                this.addLogEntry('INFO', '[atlas-core] System initialization complete');
+                this.addLogEntry('SUCCESS', '[mcp-tts] TTS service ready');
+                this.addLogEntry('INFO', '[redis] Redis server started');
+
+                // Request logs from server every 10 seconds if WebSocket is not available
+                setInterval(() => {
+                    if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
+                        this.requestLogsFromAPI();
+                    }
+                }, 10000);
+            }
+
+            async requestLogsFromAPI() {
+                try {
+                    const response = await fetch('/api/logs');
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.updateLogsFromServer(data.logs);
+                    }
+                } catch (error) {
+                    console.error('Error fetching logs:', error);
+                }
+            }
+
+            animateHelmetSpeaking(isSpeaking) {
+                const helmetContainer = this.helmetViewer.querySelector('.helmet-container');
+                if (!helmetContainer) return;
+
+                if (isSpeaking) {
+                    this.helmetViewer.classList.add('helmet-responding');
+                    // Add speaking animation by periodically changing rotation
+                    this.speakingInterval = setInterval(() => {
+                        if (this.isSpeaking) {
+                            const currentTime = Date.now();
+                            const variation = Math.sin(currentTime * 0.01) * 10;
+                            helmetContainer.style.transform = `rotateY(${variation}deg) rotateX(10deg)`;
+                        }
+                    }, 100);
+                } else {
+                    this.helmetViewer.classList.remove('helmet-responding');
+                    if (this.speakingInterval) {
+                        clearInterval(this.speakingInterval);
+                    }
+                    // Return to normal position
+                    helmetContainer.style.transform = 'rotateY(0deg) rotateX(10deg)';
+                }
+            }
+
+            toggleVoiceInput() {
+                if (this.isListening) {
+                    this.stopVoiceInput();
+                } else {
+                    this.startVoiceInput();
+                }
+            }
+
+            startVoiceInput() {
+                if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                    alert('Speech recognition не підтримується у вашому браузері');
+                    return;
+                }
+
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                this.recognition = new SpeechRecognition();
+                this.recognition.lang = 'uk-UA';
+                this.recognition.interimResults = true;
+                this.recognition.continuous = false;
+
+                this.recognition.onstart = () => {
+                    this.isListening = true;
+                    document.getElementById('voiceBtn').classList.add('active');
+                    document.getElementById('voiceBtn').textContent = '🛑 Stop';
+                    this.updateStatus("Listening...");
+                };
+
+                this.recognition.onresult = (event) => {
+                    const transcript = event.results[0][0].transcript;
+                    if (event.results[0].isFinal) {
+                        document.getElementById('chatInput').value = transcript;
+                        this.sendChatMessage();
+                    }
+                };
+
+                this.recognition.onend = () => {
+                    this.stopVoiceInput();
+                };
+
+                this.recognition.onerror = (event) => {
+                    console.error('Speech recognition error:', event.error);
+                    this.stopVoiceInput();
+                };
+
+                this.recognition.start();
+            }
+
+            stopVoiceInput() {
+                if (this.recognition) {
+                    this.recognition.stop();
+                }
+                
+                this.isListening = false;
+                document.getElementById('voiceBtn').classList.remove('active');
+                document.getElementById('voiceBtn').textContent = '🎤 Voice Input';
+                this.updateStatus("Atlas System Ready");
+            }
+
+            toggleTTS() {
+                this.ttsEnabled = !this.ttsEnabled;
+                const muteBtn = document.getElementById('muteBtn');
+                muteBtn.textContent = this.ttsEnabled ? '🔊 TTS On' : '🔇 TTS Off';
+                muteBtn.classList.toggle('active', !this.ttsEnabled);
+            }
+
+            updateStatus(status) {
+                document.getElementById('statusIndicator').textContent = status;
+            }
+
+            startLogSimulation() {
+                const logSources = [
+                    'atlas-core',
+                    'mcp-tts',
+                    'mcp-automation', 
+                    'redis',
+                    'qdrant',
+                    'prometheus',
+                    'grafana',
+                    'nginx'
+                ];
+
+                const logMessages = [
+                    'WebSocket connection established',
+                    'Memory usage: 45.2 MB',
+                    'GPU temperature: 62°C',
+                    'Network latency: 12ms',
+                    'Cache cleared successfully',
+                    'Texture compression enabled',
+                    'Lighting calculations optimized',
+                    'TTS synthesis completed',
+                    'Voice recognition active',
+                    'Database query executed in 15ms',
+                    'Container health check: OK',
+                    'Model inference time: 234ms',
+                    'WebGL context initialized',
+                    'User session authenticated',
+                    'API request processed',
+                    'Vector embedding generated',
+                    'Memory cleanup completed',
+                    'Service mesh routing updated',
+                    'Load balancer health: GREEN',
+                    'Backup process initiated',
+                    'Real-time monitoring active',
+                    'Security scan completed',
+                    'Performance metrics collected'
+                ];
+
+                const addRandomLog = () => {
+                    const source = logSources[Math.floor(Math.random() * logSources.length)];
+                    const message = logMessages[Math.floor(Math.random() * logMessages.length)];
+                    const levels = ['INFO', 'DEBUG', 'SUCCESS', 'WARNING', 'ERROR'];
+                    const level = levels[Math.floor(Math.random() * levels.length)];
+                    
+                    this.addLogEntry(level, `[${source}] ${message}`);
+                };
+
+                // Initial logs
+                this.addLogEntry('INFO', '[atlas-core] System initialization complete');
+                this.addLogEntry('SUCCESS', '[mcp-tts] TTS service ready');
+                this.addLogEntry('INFO', '[redis] Redis server started');
+
+                // Add logs at random intervals (1-8 seconds)
+                const scheduleNextLog = () => {
+                    const delay = Math.random() * 7000 + 1000;
+                    setTimeout(() => {
+                        addRandomLog();
+                        scheduleNextLog();
+                    }, delay);
+                };
+
+                scheduleNextLog();
+
+                // Simulate log intensity bursts
+                setInterval(() => {
+                    if (Math.random() < 0.3) { // 30% chance
+                        this.logIntensity = 1.0;
+                        // Add burst of logs
+                        for (let i = 0; i < 8; i++) {
+                            setTimeout(addRandomLog, i * 300);
+                        }
+                        // Helmet looks at logs during burst
+                        this.updateHelmetGaze();
+                        // Fade intensity
+                        setTimeout(() => {
+                            this.logIntensity = 0;
+                            this.updateHelmetGaze();
+                        }, 4000);
+                    }
+                }, 15000); // Check every 15 seconds
+            }
+
+            addLogEntry(level, message) {
+                const logsContainer = document.getElementById('logsContent');
+                const logDiv = document.createElement('div');
+                logDiv.className = 'log-entry';
+                
+                const timestamp = new Date().toLocaleString('uk-UA', {
+                    hour: '2-digit',
+                    minute: '2-digit', 
+                    second: '2-digit'
+                });
+                logDiv.innerHTML = `
+                    <div class="log-timestamp">${timestamp}</div>
+                    <div class="log-level">[${level}]</div>
+                    <div class="log-message">${message}</div>
+                `;
+                
+                logsContainer.appendChild(logDiv);
+                logsContainer.scrollTop = logsContainer.scrollHeight;
+
+                // Keep only last 100 logs
+                const logs = logsContainer.children;
+                if (logs.length > 100) {
+                    logsContainer.removeChild(logs[0]);
+                }
+
+                // Update log intensity for helmet gaze
+                this.logIntensity = Math.min(this.logIntensity + 0.15, 1.0);
+                this.updateHelmetGaze();
+                
+                // Fade intensity
+                setTimeout(() => {
+                    this.logIntensity = Math.max(this.logIntensity - 0.1, 0);
+                    this.updateHelmetGaze();
+                }, 1500);
+            }
+        }
+
+        // Initialize the application when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            window.atlasApp = new AtlasEnhancedFrontend();
+        });
+    </script>
+</body>
+</html>
