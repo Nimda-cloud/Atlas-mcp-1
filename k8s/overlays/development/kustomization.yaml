@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: atlas-mcp
+namespace: atlas-mcp-dev
 
 labels:
 - includeSelectors: true
@@ -9,6 +9,7 @@ labels:
     app.kubernetes.io/instance: atlas-mcp
     app.kubernetes.io/managed-by: kustomize
     environment: development
+    tier: dev
 
 resources:
 - ../../base
@@ -17,10 +18,13 @@ resources:
 - ollama-host-service.yaml
 
 # Patches for development environment
-patchesStrategicMerge:
-- atlas-core-host-ollama-patch.yaml
+patches:
+- path: atlas-core-host-ollama-patch.yaml
+  target:
+    kind: Deployment
+    name: atlas-core
 
-# patches:
+# Additional patches (uncomment as needed)
 # - path: service-patches.yaml
 # - path: configmap-patches.yaml
 # - path: secret-patches.yaml
@@ -51,6 +55,4 @@ replicas:
 - name: mcp-playwright
   count: 1
 
-commonLabels:
-  environment: development
-  tier: dev
+
