@@ -19,7 +19,7 @@ data:
   ATLAS_LLM3_MODEL: "llama3.1:8b"
   ATLAS_MCP_SERVERS: "automation,macos-automator,tts,playwright"
   ATLAS_MCP_TTS_URL: "http://mcp-tts-service:4004"
-  ATLAS_MCP_PLAYWRIGHT_URL: "http://mcp-playwright-service:4005/mcp"
+  ATLAS_MCP_PLAYWRIGHT_URL: "http://mcp-playwright-service:4005/tools"
 ---
 apiVersion: v1
 kind: ConfigMap
