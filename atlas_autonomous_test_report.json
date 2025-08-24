@@ -1,0 +1,188 @@
+{
+  "test_suite": "Atlas Autonomous Capabilities",
+  "timestamp": "2025-08-24T19:59:42.138069",
+  "duration_seconds": 0.6698,
+  "summary": {
+    "total_tests": 27,
+    "passed": 27,
+    "failed": 0,
+    "success_rate": 100.0
+  },
+  "tests": [
+    {
+      "name": "Workflow syntax: .github/workflows/pr-agent-ci.yml",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:41.468441"
+    },
+    {
+      "name": "Workflow syntax: .github/workflows/post-merge-local.yml",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:41.468634"
+    },
+    {
+      "name": "PR workflow has job: linux_container_smoke",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:41.468839"
+    },
+    {
+      "name": "PR workflow has job: macos_smoke",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:41.468891"
+    },
+    {
+      "name": "PR workflow has job: merge_pr",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:41.468910"
+    },
+    {
+      "name": "PR workflow has mergeable state handling",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:41.468927"
+    },
+    {
+      "name": "Post-merge workflow has job: local_macos",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:41.469107"
+    },
+    {
+      "name": "Post-merge workflow has job: report_failure",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:41.469132"
+    },
+    {
+      "name": "Post-merge workflow has job: sync_local_repo",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:41.469146"
+    },
+    {
+      "name": "Post-merge has configurable START_CMD",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:41.469160"
+    },
+    {
+      "name": "Post-merge has configurable HEALTHCHECK_URL",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:41.469173"
+    },
+    {
+      "name": "Script executable: atlas_autonomous_setup.sh",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:41.469214"
+    },
+    {
+      "name": "Script has shebang: atlas_autonomous_setup.sh",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:41.469279"
+    },
+    {
+      "name": "Script executable: atlas_diagnostic.sh",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:41.469302"
+    },
+    {
+      "name": "Script has shebang: atlas_diagnostic.sh",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:41.469397"
+    },
+    {
+      "name": "Docker Compose config valid",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:41.553570"
+    },
+    {
+      "name": "Kubernetes manifests valid",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:42.033280"
+    },
+    {
+      "name": "Health monitor includes: localhost:8000/status",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:42.033458"
+    },
+    {
+      "name": "Health monitor includes: localhost:8080/health",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:42.033495"
+    },
+    {
+      "name": "Health monitor includes: localhost:4002/health",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:42.033504"
+    },
+    {
+      "name": "Health monitor includes: localhost:4003/health",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:42.033516"
+    },
+    {
+      "name": "Health monitor includes: localhost:4004/health",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:42.033525"
+    },
+    {
+      "name": "Health monitor includes: localhost:4005/mcp",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:42.033533"
+    },
+    {
+      "name": "Startup script: Uses main start script",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:42.033599"
+    },
+    {
+      "name": "Startup script: Has health check",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:42.033622"
+    },
+    {
+      "name": "Startup script: Checks Atlas status endpoint",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-08-24T19:59:42.033639"
+    },
+    {
+      "name": "Environment adaptation detected",
+      "passed": true,
+      "details": "Docker available; kubectl available; Python venv exists",
+      "timestamp": "2025-08-24T19:59:42.137983"
+    }
+  ],
+  "autonomous_features": {
+    "github_workflows": "Enhanced with mergeable state handling",
+    "configurable_health_checks": "Via repository variables",
+    "local_synchronization": "Automatic post-merge sync",
+    "deployment_methods": [
+      "Local Python",
+      "Docker",
+      "Kubernetes"
+    ],
+    "monitoring": "Comprehensive health monitoring",
+    "error_handling": "Automated issue creation on failure"
+  },
+  "recommendations": []
+}

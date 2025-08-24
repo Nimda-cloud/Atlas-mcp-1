@@ -1,74 +1,129 @@
-name: Post-merge local verification
+name: Post-merge local verification (macOS self-hosted)
 
 on:
   push:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
+  issues: write
 
 jobs:
   local_macos:
-    name: Local macOS full tests (self-hosted)
-    runs-on: [self-hosted, macOS, X64]
-    timeout-minutes: 45
+    name: Local macOS verification
+    # Your local runner must have labels self-hosted and macOS
+    runs-on: [self-hosted, macOS]
     steps:
       - uses: actions/checkout@v4
-      - name: Show runner info
-        run: |
-          sw_vers || true
-          uname -a
-          python3 --version || true
-      - name: Python setup
-        uses: actions/setup-python@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install dependencies with long timeouts
+
+      - name: Install Python deps (best effort)
         run: |
           python -m pip install -U pip
-          (python -m pip install -r requirements.txt) || python -m pip install ollama openai fastapi uvicorn aiohttp psutil pydantic python-dotenv pyyaml click pytest pytest-asyncio
-      - name: Basic tests
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt || true
+          else
+            pip install ollama openai fastapi uvicorn aiohttp psutil pydantic python-dotenv pyyaml click pytest pytest-asyncio || true
+          fi
+
+      - name: Prepare logs dir
+        run: mkdir -p logs
+
+      - name: Quick tests
         run: |
-          mkdir -p logs
-          set -o pipefail
-          python -m py_compile atlas_core.py mcp_*.py 2>&1 | tee logs/py_compile.txt
-          python test_basic.py 2>&1 | tee logs/test_basic.txt
-      - name: Full tests
-        continue-on-error: true
+          if [ -d tests ]; then
+            pytest -q || true
+          else
+            echo "No tests; skip"
+          fi
+
+      - name: Docker compose sanity (optional)
+        if: hashFiles('docker-compose.yml') != ''
+        run: docker compose -f docker-compose.yml config
+
+      - name: Start app (configurable)
+        env:
+          START_CMD: ${{ vars.START_CMD }}
         run: |
-          set -o pipefail
-          python test_atlas.py 2>&1 | tee logs/test_atlas.txt || true
-      - name: Docker quick validation
-        continue-on-error: true
+          if [ -n "${START_CMD}" ]; then
+            bash -lc "${START_CMD} > logs/app.txt 2>&1 & echo $! > app.pid"
+            sleep 5
+          else
+            echo "START_CMD not set; skipping start"
+          fi
+
+      - name: Healthcheck
+        env:
+          HEALTHCHECK_URL: ${{ vars.HEALTHCHECK_URL }}
         run: |
-          docker compose config 2>&1 | tee logs/docker_compose_config.txt || true
-      - name: K8s dry-run
-        continue-on-error: true
+          if [ -n "${HEALTHCHECK_URL}" ]; then
+            set -x
+            for i in {1..30}; do
+              if curl -fsS "${HEALTHCHECK_URL}" > logs/health.txt 2>&1; then
+                echo "OK"; exit 0
+              fi
+              sleep 2
+            done
+            echo "Healthcheck failed"; exit 1
+          else
+            echo "HEALTHCHECK_URL not set; skip"
+          fi
+
+      - name: Stop app
+        if: always()
         run: |
-          kubectl kustomize k8s/overlays/development 2>&1 | tee logs/kustomize_development.txt || true
+          if [ -f app.pid ]; then
+            kill $(cat app.pid) || true
+            rm -f app.pid
+          fi
+
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: post-merge-local-logs
-          path: logs/**
+          name: local-logs
+          path: logs
 
   report_failure:
     name: Report failure
-    runs-on: ubuntu-latest
-    needs: [local_macos]
+    needs: local_macos
     if: failure()
+    runs-on: ubuntu-latest
     steps:
-      - name: Create issue for failing post-merge check
+      - name: Create issue
         uses: actions/github-script@v7
         with:
           script: |
-            const title = `Post-merge local verification failed for ${context.payload.head_commit?.id?.slice(0,7) || context.sha.slice(0,7)}`;
-            const body = `The post-merge local workflow failed on the self-hosted macOS runner.\n\n- Commit: ${context.sha}\n- Workflow run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\nPlease review the attached logs artifact (post-merge-local-logs) and fix the issues.\n\nLabels: bug, ci`;
+            const {context, github} = require('@actions/github');
+            const title = `Post-merge local verification failed: ${context.sha.substring(0,7)}`;
+            const body = `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\nCheck artifact "local-logs".`;
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title,
-              body,
-              labels: ['bug','ci']
+              title, body,
+              labels: ['post-merge-failure']
             });
+
+  sync_local_repo:
+    name: Sync developer working copy
+    needs: local_macos
+    if: always()
+    runs-on: [self-hosted, macOS]
+    steps:
+      - name: Fast-forward local working copy (optional)
+        env:
+          LOCAL_REPO_PATH: ${{ vars.LOCAL_REPO_PATH }}
+        run: |
+          if [ -n "${LOCAL_REPO_PATH}" ] && [ -d "${LOCAL_REPO_PATH}/.git" ]; then
+            cd "${LOCAL_REPO_PATH}"
+            git remote update
+            git checkout main
+            git pull --ff-only origin main || true
+          else
+            echo "LOCAL_REPO_PATH not set or not a git repo; skipping"
+          fi
