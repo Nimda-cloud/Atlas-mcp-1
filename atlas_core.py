@@ -995,14 +995,31 @@ class AtlasCore:
             interface_response = await self.agents["interface"].generate_response(message, context)
             
             # LLM2 orchestrates the task if needed
-            if any(keyword in message.lower() for keyword in ['open', 'close', 'run', 'execute', 'automate']):
-                orchestrator_context = f"You are LLM2, the orchestrator agent. The user said: {message}. Plan and coordinate the execution."
+            if any(keyword in message.lower() for keyword in ['open', 'close', 'run', 'execute', 'automate', 'start', 'launch', 'відкрий', 'запусти']):
+                orchestrator_context = f"You are LLM2, the orchestrator agent using gpt-oss:latest. The user said: {message}. Plan and coordinate the execution."
                 orchestrator_response = await self.agents["orchestrator"].generate_response(message, orchestrator_context)
                 
-                # Execute the planned action
-                await self.execute_orchestrated_task(message)
+                # Execute the planned action through intelligent MCP routing
+                execution_results = await self.execute_orchestrated_task(message)
                 
-                return f"Interface Agent: {interface_response}\n\nOrchestrator: {orchestrator_response}\n\nTask executed successfully."
+                # Format results for user
+                results_summary = ""
+                if execution_results:
+                    successful_steps = [r for r in execution_results if r.get("success", True)]
+                    failed_steps = [r for r in execution_results if not r.get("success", True)]
+                    
+                    if successful_steps:
+                        results_summary += f"\n✅ Успішно виконано {len(successful_steps)} кроків:"
+                        for result in successful_steps[:3]:  # Show first 3 successful results
+                            if "description" in result:
+                                results_summary += f"\n  • {result.get('description', 'Завдання виконано')}"
+                    
+                    if failed_steps:
+                        results_summary += f"\n❌ Помилки у {len(failed_steps)} кроках:"
+                        for result in failed_steps[:2]:  # Show first 2 errors
+                            results_summary += f"\n  • {result.get('error', 'Невідома помилка')}"
+                
+                return f"Atlas Interface: {interface_response}\n\nOrchestrator (gpt-oss): {orchestrator_response}\n{results_summary}"
             
             return f"Atlas Interface: {interface_response}"
             
@@ -1033,11 +1050,207 @@ class AtlasCore:
             return f"Error executing action: {str(e)}"
     
     async def execute_orchestrated_task(self, task_description: str):
-        """Execute tasks orchestrated by LLM2"""
-        # This would contain more sophisticated task execution logic
-        # For now, it's a placeholder that logs the task
-        logger.info(f"Executing orchestrated task: {task_description}")
-    
+        """Execute tasks orchestrated by LLM2 using gpt-oss:latest model"""
+        try:
+            logger.info(f"LLM2 analyzing task: {task_description}")
+            
+            # LLM2 with gpt-oss:latest analyzes the task and creates execution plan
+            orchestrator_prompt = f"""You are LLM2, the intelligent orchestrator agent using gpt-oss:latest model. 
+
+Your task: {task_description}
+
+Available MCP services and their capabilities:
+1. mcp-automation (port 4002): File operations, system commands, HTTP requests
+2. mcp-automator (port 4003): macOS app control (open/close apps), AppleScript, Shortcuts
+3. mcp-playwright (port 4005): Web browser automation, page navigation, form filling
+4. mcp-tts (port 4004): Text-to-speech synthesis
+
+Analyze the user's request and create a step-by-step execution plan. For each step, specify:
+- Which MCP service to use
+- What specific action/tool to call
+- Required parameters
+
+Respond with a JSON execution plan in this format:
+{{
+    "analysis": "Brief analysis of the task",
+    "steps": [
+        {{
+            "service": "mcp-automator|mcp-automation|mcp-playwright|mcp-tts",
+            "tool": "tool_name",
+            "parameters": {{"param1": "value1", "param2": "value2"}},
+            "description": "What this step does"
+        }}
+    ],
+    "expected_outcome": "What should happen after execution"
+}}
+
+Important: Only use actions that the MCP services actually support. For macOS apps, use mcp-automator with app_control tool."""
+
+            # Generate execution plan with LLM2
+            plan_response = await self.agents["orchestrator"].generate_response(
+                orchestrator_prompt, 
+                "You are the intelligent orchestrator. Create precise execution plans."
+            )
+            
+            logger.info(f"LLM2 execution plan: {plan_response}")
+            
+            # Try to parse the JSON plan
+            execution_results = []
+            try:
+                # Extract JSON from response (handle potential markdown formatting)
+                json_start = plan_response.find('{')
+                json_end = plan_response.rfind('}') + 1
+                if json_start != -1 and json_end != -1:
+                    plan_json = plan_response[json_start:json_end]
+                    execution_plan = json.loads(plan_json)
+                    
+                    logger.info(f"Parsed execution plan: {execution_plan}")
+                    
+                    # Execute each step in the plan
+                    for i, step in enumerate(execution_plan.get("steps", [])):
+                        step_result = await self.execute_mcp_step(step, i+1)
+                        execution_results.append(step_result)
+                        
+                else:
+                    logger.warning("Could not extract JSON from LLM2 response, attempting direct execution")
+                    # Fallback: try to execute based on keywords
+                    fallback_result = await self.execute_fallback_task(task_description)
+                    execution_results.append(fallback_result)
+                    
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse LLM2 execution plan: {e}")
+                # Fallback execution
+                fallback_result = await self.execute_fallback_task(task_description)
+                execution_results.append(fallback_result)
+            
+            return execution_results
+            
+        except Exception as e:
+            logger.error(f"Error in orchestrated task execution: {e}")
+            return [{"error": f"Task execution failed: {str(e)}"}]
+
+    async def execute_mcp_step(self, step: Dict[str, Any], step_number: int) -> Dict[str, Any]:
+        """Execute a single step from the LLM2 execution plan"""
+        try:
+            service = step.get("service", "")
+            tool = step.get("tool", "")
+            parameters = step.get("parameters", {})
+            description = step.get("description", "")
+            
+            logger.info(f"Step {step_number}: {description} via {service}.{tool}")
+            
+            # Map service names to endpoints
+            service_map = {
+                "mcp-automation": "automation",
+                "mcp-automator": "macos-automator", 
+                "mcp-playwright": "playwright",
+                "mcp-tts": "tts"
+            }
+            
+            endpoint_key = service_map.get(service)
+            if not endpoint_key or endpoint_key not in self.mcp_endpoints:
+                return {"step": step_number, "error": f"Unknown service: {service}"}
+            
+            endpoint_config = self.mcp_endpoints[endpoint_key]
+            base_url = endpoint_config["base_url"]
+            
+            # Prepare MCP request
+            mcp_request = {
+                "tool": tool,
+                "parameters": parameters
+            }
+            
+            # Execute MCP call
+            async with aiohttp.ClientSession() as session:
+                try:
+                    async with session.post(
+                        f"{base_url}/execute",
+                        json=mcp_request,
+                        timeout=aiohttp.ClientTimeout(total=30)
+                    ) as response:
+                        if response.status == 200:
+                            result = await response.json()
+                            logger.info(f"Step {step_number} completed successfully")
+                            return {
+                                "step": step_number,
+                                "service": service,
+                                "tool": tool,
+                                "success": True,
+                                "result": result
+                            }
+                        else:
+                            error_text = await response.text()
+                            logger.error(f"Step {step_number} failed: HTTP {response.status} - {error_text}")
+                            return {
+                                "step": step_number,
+                                "service": service,
+                                "tool": tool,
+                                "success": False,
+                                "error": f"HTTP {response.status}: {error_text}"
+                            }
+                            
+                except asyncio.TimeoutError:
+                    logger.error(f"Step {step_number} timed out")
+                    return {
+                        "step": step_number,
+                        "service": service,
+                        "tool": tool,
+                        "success": False,
+                        "error": "Request timed out"
+                    }
+                    
+        except Exception as e:
+            logger.error(f"Error executing step {step_number}: {e}")
+            return {
+                "step": step_number,
+                "success": False,
+                "error": str(e)
+            }
+
+    async def execute_fallback_task(self, task_description: str) -> Dict[str, Any]:
+        """Fallback execution when LLM2 plan parsing fails"""
+        logger.info(f"Executing fallback for: {task_description}")
+        
+        task_lower = task_description.lower()
+        
+        # Simple keyword-based task routing
+        if any(keyword in task_lower for keyword in ['open', 'launch', 'start']) and any(app in task_lower for app in ['chrome', 'safari', 'firefox', 'browser']):
+            # Browser opening task
+            try:
+                # Try Chrome first
+                if 'chrome' in task_lower:
+                    app_name = "Google Chrome"
+                elif 'safari' in task_lower:
+                    app_name = "Safari"
+                elif 'firefox' in task_lower:
+                    app_name = "Firefox"
+                else:
+                    app_name = "Safari"  # Default browser
+                
+                return await self.execute_mcp_step({
+                    "service": "mcp-automator",
+                    "tool": "app_control",
+                    "parameters": {"action": "open", "app_name": app_name},
+                    "description": f"Open {app_name}"
+                }, 1)
+                
+            except Exception as e:
+                return {"error": f"Failed to open browser: {str(e)}"}
+        
+        elif any(keyword in task_lower for keyword in ['say', 'speak', 'voice']):
+            # TTS task
+            text_to_speak = task_description
+            return await self.execute_mcp_step({
+                "service": "mcp-tts",
+                "tool": "speak",
+                "parameters": {"text": text_to_speak},
+                "description": "Text-to-speech"
+            }, 1)
+        
+        else:
+            # Generic automation attempt
+            return {"error": f"Could not determine how to execute: {task_description}"}
+
     async def get_system_status(self) -> Dict[str, Any]:
         """Get current system status"""
         # Probe MCP endpoints with short timeouts

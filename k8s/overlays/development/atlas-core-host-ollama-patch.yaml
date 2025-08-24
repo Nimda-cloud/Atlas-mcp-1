@@ -22,6 +22,6 @@ spec:
         - name: ATLAS_LLM1_MODEL
           value: "llama3.1:8b"
         - name: ATLAS_LLM2_MODEL
-          value: "llama3.1:8b"
+          value: "gpt-oss:latest"
         - name: ATLAS_LLM3_MODEL
           value: "llama3.1:8b"
