@@ -30,6 +30,25 @@ services:
       retries: 3
       start_period: 60s
 
+  atlas-enhanced-frontend:
+    build: ./3d_helmet_viewer
+    container_name: atlas-enhanced-frontend
+    ports:
+      - "8080:8080"
+    environment:
+      - ATLAS_CORE_URL=http://atlas-core:8000
+      - TTS_SERVICE_URL=http://mcp-tts:4004
+    depends_on:
+      - atlas-core
+      - mcp-tts
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
   mcp-automation:
     image: ghcr.io/atlas/automation-mcp:latest
     container_name: atlas-automation-mcp
