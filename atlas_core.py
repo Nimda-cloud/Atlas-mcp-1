@@ -214,8 +214,11 @@ class AtlasCore:
         self.task_queue = asyncio.Queue()
         self.system_status = None
         self.app = FastAPI(title="Atlas Autonomous System", version="1.0.0")
+        # MCP config store
+        self.mcp_endpoints: Dict[str, Dict[str, str]] = {}
         self.setup_agents()
         self.setup_web_interface()
+        self.load_mcp_config()
         
     def setup_agents(self):
         """Initialize the three main LLM agents"""
@@ -1037,13 +1040,97 @@ class AtlasCore:
     
     async def get_system_status(self) -> Dict[str, Any]:
         """Get current system status"""
+        # Probe MCP endpoints with short timeouts
+        mcp_status = await self.check_mcp_status()
         return {
             "timestamp": datetime.now().isoformat(),
             "platform": platform.system(),
             "agents_online": len(self.agents),
             "task_queue_size": self.task_queue.qsize(),
-            "automation_ready": True
+            "automation_ready": True,
+            "mcp": {
+                "configured": list(self.mcp_endpoints.keys()),
+                "endpoints": {k: v.get("base_url") for k, v in self.mcp_endpoints.items()},
+                "online": mcp_status,
+                "count_online": sum(1 for v in mcp_status.values() if v),
+            }
         }
+
+    def load_mcp_config(self) -> None:
+        """Load MCP servers from environment variables into self.mcp_endpoints.
+        Supported variable formats:
+          - ATLAS_MCP_SERVERS: comma-separated list of names (e.g., "automation,macos-automator,tts,playwright")
+          - ATLAS_MCP_<NAME_UPPER>_URL for generic mapping
+          - Specific shorthands: ATLAS_MCP_TTS_URL, ATLAS_MCP_PLAYWRIGHT_URL
+        Defaults (docker-compose service names):
+          automation -> http://mcp-automation:4002
+          macos-automator -> http://mcp-automator:4003
+          tts -> http://mcp-tts:4004
+          playwright -> http://mcp-playwright:4005/mcp
+        Health path rules:
+          - If base_url ends with '/mcp' -> use it as-is and accept HTTP 200 or 400 as "online"
+          - Else append '/health' and expect HTTP 200
+        """
+        servers_str = os.getenv("ATLAS_MCP_SERVERS", "").strip()
+        if not servers_str:
+            self.mcp_endpoints = {}
+            return
+        names = [s.strip() for s in servers_str.split(",") if s.strip()]
+        endpoints: Dict[str, Dict[str, str]] = {}
+        for name in names:
+            upper = name.upper().replace("-", "_")
+            # Specific shorthands
+            if name == "tts":
+                base = os.getenv("ATLAS_MCP_TTS_URL")
+            elif name == "playwright":
+                base = os.getenv("ATLAS_MCP_PLAYWRIGHT_URL")
+            else:
+                base = None
+            # Generic override
+            base = os.getenv(f"ATLAS_MCP_{upper}_URL", base)
+            # Defaults by name
+            if not base:
+                if name == "automation":
+                    base = "http://mcp-automation:4002"
+                elif name in ("macos-automator", "macos_automator"):
+                    base = "http://mcp-automator:4003"
+                elif name == "tts":
+                    base = "http://mcp-tts:4004"
+                elif name == "playwright":
+                    base = "http://mcp-playwright:4005/mcp"
+                else:
+                    # Unknown - skip
+                    continue
+            # Determine health URL
+            health_url = base if base.endswith("/mcp") else base.rstrip("/") + "/health"
+            endpoints[name] = {"base_url": base, "health_url": health_url}
+        self.mcp_endpoints = endpoints
+
+    async def check_mcp_status(self) -> Dict[str, bool]:
+        """Check MCP endpoints quickly; playwright (/mcp) treats 200/400 as up."""
+        result: Dict[str, bool] = {}
+        if not self.mcp_endpoints:
+            return result
+        timeout = aiohttp.ClientTimeout(total=2)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            tasks = []
+            names = list(self.mcp_endpoints.keys())
+            for name in names:
+                url = self.mcp_endpoints[name]["health_url"]
+                tasks.append(self._probe(session, name, url))
+            probe_results = await asyncio.gather(*tasks, return_exceptions=True)
+            for name, ok in probe_results:
+                result[name] = bool(ok)
+        return result
+
+    async def _probe(self, session: aiohttp.ClientSession, name: str, url: str):
+        try:
+            async with session.get(url) as resp:
+                if url.endswith("/mcp"):
+                    return name, (resp.status in (200, 400))
+                return name, (resp.status == 200)
+        except Exception:
+            return name, False
     
     async def start_monitoring(self):
         """Start background monitoring tasks"""
