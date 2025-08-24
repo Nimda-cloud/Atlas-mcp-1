@@ -13,6 +13,7 @@ resources:
 - mcp-services-deployments.yaml
 - data-services-deployments.yaml
 - ollama-deployment.yaml
+- ollama-host-service.yaml
 - services.yaml
 - hpa.yaml
 - poddisruptionbudgets.yaml

@@ -12,6 +12,8 @@ labels:
 
 resources:
 - ../../base
+- ../../ingress
+- ../../monitoring
 
 # patches:
 # - path: service-patches.yaml
