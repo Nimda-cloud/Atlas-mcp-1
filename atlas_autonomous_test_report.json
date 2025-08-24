@@ -1,7 +1,7 @@
 {
   "test_suite": "Atlas Autonomous Capabilities",
-  "timestamp": "2025-08-24T19:59:42.138069",
-  "duration_seconds": 0.6698,
+  "timestamp": "2025-08-24T20:01:35.252458",
+  "duration_seconds": 0.670053,
   "summary": {
     "total_tests": 27,
     "passed": 27,
@@ -13,163 +13,163 @@
       "name": "Workflow syntax: .github/workflows/pr-agent-ci.yml",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:41.468441"
+      "timestamp": "2025-08-24T20:01:34.582524"
     },
     {
       "name": "Workflow syntax: .github/workflows/post-merge-local.yml",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:41.468634"
+      "timestamp": "2025-08-24T20:01:34.582614"
     },
     {
       "name": "PR workflow has job: linux_container_smoke",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:41.468839"
+      "timestamp": "2025-08-24T20:01:34.582708"
     },
     {
       "name": "PR workflow has job: macos_smoke",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:41.468891"
+      "timestamp": "2025-08-24T20:01:34.582714"
     },
     {
       "name": "PR workflow has job: merge_pr",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:41.468910"
+      "timestamp": "2025-08-24T20:01:34.582717"
     },
     {
       "name": "PR workflow has mergeable state handling",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:41.468927"
+      "timestamp": "2025-08-24T20:01:34.582721"
     },
     {
       "name": "Post-merge workflow has job: local_macos",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:41.469107"
+      "timestamp": "2025-08-24T20:01:34.582811"
     },
     {
       "name": "Post-merge workflow has job: report_failure",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:41.469132"
+      "timestamp": "2025-08-24T20:01:34.582816"
     },
     {
       "name": "Post-merge workflow has job: sync_local_repo",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:41.469146"
+      "timestamp": "2025-08-24T20:01:34.582819"
     },
     {
       "name": "Post-merge has configurable START_CMD",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:41.469160"
+      "timestamp": "2025-08-24T20:01:34.582822"
     },
     {
       "name": "Post-merge has configurable HEALTHCHECK_URL",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:41.469173"
+      "timestamp": "2025-08-24T20:01:34.582824"
     },
     {
       "name": "Script executable: atlas_autonomous_setup.sh",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:41.469214"
+      "timestamp": "2025-08-24T20:01:34.582838"
     },
     {
       "name": "Script has shebang: atlas_autonomous_setup.sh",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:41.469279"
+      "timestamp": "2025-08-24T20:01:34.582873"
     },
     {
       "name": "Script executable: atlas_diagnostic.sh",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:41.469302"
+      "timestamp": "2025-08-24T20:01:34.582883"
     },
     {
       "name": "Script has shebang: atlas_diagnostic.sh",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:41.469397"
+      "timestamp": "2025-08-24T20:01:34.582927"
     },
     {
       "name": "Docker Compose config valid",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:41.553570"
+      "timestamp": "2025-08-24T20:01:34.671830"
     },
     {
       "name": "Kubernetes manifests valid",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:42.033280"
+      "timestamp": "2025-08-24T20:01:35.162427"
     },
     {
       "name": "Health monitor includes: localhost:8000/status",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:42.033458"
+      "timestamp": "2025-08-24T20:01:35.162565"
     },
     {
       "name": "Health monitor includes: localhost:8080/health",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:42.033495"
+      "timestamp": "2025-08-24T20:01:35.162573"
     },
     {
       "name": "Health monitor includes: localhost:4002/health",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:42.033504"
+      "timestamp": "2025-08-24T20:01:35.162580"
     },
     {
       "name": "Health monitor includes: localhost:4003/health",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:42.033516"
+      "timestamp": "2025-08-24T20:01:35.162582"
     },
     {
       "name": "Health monitor includes: localhost:4004/health",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:42.033525"
+      "timestamp": "2025-08-24T20:01:35.162585"
     },
     {
       "name": "Health monitor includes: localhost:4005/mcp",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:42.033533"
+      "timestamp": "2025-08-24T20:01:35.162587"
     },
     {
       "name": "Startup script: Uses main start script",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:42.033599"
+      "timestamp": "2025-08-24T20:01:35.162629"
     },
     {
       "name": "Startup script: Has health check",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:42.033622"
+      "timestamp": "2025-08-24T20:01:35.162633"
     },
     {
       "name": "Startup script: Checks Atlas status endpoint",
       "passed": true,
       "details": "",
-      "timestamp": "2025-08-24T19:59:42.033639"
+      "timestamp": "2025-08-24T20:01:35.162636"
     },
     {
       "name": "Environment adaptation detected",
       "passed": true,
       "details": "Docker available; kubectl available; Python venv exists",
-      "timestamp": "2025-08-24T19:59:42.137983"
+      "timestamp": "2025-08-24T20:01:35.252436"
     }
   ],
   "autonomous_features": {
