@@ -116,6 +116,7 @@ jobs:
               }
               await new Promise(r => setTimeout(r, 5000));
             }
+
       - name: Merge (squash) and delete branch
         uses: actions/github-script@v7
         with:
@@ -124,18 +125,34 @@ jobs:
             const {owner, repo} = context.repo;
             await github.rest.pulls.merge({
               owner, repo, pull_number: pr.number,
+              commit_title: `Auto-merge PR #${pr.number}: ${pr.title}`,
+              commit_message: 'Merged by Atlas MCP CI system',
               merge_method: 'squash'
             });
-            // delete head branch if it's in same repo
-            if (pr.head.repo.full_name === `${owner}/${repo}`) {
-              await github.rest.git.deleteRef({owner, repo, ref: `heads/${pr.head.ref}`}).catch(() => {});
+            core.info('✅ PR merged successfully');
+            
+            // Trigger firewall-safe K8s workflow after merge
+            try {
+              await github.rest.actions.createWorkflowDispatch({
+                owner,
+                repo,
+                workflow_id: 'k8s-firewall-safe.yml',
+                ref: 'main',
+                inputs: {
+                  cleanup: 'true'
+                }
+              });
+              core.info('🚀 Triggered K8s firewall-safe workflow');
+            } catch (error) {
+              core.warning(`Failed to trigger K8s workflow: ${error.message}`);
             }
-
+              owner, repo, pull_number: pr.number,
+              merge_method: 'squash'
       - name: Upload diagnostic logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ci-diagnostics-${{ matrix.os || 'linux' }}
+          name: ci-diagnostics-${{ github.job }}-${{ github.run_number }}
           path: |
             logs/
             *.log
