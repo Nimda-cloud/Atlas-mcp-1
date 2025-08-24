@@ -217,11 +217,11 @@ spec:
           name: http
           protocol: TCP
         env:
-        - name: MCP_HOST
+        - name: HOST
           value: "0.0.0.0"
-        - name: MCP_PORT
+        - name: PORT
           value: "4005"
-        - name: PW_HEADLESS
+        - name: HEADLESS
           value: "true"
         resources:
           requests:
