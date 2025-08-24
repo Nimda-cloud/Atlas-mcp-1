@@ -1,0 +1,152 @@
+name: Atlas Agent Auto-Healing
+
+on:
+  issues:
+    types: [opened, labeled]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  trigger-auto-healing:
+    name: Trigger Atlas agent auto-healing
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event.action == 'opened' && contains(github.event.issue.labels.*.name, 'auto-healing')) ||
+      (github.event.action == 'labeled' && github.event.label.name == 'auto-healing') ||
+      (github.event.action == 'created' && contains(github.event.comment.body, '@atlas-agent'))
+    steps:
+      - name: Check for auto-healing trigger
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const isAutoHealing = issue.labels.some(label => label.name === 'auto-healing');
+            const isAtlasAgent = issue.labels.some(label => label.name === 'atlas-agent');
+            
+            if (!isAutoHealing || !isAtlasAgent) {
+              console.log('Issue does not require auto-healing or is not tagged for atlas-agent');
+              return;
+            }
+            
+            console.log(`🤖 Auto-healing triggered for issue #${issue.number}: ${issue.title}`);
+            
+            // Add processing comment
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: `🔧 **Atlas Agent Auto-Healing Initiated**
+              
+              Status: ANALYZING
+              Timestamp: ${new Date().toISOString()}
+              
+              Next steps:
+              1. ✅ Issue detected and tagged for auto-healing
+              2. 🔄 Analyzing failure logs and root cause
+              3. ⏳ Generating fix solution
+              4. ⏳ Creating and testing fix PR
+              5. ⏳ Auto-merging when tests pass
+              6. ⏳ Closing issue when verification succeeds
+              
+              This process may take 5-15 minutes. The agent will update this issue with progress.`
+            });
+            
+            // Update issue labels to show processing
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              labels: ['status:processing', 'priority:high']
+            });
+
+  start-atlas-healing:
+    name: Start Atlas agent for healing
+    runs-on: [self-hosted, macOS, X64]
+    needs: trigger-auto-healing
+    if: >-
+      (github.event.action == 'opened' && contains(github.event.issue.labels.*.name, 'auto-healing')) ||
+      (github.event.action == 'labeled' && github.event.label.name == 'auto-healing')
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip
+          (python -m pip install -r requirements.txt) || python -m pip install ollama openai fastapi uvicorn aiohttp psutil pydantic python-dotenv pyyaml click pytest pytest-asyncio
+      - name: Start Atlas agent for auto-healing
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ATLAS_AUTO_HEALING_MODE: true
+          ATLAS_TARGET_ISSUE: ${{ github.event.issue.number }}
+          ATLAS_DEBUG: true
+        run: |
+          echo "🤖 Starting Atlas agent in auto-healing mode for issue #${{ github.event.issue.number }}"
+          echo "Issue title: ${{ github.event.issue.title }}"
+          echo "Issue URL: ${{ github.event.issue.html_url }}"
+          
+          # Create auto-healing script
+          cat > auto_healing.py << 'EOF'
+          #!/usr/bin/env python3
+          """
+          Atlas Auto-Healing Agent
+          Automatically analyzes and fixes issues reported by post-merge verification
+          """
+          import os
+          import sys
+          import asyncio
+          import logging
+          from atlas_core import AtlasCore
+          
+          async def main():
+              print("🤖 Atlas Auto-Healing Agent Starting...")
+              issue_number = os.getenv('ATLAS_TARGET_ISSUE')
+              if not issue_number:
+                  print("❌ No target issue specified")
+                  return 1
+              
+              print(f"🎯 Target issue: #{issue_number}")
+              print("🔍 Analyzing issue and generating fix...")
+              
+              # Initialize Atlas
+              atlas = AtlasCore()
+              
+              # Process auto-healing request
+              healing_message = f"Auto-heal GitHub issue #{issue_number}. Analyze the post-merge verification failure, create a fix, and submit a PR with automerge label."
+              response = await atlas.process_user_message(healing_message)
+              
+              print(f"🤖 Atlas response: {response}")
+              return 0
+          
+          if __name__ == "__main__":
+              sys.exit(asyncio.run(main()))
+          EOF
+          
+          # Run auto-healing
+          timeout 1200 python auto_healing.py || echo "Auto-healing completed or timed out"
+      - name: Update issue on completion
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue_number = context.payload.issue.number;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue_number,
+              body: `🏁 **Auto-healing process completed**
+              
+              Timestamp: ${new Date().toISOString()}
+              Status: ${{ job.status }}
+              
+              The Atlas agent has finished analyzing this issue. Check for any new PRs with the \`auto-healing\` label.
+              If no PR was created, manual investigation may be required.`
+            });

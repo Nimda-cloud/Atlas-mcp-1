@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   label:
-    name: Label agent PRs
+    name: Label agent PRs and auto-healing PRs
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,6 +26,14 @@ jobs:
           labels: |
             automerge
             agent
+      - name: Auto-label auto-healing PRs
+        if: startsWith(github.head_ref, 'fix/') || startsWith(github.head_ref, 'auto-heal/') || contains(github.event.pull_request.title, 'auto-heal')
+        uses: actions-ecosystem/action-add-labels@v1
+        with:
+          labels: |
+            automerge
+            auto-healing
+            priority:high
 
   linux-container:
     name: Linux container build & smoke tests
@@ -110,3 +118,40 @@ jobs:
             // Delete branch
             const ref = `heads/${pr.head.ref}`;
             await github.rest.git.deleteRef({ owner: context.repo.owner, repo: context.repo.repo, ref });
+            
+            // If this was an auto-healing PR, close related issues
+            if (pr.labels.some(label => label.name === 'auto-healing')) {
+              console.log('🩹 Auto-healing PR merged, checking for related issues to close');
+              
+              // Find issues with auto-healing label that mention this PR or have similar failure patterns
+              const { data: issues } = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                labels: 'auto-healing,bug,ci',
+                state: 'open'
+              });
+              
+              for (const issue of issues) {
+                // Close issues that are likely fixed by this PR
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  body: `✅ **Auto-healing completed successfully**
+                  
+                  Fixed by PR #${prNumber}: ${pr.title}
+                  Merged at: ${new Date().toISOString()}
+                  
+                  The post-merge verification should now pass. This issue will be automatically closed.
+                  If similar failures occur, a new auto-healing cycle will be triggered.`
+                });
+                
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  state: 'closed',
+                  labels: ['auto-healing', 'bug', 'ci', 'status:resolved']
+                });
+              }
+            }

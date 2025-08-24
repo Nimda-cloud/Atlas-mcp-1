@@ -1103,6 +1103,81 @@ class AtlasCore:
         @self.app.get("/metrics")
         async def metrics():
             return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+        
+        @self.app.post("/github/auto-heal")
+        async def github_auto_heal(request: dict):
+            """Handle GitHub auto-healing requests"""
+            try:
+                issue_number = request.get("issue_number")
+                issue_title = request.get("issue_title", "")
+                issue_body = request.get("issue_body", "")
+                workflow_url = request.get("workflow_url", "")
+                
+                if not issue_number:
+                    raise HTTPException(status_code=400, detail="issue_number is required")
+                
+                logger.info(f"🩹 Starting auto-healing for GitHub issue #{issue_number}")
+                
+                # Create comprehensive healing prompt
+                healing_prompt = f"""
+                ATLAS AUTO-HEALING REQUEST
+                
+                Issue: #{issue_number}
+                Title: {issue_title}
+                Description: {issue_body}
+                Failed workflow: {workflow_url}
+                
+                Your task as Atlas autonomous system:
+                1. Analyze the post-merge verification failure
+                2. Identify the root cause (dependency issues, syntax errors, test failures, etc.)
+                3. Generate a comprehensive fix
+                4. Create a detailed plan for implementation
+                5. Provide specific code changes and configuration updates needed
+                
+                Focus areas to check:
+                - Python dependency installation failures
+                - YAML syntax issues in workflows
+                - Docker configuration problems
+                - Kubernetes manifest issues
+                - Test failures and their causes
+                - Missing files or incorrect file permissions
+                
+                Respond with a detailed analysis and fix plan in Ukrainian and English.
+                """
+                
+                # Process through the multi-agent system
+                response = await self.process_user_message(healing_prompt)
+                
+                return {
+                    "status": "auto-healing-initiated",
+                    "issue_number": issue_number,
+                    "analysis": response,
+                    "timestamp": asyncio.get_event_loop().time()
+                }
+                
+            except Exception as e:
+                logger.error(f"Auto-healing failed: {e}")
+                return {
+                    "status": "auto-healing-failed", 
+                    "error": str(e),
+                    "timestamp": asyncio.get_event_loop().time()
+                }
+        
+        @self.app.get("/github/status")
+        async def github_status():
+            """Check GitHub integration status"""
+            return {
+                "github_integration": True,
+                "auto_healing_enabled": True,
+                "supported_events": ["issues", "pull_requests", "workflow_failures"],
+                "agent_capabilities": [
+                    "post-merge verification failure analysis",
+                    "automated fix generation", 
+                    "PR creation with auto-merge",
+                    "cyclical improvement process",
+                    "real-time web interface debugging"
+                ]
+            }
     
     async def process_user_message(self, message: str) -> str:
         """Process user message through the agent system"""
@@ -1110,14 +1185,25 @@ class AtlasCore:
             logger.info(f"Processing user message: {message}")
             
             # LLM1 processes the user interface and memory
-            context = "You are LLM1, the interface agent for Atlas autonomous system. Process user requests and maintain conversation context."
+            context = "You are LLM1, the interface agent for Atlas autonomous system. Process user requests and maintain conversation context. Support both English and Ukrainian languages."
             interface_response = await self.agents["interface"].generate_response(message, context)
             logger.info(f"LLM1 response generated")
             
-            # LLM2 orchestrates the task if needed
-            if any(keyword in message.lower() for keyword in ['open', 'close', 'run', 'execute', 'automate', 'start', 'launch', 'відкрий', 'запусти']):
-                logger.info(f"Action keywords detected in message, activating LLM2 orchestrator")
-                orchestrator_context = f"You are LLM2, the orchestrator agent using gpt-oss:latest. The user said: {message}. Plan and coordinate the execution."
+            # Check for Ukrainian keywords and action triggers
+            ukrainian_keywords = ['відкрий', 'запусти', 'виконай', 'створи', 'закрий', 'зупини', 'почни', 'покажи', 'знайди', 'допоможи']
+            english_keywords = ['open', 'close', 'run', 'execute', 'automate', 'start', 'launch', 'create', 'stop', 'show', 'find', 'help']
+            
+            # LLM2 orchestrates the task if action keywords are detected
+            if any(keyword in message.lower() for keyword in ukrainian_keywords + english_keywords):
+                logger.info(f"Action keywords detected in message (Ukrainian/English), activating LLM2 orchestrator")
+                orchestrator_context = f"""You are LLM2, the orchestrator agent using gpt-oss:latest. 
+                
+                User message: {message}
+                Language: {'Ukrainian' if any(uk_word in message.lower() for uk_word in ukrainian_keywords) else 'English'}
+                
+                Plan and coordinate the execution. Support bilingual responses (Ukrainian/English).
+                Focus on macOS automation, web interface integration, and cyclical improvement processes.
+                """
                 orchestrator_response = await self.agents["orchestrator"].generate_response(message, orchestrator_context)
                 logger.info(f"LLM2 orchestrator response generated")
                 
