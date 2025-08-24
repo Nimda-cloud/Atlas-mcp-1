@@ -20,8 +20,22 @@ spec:
         - name: USE_EMBEDDED_OLLAMA
           value: "false"
         - name: ATLAS_LLM1_MODEL
+          value: "gemini-2.0-flash"
+        - name: ATLAS_LLM1_FALLBACK
           value: "llama3.1:8b"
         - name: ATLAS_LLM2_MODEL
           value: "gpt-oss:latest"
         - name: ATLAS_LLM3_MODEL
+          value: "mistral"
+        - name: ATLAS_LLM3_FALLBACK
           value: "llama3.1:8b"
+        - name: GEMINI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: atlas-api-keys
+              key: GEMINI_API_KEY
+        - name: MISTRAL_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: atlas-api-keys
+              key: MISTRAL_API_KEY

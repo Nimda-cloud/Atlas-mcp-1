@@ -40,6 +40,8 @@ try:
     from fastapi.responses import HTMLResponse
     import uvicorn
     from dotenv import load_dotenv
+    import json
+    import re
     # Prometheus metrics
     from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 except ImportError as e:
@@ -75,6 +77,7 @@ class AgentConfig:
     api_base: str = "http://localhost:11434"
     max_tokens: int = 1000
     temperature: float = 0.7
+    fallback_model: Optional[str] = None
 
 @dataclass
 class SystemStatus:
@@ -166,12 +169,14 @@ class MacOSAutomation:
             return False
 
 class LLMAgent:
-    """Base class for LLM agents"""
+    """Enhanced LLM agent with support for multiple providers"""
 
     def __init__(self, config: AgentConfig):
         self.config = config
         self.client = None
+        self.fallback_config = None
         self.setup_client()
+        self.setup_fallback()
 
     def setup_client(self):
         """Setup the LLM client based on provider"""
@@ -181,26 +186,125 @@ class LLMAgent:
             if api_base and not api_base.startswith("http"):
                 api_base = f"http://{api_base}"
             self.client = ollama.Client(host=api_base)
+        elif self.config.provider == "gemini":
+            self.api_key = os.getenv("GEMINI_API_KEY")
+            if not self.api_key:
+                logger.warning("GEMINI_API_KEY not found, will use fallback")
+        elif self.config.provider == "mistral":
+            self.api_key = os.getenv("MISTRAL_API_KEY")
+            if not self.api_key:
+                logger.warning("MISTRAL_API_KEY not found, will use fallback")
         else:
             logger.warning(f"Provider {self.config.provider} not yet implemented")
 
-    async def generate_response(self, prompt: str, context: str = "") -> str:
-        """Generate response from the LLM"""
+    def setup_fallback(self):
+        """Setup fallback configuration"""
+        fallback_model = getattr(self.config, 'fallback_model', None)
+        if fallback_model:
+            self.fallback_config = AgentConfig(
+                name=f"{self.config.name}_fallback",
+                role=self.config.role,
+                model=fallback_model,
+                provider="ollama",
+                api_base=os.getenv("OLLAMA_URL") or "http://ollama-host:11434",
+                temperature=self.config.temperature,
+                max_tokens=self.config.max_tokens
+            )
+
+    async def call_gemini_api(self, prompt: str) -> Optional[str]:
+        """Call Gemini API"""
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.config.model}:generateContent"
+            headers = {
+                'Content-Type': 'application/json',
+                'X-goog-api-key': self.api_key
+            }
+            data = {
+                "contents": [{
+                    "parts": [{"text": prompt}]
+                }]
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, json=data) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        return result['candidates'][0]['content']['parts'][0]['text']
+                    else:
+                        logger.error(f"Gemini API error: {response.status}")
+                        return None
+        except Exception as e:
+            logger.error(f"Gemini API call failed: {e}")
+            return None
+
+    async def call_mistral_api(self, prompt: str) -> Optional[str]:
+        """Call Mistral API"""
+        try:
+            url = "https://api.mistral.ai/v1/chat/completions"
+            headers = {
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {self.api_key}'
+            }
+            data = {
+                "model": "mistral-large-latest",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": self.config.temperature,
+                "max_tokens": self.config.max_tokens
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, json=data) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        return result['choices'][0]['message']['content']
+                    else:
+                        logger.error(f"Mistral API error: {response.status}")
+                        return None
+        except Exception as e:
+            logger.error(f"Mistral API call failed: {e}")
+            return None
+
+    async def call_ollama_api(self, prompt: str, model: Optional[str] = None) -> Optional[str]:
+        """Call Ollama API"""
         try:
             if self.client is None:
-                logger.error("LLM client is not initialized")
-                return "Error: LLM client not initialized"
-            full_prompt = f"{context}\n\nUser: {prompt}\nAssistant:" if context else prompt
-
+                logger.error("Ollama client is not initialized")
+                return None
+                
             response = self.client.generate(
-                model=self.config.model,
-                prompt=full_prompt,
+                model=model or self.config.model,
+                prompt=prompt,
                 options={
                     'temperature': self.config.temperature,
                     'num_predict': self.config.max_tokens,
                 },
             )
             return response['response']
+        except Exception as e:
+            logger.error(f"Ollama API call failed: {e}")
+            return None
+
+    async def generate_response(self, prompt: str, context: str = "") -> str:
+        """Generate response from the LLM with fallback support"""
+        try:
+            full_prompt = f"{context}\n\nUser: {prompt}\nAssistant:" if context else prompt
+            
+            # Try primary provider first
+            response = None
+            if self.config.provider == "gemini" and hasattr(self, 'api_key') and self.api_key:
+                response = await self.call_gemini_api(full_prompt)
+            elif self.config.provider == "mistral" and hasattr(self, 'api_key') and self.api_key:
+                response = await self.call_mistral_api(full_prompt)
+            elif self.config.provider == "ollama":
+                response = await self.call_ollama_api(full_prompt)
+                
+            # If primary fails, try fallback
+            if response is None and self.fallback_config:
+                logger.info(f"Primary provider failed for {self.config.name}, using fallback")
+                response = await self.call_ollama_api(full_prompt, self.fallback_config.model)
+                
+            return response or f"Error: Unable to generate response from {self.config.name}"
+            
         except Exception as e:
             logger.error(f"Failed to generate response for {self.config.name}: {e}")
             return f"Error: Unable to generate response from {self.config.name}"
@@ -221,43 +325,53 @@ class AtlasCore:
         self.load_mcp_config()
         
     def setup_agents(self):
-        """Initialize the three main LLM agents"""
+        """Initialize the three main LLM agents with new provider support"""
         # Resolve common settings from env
         default_provider = os.getenv("ATLAS_LLM_PROVIDER", "ollama")
-        # Prefer per-agent model envs, then common, then sensible defaults available in repo
-        llm1_model = os.getenv("ATLAS_LLM1_MODEL") or os.getenv("ATLAS_LLM_MODEL") or "llama3.1:8b"
+        
+        # Get models from environment with new defaults
+        llm1_model = os.getenv("ATLAS_LLM1_MODEL") or os.getenv("ATLAS_LLM_MODEL") or "gemini-2.0-flash"
+        llm1_fallback = os.getenv("ATLAS_LLM1_FALLBACK") or "llama3.1:8b"
+        
         llm2_model = os.getenv("ATLAS_LLM2_MODEL") or os.getenv("ATLAS_LLM_MODEL") or "gpt-oss:latest"
-        llm3_model = os.getenv("ATLAS_LLM3_MODEL") or os.getenv("ATLAS_LLM_MODEL") or "llama3.1:8b"
+        
+        llm3_model = os.getenv("ATLAS_LLM3_MODEL") or os.getenv("ATLAS_LLM_MODEL") or "mistral"
+        llm3_fallback = os.getenv("ATLAS_LLM3_FALLBACK") or "llama3.1:8b"
+        
         api_base = os.getenv("OLLAMA_URL") or os.getenv("OLLAMA_HOST") or "http://localhost:11434"
         if api_base and not str(api_base).startswith("http"):
             api_base = f"http://{api_base}"
 
-        # LLM1 - Interface & Memory Agent
+        # LLM1 - Interface & Memory Agent (Gemini with Ollama fallback)
+        llm1_provider = "gemini" if llm1_model.startswith("gemini") else default_provider
         llm1_config = AgentConfig(
             name="LLM1_Interface",
             role="User interface and memory management",
             model=llm1_model,
-            provider=os.getenv("ATLAS_LLM1_PROVIDER", default_provider),
+            provider=llm1_provider,
             api_base=str(api_base)
         )
+        llm1_config.fallback_model = llm1_fallback
         
-        # LLM2 - Orchestrator Agent  
+        # LLM2 - Orchestrator Agent (Ollama with gpt-oss)
         llm2_config = AgentConfig(
             name="LLM2_Orchestrator", 
             role="Task orchestration and planning",
             model=llm2_model,
-            provider=os.getenv("ATLAS_LLM2_PROVIDER", default_provider),
+            provider="ollama",  # Always use Ollama for LLM2
             api_base=str(api_base)
         )
         
-        # LLM3 - Monitor Agent
+        # LLM3 - Monitor Agent (Mistral with Ollama fallback)
+        llm3_provider = "mistral" if llm3_model == "mistral" else default_provider
         llm3_config = AgentConfig(
             name="LLM3_Monitor",
             role="System monitoring and security",
             model=llm3_model,
-            provider=os.getenv("ATLAS_LLM3_PROVIDER", default_provider),
+            provider=llm3_provider,
             api_base=str(api_base)
         )
+        llm3_config.fallback_model = llm3_fallback
         
         self.agents = {
             "interface": LLMAgent(llm1_config),
@@ -265,7 +379,10 @@ class AtlasCore:
             "monitor": LLMAgent(llm3_config)
         }
         
-        logger.info("Initialized all three LLM agents")
+        logger.info("Initialized all three LLM agents with new provider support")
+        logger.info(f"LLM1: {llm1_provider}:{llm1_model} (fallback: {llm1_fallback})")
+        logger.info(f"LLM2: ollama:{llm2_model}")
+        logger.info(f"LLM3: {llm3_provider}:{llm3_model} (fallback: {llm3_fallback})")
     
     def setup_web_interface(self):
         """Setup FastAPI web interface"""
