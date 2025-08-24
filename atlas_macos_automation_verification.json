@@ -1,11 +1,11 @@
 {
   "metadata": {
-    "start_time": "2025-08-25T01:08:12.986556",
-    "platform": "Darwin",
-    "is_macos": true,
+    "start_time": "2025-08-24T22:26:04.647820",
+    "platform": "Linux",
+    "is_macos": false,
     "verification_version": "1.0",
-    "end_time": "2025-08-25T01:08:13.060200",
-    "duration_seconds": 0.073647
+    "end_time": "2025-08-24T22:26:04.663793",
+    "duration_seconds": 0.015976
   },
   "core_structure": {
     "file_atlas_core.py": true,
@@ -28,7 +28,7 @@
     "feature_finder_ops": true,
     "feature_notifications": true,
     "feature_window_control": true,
-    "applescript_available": true
+    "applescript_available": false
   },
   "autonomous_workflows": {
     "workflow_pr-agent-ci.yml": true,
@@ -55,11 +55,11 @@
     "ukrainian_content": true
   },
   "automation_status": {
-    "verification_timestamp": "2025-08-25T01:08:12.986556",
-    "platform": "Darwin",
-    "is_macos": true,
-    "tests_run": 35,
-    "tests_passed": 35,
+    "verification_timestamp": "2025-08-24T22:26:04.647820",
+    "platform": "Linux",
+    "is_macos": false,
+    "tests_run": 34,
+    "tests_passed": 34,
     "automation_score": 100.0,
     "existing_status": {
       "atlas_autonomous_system": {
@@ -121,19 +121,13 @@
       }
     },
     "macos_control_assessment": {
-      "status": "comprehensive",
-      "capabilities_count": 6,
-      "capabilities": [
-        "Application Management",
-        "AppleScript Automation",
-        "Shortcuts Integration",
-        "System Preferences Control",
-        "Screen Capture",
-        "Window Management"
-      ],
-      "assessment": "6/6 core macOS automation capabilities available"
+      "status": "not_applicable",
+      "reason": "Not running on macOS",
+      "capabilities": []
     },
     "autonomy_level": "fully_autonomous",
-    "recommendations": []
+    "recommendations": [
+      "Deploy on macOS for full macOS automation capabilities"
+    ]
   }
 }
