@@ -7,13 +7,18 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
+    portaudio19-dev \
+    libasound2-dev \
+    pkg-config \
     curl \
     git \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Ollama (for local LLM processing)
-RUN curl -fsSL https://ollama.ai/install.sh | sh
+# Ollama is expected to run on the host by default. If you need embedded Ollama,
+# pass a build-arg EMBEDDED_OLLAMA=true and uncomment the next line.
+# ARG EMBEDDED_OLLAMA=false
+# RUN if [ "$EMBEDDED_OLLAMA" = "true" ]; then curl -fsSL https://ollama.ai/install.sh | sh; fi
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .

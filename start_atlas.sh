@@ -123,6 +123,13 @@ fi
 # Pre-flight checks
 print_status "Performing pre-flight checks..."
 
+# Load .env if present
+if [ -f .env ]; then
+    print_status "Loading environment from .env"
+    # shellcheck disable=SC2046
+    set -a; source ./.env; set +a
+fi
+
 if [ "$MODE" = "docker" ]; then
     if ! command_exists docker; then
         print_error "Docker is required but not installed"
@@ -152,8 +159,15 @@ elif [ "$MODE" = "local" ]; then
         exit 1
     fi
     
+    # Determine Ollama URL
+    OLLAMA_URL_ENV=${OLLAMA_URL:-}
+    if [ -z "$OLLAMA_URL_ENV" ] && [ -n "$OLLAMA_HOST" ]; then
+        OLLAMA_URL_ENV="http://$OLLAMA_HOST"
+    fi
+    OLLAMA_URL_ENV=${OLLAMA_URL_ENV:-http://localhost:11434}
+
     # Check if Ollama is running
-    if ! curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then
+    if ! curl -s "$OLLAMA_URL_ENV/api/tags" >/dev/null 2>&1; then
         print_warning "Ollama is not running. Starting Ollama..."
         
         if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -169,16 +183,28 @@ elif [ "$MODE" = "local" ]; then
         fi
         
         print_status "Waiting for Ollama to start..."
-        if ! wait_for_service "http://localhost:11434/api/tags"; then
+        if ! wait_for_service "$OLLAMA_URL_ENV/api/tags"; then
             print_error "Failed to start Ollama"
             exit 1
         fi
     fi
     
-    # Check if required model is available
-    if ! ollama list | grep -q "llama3.1:8b-instruct"; then
-        print_warning "Required model not found. Pulling llama3.1:8b-instruct..."
-        ollama pull llama3.1:8b-instruct
+    # Ensure at least one supported model is available (prefer env-configured)
+    PREFERRED_MODELS=()
+    [ -n "$ATLAS_LLM1_MODEL" ] && PREFERRED_MODELS+=("$ATLAS_LLM1_MODEL")
+    [ -n "$ATLAS_LLM2_MODEL" ] && PREFERRED_MODELS+=("$ATLAS_LLM2_MODEL")
+    [ -n "$ATLAS_LLM3_MODEL" ] && PREFERRED_MODELS+=("$ATLAS_LLM3_MODEL")
+    # Fallbacks commonly available locally
+    PREFERRED_MODELS+=("gpt-oss:latest" "llama3.1:8b" "llama3:latest" "mistral:latest")
+
+    if ! ollama list | awk '{print $1}' | grep -Eq "^("$(printf "%s|" "${PREFERRED_MODELS[@]}" | sed 's/|$//')")$"; then
+        for m in "${PREFERRED_MODELS[@]}"; do
+            print_warning "Model $m not found locally. Attempting to pull..."
+            if ollama pull "$m"; then
+                print_success "Pulled model: $m"
+                break
+            fi
+        done
     fi
     
     print_success "Local environment ready"
