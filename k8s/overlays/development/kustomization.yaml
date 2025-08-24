@@ -1,12 +1,12 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: atlas-mcp-dev
+namespace: atlas-mcp
 
 labels:
 - includeSelectors: true
   pairs:
-    app.kubernetes.io/instance: atlas-mcp-dev
+    app.kubernetes.io/instance: atlas-mcp
     app.kubernetes.io/managed-by: kustomize
     environment: development
 
