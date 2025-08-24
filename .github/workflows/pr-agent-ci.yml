@@ -23,11 +23,7 @@ jobs:
 
       - name: Build image (if Dockerfile exists)
         run: |
-          if [ -f Dockerfile ]; then
-            docker build -t pr-ci:latest . || echo "Docker build failed (non-blocking)"
-          else
-            echo "No Dockerfile, skipping build"
-          fi
+          bash -lc 'if [ -f Dockerfile ]; then docker build -t pr-ci:latest . || echo "Docker build failed (non-blocking)"; else echo "No Dockerfile, skipping build"; fi'
 
       - name: Python smoke
         uses: actions/setup-python@v5

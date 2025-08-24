@@ -46,39 +46,48 @@ jobs:
         if: hashFiles('docker-compose.yml') != ''
         run: docker compose -f docker-compose.yml config
 
-      - name: Compose up (profiles: mcp + monitoring)
+      - name: Compose up (mcp, monitoring)
         if: hashFiles('docker-compose.yml') != ''
         run: |
-          # Build and start stack; profiles are optional if not defined
-          if docker compose ls >/dev/null 2>&1; then
-            docker compose --profile mcp --profile monitoring up -d --build || docker compose up -d --build
-          else
-            echo "docker compose not available" && exit 1
-          fi
+          bash -lc 'docker compose --profile mcp --profile monitoring up -d --build || docker compose up -d --build'
 
-      - name: Wait for services health
+      - name: Wait core health
         if: hashFiles('docker-compose.yml') != ''
         run: |
-          set -e
+          bash -lc 'for i in {1..80}; do curl -fsS http://localhost:8000/status && exit 0; sleep 3; done; exit 1 || true'
+
+      - name: Wait frontend health
+        if: hashFiles('docker-compose.yml') != ''
+        run: |
+          bash -lc 'for i in {1..60}; do curl -fsS http://localhost:8080/health && exit 0; sleep 3; done; exit 1 || true'
+
+      - name: Wait mcp-tts health
+        if: hashFiles('docker-compose.yml') != ''
+        run: |
+          bash -lc 'for i in {1..60}; do curl -fsS http://localhost:4004/health && exit 0; sleep 3; done; exit 1 || true'
+
+      - name: Wait mcp-playwright health
+        if: hashFiles('docker-compose.yml') != ''
+        run: |
+          bash -lc 'for i in {1..60}; do curl -fsS http://localhost:4005/health && exit 0; sleep 3; done; exit 1 || true'
+
+      - name: Wait mcp-automation health
+        if: hashFiles('docker-compose.yml') != ''
+        run: |
+          bash -lc 'for i in {1..60}; do curl -fsS http://localhost:4002/health && exit 0; sleep 3; done; exit 1 || true'
+
+      - name: Wait mcp-automator health
+        if: hashFiles('docker-compose.yml') != ''
+        run: |
+          bash -lc 'for i in {1..60}; do curl -fsS http://localhost:4003/health && exit 0; sleep 3; done; exit 1 || true'
+
+      - name: Save compose logs
+        if: hashFiles('docker-compose.yml') != ''
+        run: |
           mkdir -p logs
-          check() { name=$1; url=$2; max=${3:-60}; i=0; echo "Waiting for $name at $url"; \
-            while [ $i -lt $max ]; do
-              if curl -fsS "$url" >/dev/null; then echo "$name OK"; return 0; fi; i=$((i+1)); sleep 3; done; \
-            echo "$name FAILED"; return 1; }
-          # Core and frontend
-          check core http://localhost:8000/status 80 || true
-          check frontend http://localhost:8080/health 60 || true
-          # MCP services
-          check mcp-tts http://localhost:4004/health 60 || true
-          check mcp-playwright http://localhost:4005/health 60 || true
-          check mcp-automation http://localhost:4002/health 60 || true
-          check mcp-automator http://localhost:4003/health 60 || true
-          # Save one snapshot
-          (docker compose ps; docker compose logs --no-color) > logs/compose_all.txt 2>&1 || true
+          bash -lc 'docker compose ps; docker compose logs --no-color' > logs/compose_all.txt 2>&1 || true
 
       - name: Start app (configurable)
-        env:
-          START_CMD: ${{ vars.START_CMD }}
         run: |
           if [ -n "${START_CMD}" ]; then
             bash -lc "${START_CMD} > logs/app.txt 2>&1 & echo $! > app.pid"
@@ -88,8 +97,6 @@ jobs:
           fi
 
       - name: Healthcheck
-        env:
-          HEALTHCHECK_URL: ${{ vars.HEALTHCHECK_URL }}
         run: |
           if [ -n "${HEALTHCHECK_URL}" ]; then
             set -x
@@ -149,8 +156,6 @@ jobs:
     runs-on: [self-hosted, macOS]
     steps:
       - name: Fast-forward local working copy (optional)
-        env:
-          LOCAL_REPO_PATH: ${{ vars.LOCAL_REPO_PATH }}
         run: |
           if [ -n "${LOCAL_REPO_PATH}" ] && [ -d "${LOCAL_REPO_PATH}/.git" ]; then
             cd "${LOCAL_REPO_PATH}"
