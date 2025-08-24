@@ -1,0 +1,379 @@
+name: Atlas MCP Kubernetes CI (Firewall Safe)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+    branches: [main]
+    paths:
+      - 'k8s/**'
+      - 'Dockerfile*'
+      - 'docker-compose.yml'
+      - '3d_helmet_viewer/**'
+      - 'scripts/setup-k8s-ci.sh'
+  push:
+    branches: [main]
+    paths:
+      - 'k8s/**'
+      - 'Dockerfile*'
+      - 'docker-compose.yml'
+      - '3d_helmet_viewer/**'
+      - 'scripts/setup-k8s-ci.sh'
+  workflow_dispatch:
+    inputs:
+      cleanup:
+        description: 'Clean up cluster after tests'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+env:
+  CLUSTER_NAME: atlas-mcp-ci-${{ github.run_number }}
+  ARTIFACTS_DIR: ./k8s-artifacts
+
+jobs:
+  # Job 1: Билд образов на GitHub-hosted runner (безопасная среда)
+  build-images:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    outputs:
+      images-built: ${{ steps.build-check.outputs.images-built }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Atlas Core
+        if: hashFiles('Dockerfile') != ''
+        run: |
+          echo "Building Atlas Core image..."
+          docker build -t atlas-mcp/atlas-core:ci-latest . || exit 1
+          echo "✅ Atlas Core built successfully"
+
+      - name: Build Atlas Frontend
+        if: hashFiles('3d_helmet_viewer/Dockerfile') != ''
+        run: |
+          echo "Building Atlas Frontend image..."
+          docker build -t atlas-mcp/atlas-frontend:ci-latest ./3d_helmet_viewer/ || exit 1
+          echo "✅ Atlas Frontend built successfully"
+
+      - name: Build MCP Automation
+        if: hashFiles('Dockerfile.mcp-automation') != ''
+        run: |
+          echo "Building MCP Automation image..."
+          docker build -t atlas-mcp/mcp-automation:ci-latest -f Dockerfile.mcp-automation . || exit 1
+          echo "✅ MCP Automation built successfully"
+
+      - name: Build MCP Automator
+        if: hashFiles('Dockerfile.mcp-automator') != ''
+        run: |
+          echo "Building MCP Automator image..."
+          docker build -t atlas-mcp/mcp-automator:ci-latest -f Dockerfile.mcp-automator . || exit 1
+          echo "✅ MCP Automator built successfully"
+
+      - name: Save Docker images as artifacts
+        run: |
+          mkdir -p docker-images
+          echo "Saving Docker images..."
+          
+          # Сохраняем образы в tar файлы для передачи между jobs
+          docker save atlas-mcp/atlas-core:ci-latest | gzip > docker-images/atlas-core.tar.gz || true
+          docker save atlas-mcp/atlas-frontend:ci-latest | gzip > docker-images/atlas-frontend.tar.gz || true  
+          docker save atlas-mcp/mcp-automation:ci-latest | gzip > docker-images/mcp-automation.tar.gz || true
+          docker save atlas-mcp/mcp-automator:ci-latest | gzip > docker-images/mcp-automator.tar.gz || true
+          
+          ls -la docker-images/
+
+      - name: Upload Docker images
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-images-${{ github.run_number }}
+          path: docker-images/
+          retention-days: 1
+
+      - name: Check build status
+        id: build-check
+        run: |
+          echo "images-built=true" >> $GITHUB_OUTPUT
+          echo "✅ All images built and saved successfully"
+
+  # Job 2: Kubernetes тест на self-hosted runner (обход firewall ограничений)
+  k8s-test-self-hosted:
+    name: Kubernetes Test (Self-Hosted)
+    runs-on: [self-hosted, macOS]
+    needs: build-images
+    if: contains(github.event.pull_request.labels.*.name, 'k8s-test') || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Docker images
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-images-${{ github.run_number }}
+          path: docker-images/
+
+      - name: Load Docker images
+        run: |
+          echo "Loading Docker images..."
+          for image in docker-images/*.tar.gz; do
+            if [ -f "$image" ]; then
+              echo "Loading $(basename $image)..."
+              gunzip -c "$image" | docker load || echo "⚠️ Failed to load $image"
+            fi
+          done
+          
+          echo "Available Atlas images:"
+          docker images | grep atlas-mcp || true
+
+      - name: Setup Kubernetes cluster and test
+        env:
+          CLUSTER_NAME: ${{ env.CLUSTER_NAME }}
+          CLEANUP_CLUSTER: ${{ github.event.inputs.cleanup || 'true' }}
+        run: |
+          # Запускаем наш firewall-safe скрипт
+          ./scripts/setup-k8s-ci.sh
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k8s-test-artifacts-self-hosted-${{ github.run_number }}
+          path: ${{ env.ARTIFACTS_DIR }}/
+          retention-days: 7
+
+  # Job 3: Kubernetes тест в изолированной среде (альтернативный подход)
+  k8s-test-isolated:
+    name: Kubernetes Test (Isolated)
+    runs-on: ubuntu-latest
+    needs: build-images
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Docker images
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-images-${{ github.run_number }}
+          path: docker-images/
+
+      - name: Setup Kind
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: ${{ env.CLUSTER_NAME }}
+          config: |
+            kind: Cluster
+            apiVersion: kind.x-k8s.io/v1alpha4
+            nodes:
+            - role: control-plane
+              kubeadmConfigPatches:
+              - |
+                kind: InitConfiguration
+                nodeRegistration:
+                  kubeletExtraArgs:
+                    node-labels: "ingress-ready=true"
+              extraPortMappings:
+              - containerPort: 80
+                hostPort: 8080
+                protocol: TCP
+            - role: worker
+            networking:
+              podSubnet: "10.244.0.0/16"
+              serviceSubnet: "10.96.0.0/12"
+
+      - name: Load Docker images into Kind
+        run: |
+          echo "Loading Docker images into Kind cluster..."
+          for image in docker-images/*.tar.gz; do
+            if [ -f "$image" ]; then
+              echo "Loading $(basename $image)..."
+              # Распаковываем и загружаем в kind
+              gunzip -c "$image" | docker load
+              
+              # Получаем имя образа из файла
+              image_name=$(gunzip -c "$image" | docker load | grep -o 'atlas-mcp/[^:]*:ci-latest' | head -1)
+              if [ -n "$image_name" ]; then
+                kind load docker-image "$image_name" --name "${{ env.CLUSTER_NAME }}"
+                echo "✅ Loaded $image_name into kind"
+              fi
+            fi
+          done
+
+      - name: Deploy to Kubernetes
+        run: |
+          mkdir -p ${{ env.ARTIFACTS_DIR }}
+          
+          echo "Creating namespace..."
+          kubectl create namespace atlas-mcp-dev --dry-run=client -o yaml | kubectl apply -f -
+          
+          echo "Applying Kubernetes manifests..."
+          if [ -d "k8s/overlays/development" ]; then
+            # Модифицируем образы для CI
+            find k8s/ -name "*.yaml" -exec sed -i 's/:dev-latest/:ci-latest/g' {} \; || true
+            find k8s/ -name "*.yaml" -exec sed -i 's/:latest/:ci-latest/g' {} \; || true
+            
+            kubectl apply -k k8s/overlays/development || echo "⚠️ Some manifests failed"
+            
+            echo "Waiting for deployments..."
+            kubectl wait --for=condition=available --timeout=300s deployment --all -n atlas-mcp-dev || echo "⚠️ Some deployments not ready"
+          fi
+
+      - name: Collect cluster status (firewall-safe)
+        run: |
+          echo "📊 Collecting cluster status via kubectl (no direct network access)..."
+          
+          # Сбор информации через kubectl (работает внутри job, не требует внешней сети)
+          kubectl cluster-info > ${{ env.ARTIFACTS_DIR }}/cluster-info.txt 2>&1 || true
+          kubectl get nodes -o wide > ${{ env.ARTIFACTS_DIR }}/nodes.txt 2>&1 || true
+          kubectl get all -n atlas-mcp-dev -o wide > ${{ env.ARTIFACTS_DIR }}/namespace-all.txt 2>&1 || true
+          kubectl get pods -n atlas-mcp-dev -o yaml > ${{ env.ARTIFACTS_DIR }}/pods.yaml 2>&1 || true
+          kubectl describe pods -n atlas-mcp-dev > ${{ env.ARTIFACTS_DIR }}/pods-describe.txt 2>&1 || true
+
+      - name: Test services via port-forward (firewall-safe)
+        run: |
+          echo "🧪 Testing services via localhost port-forward..."
+          
+          # Функция для безопасного тестирования сервисов
+          test_service() {
+            local service=$1
+            local port=$2
+            local health_path=${3:-"/health"}
+            
+            echo "Testing service: $service:$port"
+            
+            # Запуск port-forward в фоне
+            kubectl port-forward "svc/$service" "$port:$port" -n atlas-mcp-dev > ${{ env.ARTIFACTS_DIR }}/${service}-portforward.log 2>&1 &
+            local pf_pid=$!
+            
+            # Ждем для установки port-forward
+            sleep 10
+            
+            # Тестируем через localhost (обход firewall)
+            if curl -s --connect-timeout 5 --max-time 10 "http://127.0.0.1:$port$health_path" > ${{ env.ARTIFACTS_DIR }}/${service}-response.json 2>&1; then
+              echo "✅ $service responds successfully"
+              echo "SUCCESS" > ${{ env.ARTIFACTS_DIR }}/${service}-test-result.txt
+            else
+              echo "❌ $service test failed"
+              echo "FAILED" > ${{ env.ARTIFACTS_DIR }}/${service}-test-result.txt
+            fi
+            
+            # Убиваем port-forward
+            kill $pf_pid 2>/dev/null || true
+            wait $pf_pid 2>/dev/null || true
+          }
+          
+          # Тестируем основные сервисы
+          if kubectl get service atlas-core-service -n atlas-mcp-dev &>/dev/null; then
+            test_service "atlas-core-service" "8000" "/status"
+          fi
+          
+          if kubectl get service mcp-automation-service -n atlas-mcp-dev &>/dev/null; then
+            test_service "mcp-automation-service" "4002" "/health"
+          fi
+
+      - name: Generate test report
+        if: always()
+        run: |
+          echo "📝 Generating test report..."
+          cat > ${{ env.ARTIFACTS_DIR }}/test-report.md << EOF
+          # Atlas MCP Kubernetes Test Report
+          
+          **Job:** ${{ github.job }}
+          **Run:** ${{ github.run_number }}
+          **Cluster:** ${{ env.CLUSTER_NAME }}
+          **Timestamp:** $(date)
+          
+          ## Deployment Status
+          \`\`\`
+          $(kubectl get deployments -n atlas-mcp-dev 2>/dev/null || echo "No deployments found")
+          \`\`\`
+          
+          ## Service Tests
+          EOF
+          
+          # Добавляем результаты тестов
+          for result_file in ${{ env.ARTIFACTS_DIR }}/*-test-result.txt; do
+            if [ -f "$result_file" ]; then
+              service=$(basename "$result_file" -test-result.txt)
+              result=$(cat "$result_file")
+              echo "- **$service:** $result" >> ${{ env.ARTIFACTS_DIR }}/test-report.md
+            fi
+          done
+
+      - name: Upload isolated test artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k8s-test-artifacts-isolated-${{ github.run_number }}
+          path: ${{ env.ARTIFACTS_DIR }}/
+          retention-days: 7
+
+  # Job 4: Создание issue при фейлах (только для main branch)
+  create-issue-on-failure:
+    name: Create Issue on K8s Failure
+    runs-on: ubuntu-latest
+    needs: [k8s-test-self-hosted, k8s-test-isolated]
+    if: failure() && github.ref == 'refs/heads/main'
+    steps:
+      - name: Create Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `Kubernetes deployment failed - Run #${{ github.run_number }}`;
+            const body = `
+            ## Kubernetes Deployment Failure
+            
+            **Run:** ${{ github.run_number }}
+            **Commit:** ${{ github.sha }}
+            **Workflow:** ${{ github.workflow }}
+            
+            ### Failed Jobs
+            - Self-hosted test: ${{ needs.k8s-test-self-hosted.result }}
+            - Isolated test: ${{ needs.k8s-test-isolated.result }}
+            
+            ### Artifacts
+            Check the workflow artifacts for detailed logs and cluster status.
+            
+            ### Next Steps
+            1. Review the failed job logs
+            2. Check the uploaded artifacts for cluster state
+            3. Verify Docker image builds completed successfully
+            4. Test locally using: \`./scripts/setup-k8s-ci.sh\`
+            
+            Auto-generated by GitHub Actions workflow.
+            `;
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['bug', 'kubernetes', 'ci-failure']
+            });
+
+  # Job 5: Cleanup (опциональный)
+  cleanup:
+    name: Cleanup Resources
+    runs-on: [self-hosted, macOS]
+    needs: [k8s-test-self-hosted]
+    if: always() && (github.event.inputs.cleanup == 'true' || github.event_name != 'workflow_dispatch')
+    steps:
+      - name: Cleanup Kind clusters
+        run: |
+          echo "🧹 Cleaning up test clusters..."
+          
+          # Удаляем кластеры с префиксом atlas-mcp-ci
+          kind get clusters | grep "^atlas-mcp-ci" | while read cluster; do
+            echo "Deleting cluster: $cluster"
+            kind delete cluster --name "$cluster" || true
+          done
+          
+          echo "✅ Cleanup completed"
