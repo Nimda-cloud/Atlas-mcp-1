@@ -20,8 +20,9 @@ class GLBHandler(http.server.SimpleHTTPRequestHandler):
 def start_server(port=8080):
     """Start local HTTP server for 3D models"""
     
-    # Change to the directory containing GLB files
-    os.chdir('/Users/dev/Documents/GitHub/Atlas-mcp')
+    # Change to this file's directory (self-contained viewer folder)
+    base_dir = Path(__file__).parent.resolve()
+    os.chdir(base_dir)
     
     with socketserver.TCPServer(("", port), GLBHandler) as httpd:
         print(f"🚀 Сервер запущено на http://localhost:{port}")
