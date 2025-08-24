@@ -1,0 +1,53 @@
+# Simplified Atlas MCP Dockerfile for Testing
+# ==========================================
+# This version uses minimal dependencies to test the deployment process
+# when full PyPI access is unavailable
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies for minimal operation
+RUN apt-get update && apt-get install -y \
+    curl \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy application code first
+COPY atlas_core.py .
+COPY mcp_automation_server.py .
+COPY mcp_macos_automator.py .
+COPY docker-entrypoint.sh .
+COPY test_basic.py .
+
+# Create minimal requirements file for testing
+RUN echo "fastapi==0.104.1" > minimal_requirements.txt && \
+    echo "uvicorn==0.24.0" >> minimal_requirements.txt && \
+    echo "pydantic==2.5.0" >> minimal_requirements.txt
+
+# Install minimal dependencies with fallback
+RUN pip install --no-cache-dir fastapi uvicorn pydantic || \
+    echo "Warning: Could not install dependencies, running in basic mode"
+
+# Create necessary directories
+RUN mkdir -p /app/data /app/logs /app/data/config /app/data/memory
+
+# Set environment variables
+ENV ATLAS_WEB_HOST=0.0.0.0
+ENV ATLAS_WEB_PORT=8000
+ENV ATLAS_LOG_LEVEL=INFO
+ENV ATLAS_DATA_DIR=/app/data
+
+# Make entrypoint executable
+RUN chmod +x docker-entrypoint.sh
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8000/status || exit 1
+
+# Expose port
+EXPOSE 8000
+
+# Use entrypoint script with default command
+ENTRYPOINT ["./docker-entrypoint.sh"]
+CMD ["python", "atlas_core.py"]
