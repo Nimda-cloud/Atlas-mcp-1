@@ -1,0 +1,133 @@
+{
+  "metadata": {
+    "start_time": "2025-08-24T21:42:49.359687",
+    "platform": "Linux",
+    "is_macos": false,
+    "verification_version": "1.0",
+    "end_time": "2025-08-24T21:42:49.375119",
+    "duration_seconds": 0.015435
+  },
+  "core_structure": {
+    "file_atlas_core.py": true,
+    "syntax_atlas_core.py": true,
+    "file_mcp_automation_server.py": true,
+    "syntax_mcp_automation_server.py": true,
+    "file_mcp_macos_automator.py": true,
+    "syntax_mcp_macos_automator.py": true,
+    "file_requirements.txt": true,
+    "file_start_atlas.sh": true,
+    "file_docker-compose.yml": true
+  },
+  "macos_capabilities": {
+    "macos_automator_exists": true,
+    "feature_app_control": true,
+    "feature_applescript": true,
+    "feature_shortcuts": true,
+    "feature_system_prefs": true,
+    "feature_screen_capture": true,
+    "feature_finder_ops": true,
+    "feature_notifications": true,
+    "feature_window_control": true,
+    "applescript_available": false
+  },
+  "autonomous_workflows": {
+    "workflow_pr-agent-ci.yml": true,
+    "workflow_post-merge-local.yml": true,
+    "script_atlas_autonomous_setup.sh": true,
+    "script_atlas_autonomous_diagnostic.sh": true,
+    "script_atlas_start_autonomous.sh": true,
+    "script_setup_autonomous_atlas.py": true,
+    "autonomous_status": true
+  },
+  "mcp_services": {
+    "mcp_automation": true,
+    "mcp_automation_structure": true,
+    "mcp_macos_automator": true,
+    "mcp_macos_automator_structure": true
+  },
+  "deployment_methods": {
+    "local_python": true,
+    "docker_deployment": true,
+    "kubernetes_deployment": true
+  },
+  "ukrainian_support": {
+    "ukrainian_docs": true,
+    "ukrainian_content": true
+  },
+  "automation_status": {
+    "verification_timestamp": "2025-08-24T21:42:49.359687",
+    "platform": "Linux",
+    "is_macos": false,
+    "tests_run": 34,
+    "tests_passed": 34,
+    "automation_score": 100.0,
+    "existing_status": {
+      "atlas_autonomous_system": {
+        "status": "fully_operational",
+        "version": "2.0",
+        "last_updated": "2025-08-24 21:33:21 UTC",
+        "capabilities": {
+          "pr_automation": "enabled",
+          "conflict_resolution": "automatic",
+          "health_monitoring": "continuous",
+          "fallback_strategies": "progressive",
+          "cross_platform_support": "linux_macos"
+        },
+        "workflows": {
+          "pr_agent_ci": {
+            "file": ".github/workflows/pr-agent-ci.yml",
+            "features": [
+              "progressive_fallback_pip_install",
+              "timeout_protection",
+              "cross_platform_testing",
+              "automerge_support",
+              "diagnostic_artifacts"
+            ]
+          },
+          "post_merge_local": {
+            "file": ".github/workflows/post-merge-local.yml",
+            "features": [
+              "self_hosted_macos_runner",
+              "docker_compose_validation",
+              "health_check_monitoring",
+              "failure_reporting",
+              "local_repo_sync"
+            ]
+          }
+        },
+        "setup_requirements": {
+          "self_hosted_runner": {
+            "os": "macOS",
+            "labels": [
+              "self-hosted",
+              "macOS"
+            ],
+            "docker_desktop": "required"
+          },
+          "repository_variables": {
+            "START_CMD": "./start_atlas.sh --local --background",
+            "HEALTHCHECK_URL": "http://localhost:8000/status",
+            "LOCAL_REPO_PATH": "/path/to/your/local/atlas-mcp"
+          }
+        },
+        "autonomous_cycle": [
+          "Agent creates PR from copilot-* branch",
+          "CI automatically tests on Linux and macOS",
+          "PR auto-merges when tests pass and mergeable",
+          "Post-merge verification runs on self-hosted macOS runner",
+          "Local repository syncs automatically",
+          "Issues created automatically on failure"
+        ]
+      }
+    },
+    "macos_control_assessment": {
+      "status": "not_applicable",
+      "reason": "Not running on macOS",
+      "capabilities": []
+    },
+    "autonomy_level": "fully_autonomous",
+    "recommendations": [
+      "Deploy on macOS for full macOS automation capabilities"
+    ]
+  }
+}
