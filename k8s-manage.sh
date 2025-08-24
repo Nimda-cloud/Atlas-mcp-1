@@ -74,6 +74,88 @@ create_namespace() {
     kubectl label namespace "$namespace" name="$namespace" --overwrite
 }
 
+# Конфігурація Ollama host підключення для macOS Kind кластера
+configure_ollama_host() {
+    local env=${1:-development}
+    local namespace="atlas-mcp"
+    
+    if [ "$env" = "production" ]; then
+        namespace="atlas-mcp-prod"
+    elif [ "$env" = "development" ]; then
+        namespace="atlas-mcp-dev"
+    fi
+    
+    log "Конфігурація Ollama host підключення для $env середовища..."
+    
+    # Detect host IP for Kind cluster on macOS
+    local host_ip=""
+    
+    # Method 1: Try to get Kind network gateway
+    if command -v docker &> /dev/null; then
+        # Get Kind cluster container name
+        local kind_container=$(docker ps --filter "label=io.x-k8s.kind.cluster=atlas-mcp-dev" --format "{{.Names}}" | head -1)
+        if [ -n "$kind_container" ]; then
+            # Get the gateway IP from Kind container
+            host_ip=$(docker exec "$kind_container" ip route show default | awk '/default/ {print $3}' | head -1)
+            log "Detected Kind gateway IP: $host_ip"
+        fi
+    fi
+    
+    # Method 2: Fallback to common Kind gateway IPs on macOS
+    if [ -z "$host_ip" ] || [ "$host_ip" = "127.0.0.1" ]; then
+        # Common Kind gateway IPs on macOS Docker Desktop
+        for ip in "172.18.0.1" "172.17.0.1" "192.168.65.2"; do
+            if ping -c 1 -W 1000 "$ip" &> /dev/null; then
+                host_ip="$ip"
+                log "Using reachable host IP: $host_ip"
+                break
+            fi
+        done
+    fi
+    
+    # Method 3: Final fallback
+    if [ -z "$host_ip" ]; then
+        host_ip="172.18.0.1"  # Most common Kind gateway on macOS
+        warn "Using default Kind gateway IP: $host_ip"
+    fi
+    
+    # Update the Ollama host service endpoint
+    log "Оновлення Ollama host service endpoint з IP: $host_ip"
+    
+    kubectl patch endpoints ollama-host-service -n "$namespace" --type='json' \
+        -p="[{\"op\": \"replace\", \"path\": \"/subsets/0/addresses/0/ip\", \"value\": \"$host_ip\"}]" || {
+        # If patch fails, create the endpoint
+        cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: ollama-host-service
+  namespace: $namespace
+  annotations:
+    atlas.mcp/dynamic-endpoint: "true"
+    atlas.mcp/host-ip: "$host_ip"
+subsets:
+- addresses:
+  - ip: $host_ip
+  ports:
+  - name: http
+    port: 11434
+    protocol: TCP
+EOF
+    }
+    
+    log "Ollama host service налаштовано для IP: $host_ip ✓"
+    
+    # Verify Ollama connectivity
+    log "Перевірка доступності Ollama на хості..."
+    if curl -s --connect-timeout 5 "http://$host_ip:11434/api/tags" > /dev/null; then
+        log "Ollama доступний на $host_ip:11434 ✓"
+    else
+        warn "Ollama недоступний на $host_ip:11434. Переконайтеся, що Ollama запущений на хост-системі."
+        warn "Запустіть: brew services start ollama"
+    fi
+}
+
 # Встановлення Atlas MCP
 install() {
     local env=${1:-development}
@@ -91,6 +173,9 @@ install() {
         log "Застосування конфігурації для середовища: $env"
         $KUSTOMIZE_CMD "$K8S_DIR/overlays/$env" | kubectl apply -f -
     fi
+    
+    # Конфігурація Ollama host підключення для macOS Kind кластера
+    configure_ollama_host "$env"
     
     log "Очікування готовності подів..."
     wait_for_pods "$env"
@@ -113,6 +198,9 @@ update() {
     else
         $KUSTOMIZE_CMD "$K8S_DIR/overlays/$env" | kubectl apply -f -
     fi
+    
+    # Оновлення конфігурації Ollama host підключення
+    configure_ollama_host "$env"
     
     log "Перезапуск деплойментів для оновлення..."
     restart_deployments "$env"

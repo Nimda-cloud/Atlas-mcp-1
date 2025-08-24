@@ -3,8 +3,6 @@ kind: Kustomization
 
 namespace: atlas-mcp-dev
 
-namePrefix: dev-
-
 labels:
 - includeSelectors: true
   pairs:
@@ -17,11 +15,10 @@ resources:
 - ../../ingress
 - ../../monitoring
 
-patches:
-- path: deployment-patches.yaml
-- path: service-patches.yaml
-- path: configmap-patches.yaml
-- path: secret-patches.yaml
+# patches:
+# - path: service-patches.yaml
+# - path: configmap-patches.yaml
+# - path: secret-patches.yaml
 
 images:
 - name: atlas-mcp/atlas-core

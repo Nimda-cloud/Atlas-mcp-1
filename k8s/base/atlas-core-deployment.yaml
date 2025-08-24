@@ -22,10 +22,6 @@ spec:
         prometheus.io/port: "8000"
         prometheus.io/path: "/metrics"
     spec:
-      hostAliases:
-      - ip: "172.19.0.1"
-        hostnames:
-        - "host.docker.internal"
       imagePullSecrets:
         - name: registry-secret
       containers:
