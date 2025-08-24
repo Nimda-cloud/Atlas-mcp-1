@@ -4,7 +4,6 @@ services:
     container_name: atlas-autonomous-system
     ports:
       - "8000:8000"
-      - "11434:11434"
     volumes:
       - atlas-data:/app/data
       - atlas-logs:/app/logs
@@ -20,8 +19,9 @@ services:
       ATLAS_LLM1_MODEL: "${ATLAS_LLM1_MODEL:-llama3.1:8b}"
       ATLAS_LLM2_MODEL: "${ATLAS_LLM2_MODEL:-gpt-oss:latest}"
       ATLAS_LLM3_MODEL: "${ATLAS_LLM3_MODEL:-llama3.1:8b}"
-      ATLAS_MCP_SERVERS: automation,macos-automator,tts
+      ATLAS_MCP_SERVERS: automation,macos-automator,tts,playwright
       ATLAS_MCP_TTS_URL: http://mcp-tts:4004
+      ATLAS_MCP_PLAYWRIGHT_URL: http://mcp-playwright:4005/mcp
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/status"]
@@ -39,8 +39,12 @@ services:
       - ATLAS_CORE_URL=http://atlas-core:8000
       - TTS_SERVICE_URL=http://mcp-tts:4004
     depends_on:
-      - atlas-core
-      - mcp-tts
+      atlas-core:
+        condition: service_healthy
+      mcp-tts:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
@@ -50,7 +54,9 @@ services:
       start_period: 30s
 
   mcp-automation:
-    image: ghcr.io/atlas/automation-mcp:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp-automation
     container_name: atlas-automation-mcp
     ports:
       - "4002:4002"
@@ -59,9 +65,17 @@ services:
       - AUTOMATION_LOG_LEVEL=INFO
     restart: unless-stopped
     profiles: ["mcp"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   mcp-automator:
-    image: ghcr.io/atlas/macos-automator-mcp:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp-automator
     container_name: atlas-automator-mcp
     ports:
       - "4003:4003"
@@ -70,6 +84,21 @@ services:
       - MACOS_AUTOMATOR_ENABLED=true
     restart: unless-stopped
     profiles: ["mcp", "macos"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  mcp-playwright:
+    image: mcr.microsoft.com/playwright/mcp:latest
+    container_name: atlas-mcp-playwright
+    command: ["--port", "4005", "--host", "0.0.0.0", "--headless", "--browser", "chromium", "--no-sandbox"]
+    ports:
+      - "4005:4005"
+    restart: unless-stopped
+    profiles: ["mcp"]
 
   mcp-tts:
     build: ./services/tts_mcp_adapter
@@ -89,7 +118,6 @@ services:
     volumes:
       - atlas-tts-audio:/data/tts
     restart: unless-stopped
-    profiles: ["mcp", "tts"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4004/health"]
       interval: 30s

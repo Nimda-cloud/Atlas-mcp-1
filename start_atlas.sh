@@ -220,15 +220,22 @@ fi
 print_status "Starting Atlas Autonomous System in $MODE mode..."
 
 if [ "$MODE" = "docker" ]; then
-    # Docker mode
+    # Docker mode with profiles and health waits
+    CMD=(docker compose --profile monitoring --profile mcp --profile macos up)
     if [ "$BACKGROUND" = true ]; then
-        docker-compose up -d
-        print_success "Atlas started in background using Docker"
-        print_status "View logs with: docker-compose logs -f"
-    else
-        print_status "Starting Atlas with Docker Compose (press Ctrl+C to stop)..."
-        docker-compose up
+        CMD+=(-d)
     fi
+    print_status "Starting Atlas stack (monitoring + mcp + macos profiles)..."
+    "${CMD[@]}"
+
+    # Wait for key services
+    print_status "Waiting for services to become healthy..."
+    wait_for_service "http://localhost:8000/status" || print_warning "atlas-core not responding yet"
+    wait_for_service "http://localhost:8080/health" || print_warning "frontend not responding yet"
+    wait_for_service "http://localhost:4002/health" || print_warning "mcp-automation not responding yet"
+    wait_for_service "http://localhost:4003/health" || print_warning "mcp-automator not responding yet"
+    wait_for_service "http://localhost:4004/health" || print_warning "tts mcp not responding yet"
+    wait_for_service "http://localhost:4005/mcp" || print_warning "playwright mcp not responding yet"
 
 elif [ "$MODE" = "local" ]; then
     # Local mode

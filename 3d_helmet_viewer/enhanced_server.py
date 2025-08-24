@@ -11,9 +11,13 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 import aiohttp
+try:
+    import docker  # type: ignore
+except Exception:  # pragma: no cover
+    docker = None
 from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
@@ -34,6 +38,21 @@ class AtlasEnhancedServer:
         
         # Active WebSocket connections
         self.websocket_connections = set()
+
+        # Docker client for real-time logs (optional)
+        self.docker_client = None
+        self.enabled_services = (
+            os.getenv(
+                "LOG_SERVICES",
+                "atlas,atlas-,mcp-,redis,qdrant,prometheus,grafana"
+            ).split(",")
+        )
+        if docker is not None and os.path.exists("/var/run/docker.sock"):
+            try:
+                self.docker_client = docker.from_env()
+                logger.info("Docker client initialized for log streaming")
+            except Exception as e:
+                logger.warning(f"Docker client not available: {e}")
         
     def setup_cors(self):
         """Setup CORS for frontend access"""
@@ -63,6 +82,11 @@ class AtlasEnhancedServer:
                 return FileResponse(frontend_path)
             else:
                 return HTMLResponse("<h1>Frontend not found</h1>", status_code=404)
+
+        @self.app.get("/favicon.ico", include_in_schema=False)
+        async def favicon():
+            # Small transparent favicon to avoid 404 noise
+            return Response(content=b"", media_type="image/x-icon", status_code=204)
         
         @self.app.get("/health")
         async def health_check():
@@ -100,7 +124,15 @@ class AtlasEnhancedServer:
                 return response
             except Exception as e:
                 logger.error(f"Error calling TTS service: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+                # Graceful fallback so UI can continue with browser TTS
+                return JSONResponse(
+                    status_code=200,
+                    content={
+                        "status": "fallback",
+                        "provider": "browser",
+                        "message": "TTS service unavailable, using browser TTS"
+                    }
+                )
         
         @self.app.get("/api/logs")
         async def get_system_logs():
@@ -174,33 +206,112 @@ class AtlasEnhancedServer:
             raise HTTPException(status_code=503, detail="TTS service unavailable")
     
     async def get_container_logs(self) -> list:
-        """Get logs from Docker containers"""
-        # This would integrate with Docker API or log aggregation service
-        # For now, return simulated logs
+        """Get logs from Docker containers using Docker SDK if available, else fallback."""
         import datetime
-        
-        sample_logs = [
-            {
-                "timestamp": datetime.datetime.now().isoformat(),
-                "level": "INFO",
-                "service": "atlas-core",
-                "message": "Processing user request"
-            },
-            {
-                "timestamp": datetime.datetime.now().isoformat(),
-                "level": "SUCCESS",
-                "service": "mcp-tts",
-                "message": "TTS synthesis completed"
-            },
-            {
-                "timestamp": datetime.datetime.now().isoformat(),
-                "level": "DEBUG",
-                "service": "redis",
-                "message": "Cache hit ratio: 94.2%"
-            }
-        ]
-        
-        return sample_logs
+        entries: list[Dict[str, Any]] = []
+
+        if self.docker_client is None:
+            # Fallback sample logs
+            now = datetime.datetime.now().isoformat()
+            return [
+                {"timestamp": now, "level": "INFO", "service": "atlas-core", "message": "Processing user request"},
+                {"timestamp": now, "level": "SUCCESS", "service": "mcp-tts", "message": "TTS synthesis completed"},
+                {"timestamp": now, "level": "DEBUG", "service": "redis", "message": "Cache hit ratio: 94.2%"},
+            ]
+
+        # Collect recent logs from matching containers
+        try:
+            containers = self.docker_client.containers.list(all=False)
+            patterns = tuple(s.strip() for s in self.enabled_services if s.strip())
+
+            def include_container(name: str) -> bool:
+                if not patterns:
+                    return True
+                for p in patterns:
+                    if not p:
+                        continue
+                    # exact or prefix match
+                    if name == p or name.startswith(p):
+                        return True
+                return False
+
+            for c in containers:
+                # name may include leading '/' in attrs; prefer Names list
+                cname = None
+                try:
+                    if c.name:
+                        cname = c.name
+                except Exception:
+                    pass
+                if not cname:
+                    try:
+                        names = c.attrs.get("Name") or c.attrs.get("Names")
+                        if isinstance(names, list) and names:
+                            cname = names[0].lstrip("/")
+                        elif isinstance(names, str):
+                            cname = names.lstrip("/")
+                    except Exception:
+                        pass
+                if not cname:
+                    continue
+
+                if not include_container(cname):
+                    continue
+
+                try:
+                    raw = c.logs(tail=20, stdout=True, stderr=True, timestamps=True)
+                    if isinstance(raw, bytes):
+                        raw = raw.decode("utf-8", errors="replace")
+                    for line in raw.splitlines():
+                        ts = None
+                        msg = line
+                        # If timestamps=True, Docker prepends RFC3339 timestamp
+                        if len(line) > 20 and line[4] == '-':
+                            # naive split on first space
+                            parts = line.split(" ", 1)
+                            if len(parts) == 2:
+                                ts, msg = parts[0], parts[1]
+                        # Try to guess level
+                        lvl = "INFO"
+                        up = msg.upper()
+                        for cand in (" ERROR ", "[ERROR]", " ERROR:", " ERR "):
+                            if cand in up:
+                                lvl = "ERROR"
+                                break
+                        else:
+                            for cand in (" WARN ", "[WARN]", " WARNING", " WARN:"):
+                                if cand in up:
+                                    lvl = "WARNING"
+                                    break
+                            else:
+                                for cand in (" DEBUG ", "[DEBUG]", " DBG "):
+                                    if cand in up:
+                                        lvl = "DEBUG"
+                                        break
+                                else:
+                                    for cand in (" SUCCESS ", "[SUCCESS]", " OK "):
+                                        if cand in up:
+                                            lvl = "SUCCESS"
+                                            break
+
+                        entries.append({
+                            "timestamp": ts or datetime.datetime.now().isoformat(),
+                            "level": lvl,
+                            "service": cname,
+                            "message": msg.rstrip()
+                        })
+                except Exception as e:
+                    logger.debug(f"Failed to get logs for {cname}: {e}")
+
+            # Keep only the latest ~100 entries
+            entries = entries[-100:]
+            return entries
+        except Exception as e:
+            logger.warning(f"Docker log collection failed, using fallback: {e}")
+            now = datetime.datetime.now().isoformat()
+            return [
+                {"timestamp": now, "level": "INFO", "service": "atlas-core", "message": "(fallback) No Docker logs available"}
+            ]
     
     async def handle_websocket_message(self, websocket: WebSocket, data: Dict[str, Any]):
         """Handle incoming WebSocket messages"""
@@ -268,11 +379,14 @@ def create_app():
 app = create_app()
 
 if __name__ == "__main__":
-    # Run the server
-    uvicorn.run(
-        "enhanced_server:app",
-        host="0.0.0.0",
-        port=8080,
-        reload=True,
-        log_level="info"
-    )
+    # Run the server; if uvicorn reload fails (e.g., no watchdog), run without reload
+    try:
+        uvicorn.run(
+            "enhanced_server:app",
+            host="0.0.0.0",
+            port=8080,
+            reload=True,
+            log_level="info"
+        )
+    except Exception:
+        uvicorn.run(app, host="0.0.0.0", port=8080, log_level="info")
