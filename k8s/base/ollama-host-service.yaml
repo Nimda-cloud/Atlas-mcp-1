@@ -6,24 +6,32 @@ metadata:
   labels:
     app.kubernetes.io/name: ollama-host
     app.kubernetes.io/part-of: atlas-autonomous-system
+  annotations:
+    # For Kind clusters on macOS, this service connects to host Ollama
+    atlas.mcp/service-type: "host-external"
 spec:
-  type: ExternalName
-  externalName: host.docker.internal
+  type: ClusterIP
+  clusterIP: None
   ports:
   - name: http
     port: 11434
     targetPort: 11434
     protocol: TCP
 ---
-# Fallback endpoint for Kind clusters
+# Dynamic host endpoint for Kind clusters
+# This will be populated by the setup script with the correct host IP
 apiVersion: v1
 kind: Endpoints
 metadata:
   name: ollama-host-service
   namespace: atlas-mcp
+  annotations:
+    # This endpoint will be updated dynamically by setup scripts
+    atlas.mcp/dynamic-endpoint: "true"
 subsets:
 - addresses:
-  - ip: 172.17.97.123  # Host macOS IP
+  # Default placeholder - will be updated by k8s-manage.sh script
+  - ip: 172.18.0.1  # Kind default gateway IP for macOS
   ports:
   - name: http
     port: 11434

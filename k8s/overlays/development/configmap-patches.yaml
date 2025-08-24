@@ -5,4 +5,7 @@ metadata:
   namespace: atlas-mcp-dev
 data:
   ATLAS_LOG_LEVEL: "DEBUG"
-  USE_EMBEDDED_OLLAMA: "true"
+  # Use host Ollama instead of embedded for development
+  USE_EMBEDDED_OLLAMA: "false"
+  # Point to the host service for Ollama in Kind cluster
+  OLLAMA_URL: "http://ollama-host-service:11434"
