@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements for the enhanced frontend
 COPY requirements-frontend.txt .
-RUN pip install --no-cache-dir -r requirements-frontend.txt
+RUN pip install --no-cache-dir -r requirements-frontend.txt --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org
 
 # Copy frontend files
 COPY enhanced_frontend_simple.html .
