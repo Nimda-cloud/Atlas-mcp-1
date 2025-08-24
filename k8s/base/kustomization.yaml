@@ -12,14 +12,17 @@ resources:
 - atlas-frontend-deployment.yaml
 - mcp-services-deployments.yaml
 - data-services-deployments.yaml
+- ollama-deployment.yaml
 - services.yaml
 - hpa.yaml
 - poddisruptionbudgets.yaml
 - networkpolicies.yaml
 
-commonLabels:
-  app.kubernetes.io/part-of: atlas-autonomous-system
-  app.kubernetes.io/managed-by: kustomize
+labels:
+- includeSelectors: true
+  pairs:
+    app.kubernetes.io/part-of: atlas-autonomous-system
+    app.kubernetes.io/managed-by: kustomize
 
 images:
 - name: atlas-mcp/atlas-core
@@ -32,39 +35,3 @@ images:
   newTag: latest
 - name: atlas-mcp/mcp-tts
   newTag: latest
-
-patchesStrategicMerge:
-- |-
-  apiVersion: v1
-  kind: ConfigMap
-  metadata:
-    name: atlas-core-config
-    namespace: atlas-mcp
-  data:
-    ATLAS_LOG_LEVEL: INFO
-
-configMapGenerator:
-- name: atlas-build-info
-  literals:
-  - BUILD_VERSION=1.0.0
-  - BUILD_DATE="2025-08-24"
-  - GIT_COMMIT="main"
-
-secretGenerator:
-- name: atlas-runtime-secrets
-  literals:
-  - SECRET_KEY=changeme-in-production
-
-replicas:
-- name: atlas-core
-  count: 2
-- name: atlas-frontend
-  count: 3
-- name: mcp-automation
-  count: 2
-- name: mcp-automator
-  count: 2
-- name: mcp-tts
-  count: 2
-- name: mcp-playwright
-  count: 2

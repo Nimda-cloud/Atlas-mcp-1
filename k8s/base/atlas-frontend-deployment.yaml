@@ -27,7 +27,7 @@ spec:
       containers:
       - name: atlas-frontend
         image: atlas-mcp/atlas-frontend:latest
-        imagePullPolicy: Always
+        imagePullPolicy: Never
         ports:
         - containerPort: 8080
           name: http
@@ -35,10 +35,6 @@ spec:
         envFrom:
         - configMapRef:
             name: atlas-frontend-config
-        volumeMounts:
-        - name: docker-socket
-          mountPath: /var/run/docker.sock
-          readOnly: true
         resources:
           requests:
             memory: "256Mi"
@@ -73,11 +69,6 @@ spec:
           timeoutSeconds: 5
           successThreshold: 1
           failureThreshold: 6
-      volumes:
-      - name: docker-socket
-        hostPath:
-          path: /var/run/docker.sock
-          type: Socket
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -90,8 +81,3 @@ spec:
                   values:
                   - atlas-frontend
               topologyKey: kubernetes.io/hostname
-      tolerations:
-      - key: "kubernetes.io/arch"
-        operator: "Equal"
-        value: "amd64"
-        effect: "NoSchedule"

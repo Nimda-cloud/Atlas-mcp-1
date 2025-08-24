@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama-host-service
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: ollama-host
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  type: ExternalName
+  externalName: host.docker.internal
+  ports:
+  - name: http
+    port: 11434
+    targetPort: 11434
+    protocol: TCP
+---
+# Fallback endpoint for Kind clusters
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: ollama-host-service
+  namespace: atlas-mcp
+subsets:
+- addresses:
+  - ip: 172.17.97.123  # Host macOS IP
+  ports:
+  - name: http
+    port: 11434
+    protocol: TCP

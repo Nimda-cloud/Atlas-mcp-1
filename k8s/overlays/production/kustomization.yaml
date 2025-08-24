@@ -5,14 +5,25 @@ namespace: atlas-mcp-prod
 
 namePrefix: prod-
 
+labels:
+- includeSelectors: true
+  pairs:
+    app.kubernetes.io/instance: atlas-mcp-prod
+    app.kubernetes.io/managed-by: kustomize
+    environment: production
+
 resources:
 - ../../base
 - ../../ingress
 - ../../monitoring
 
-patchesStrategicMerge:
-- deployment-patches.yaml
-- hpa-patches.yaml
+patches:
+- path: deployment-patches.yaml
+  target:
+    kind: Deployment
+- path: hpa-patches.yaml
+  target:
+    kind: HorizontalPodAutoscaler
 
 configMapGenerator:
 - name: atlas-core-config

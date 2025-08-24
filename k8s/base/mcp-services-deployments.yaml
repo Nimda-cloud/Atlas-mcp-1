@@ -23,7 +23,7 @@ spec:
       containers:
       - name: mcp-automation
         image: atlas-mcp/mcp-automation:latest
-        imagePullPolicy: Always
+        imagePullPolicy: Never
         ports:
         - containerPort: 4002
           name: http
@@ -82,7 +82,7 @@ spec:
       containers:
       - name: mcp-automator
         image: atlas-mcp/mcp-automator:latest
-        imagePullPolicy: Always
+        imagePullPolicy: Never
         ports:
         - containerPort: 4003
           name: http
@@ -141,7 +141,7 @@ spec:
       containers:
       - name: mcp-tts
         image: atlas-mcp/mcp-tts:latest
-        imagePullPolicy: Always
+        imagePullPolicy: Never
         ports:
         - containerPort: 4004
           name: http
@@ -204,15 +204,25 @@ spec:
         app.kubernetes.io/name: mcp-playwright
         app.kubernetes.io/part-of: atlas-autonomous-system
     spec:
+      imagePullSecrets:
+        - name: registry-secret
       containers:
       - name: mcp-playwright
-        image: mcr.microsoft.com/playwright/mcp:latest
-        imagePullPolicy: Always
-        command: ["--port", "4005", "--host", "0.0.0.0", "--headless", "--browser", "chromium", "--no-sandbox"]
+        image: atlas-mcp/mcp-playwright:latest
+        imagePullPolicy: Never
+        command: ["python"]
+        args: ["/app/app.py"]
         ports:
         - containerPort: 4005
           name: http
           protocol: TCP
+        env:
+        - name: MCP_HOST
+          value: "0.0.0.0"
+        - name: MCP_PORT
+          value: "4005"
+        - name: PW_HEADLESS
+          value: "true"
         resources:
           requests:
             memory: "512Mi"
@@ -220,6 +230,24 @@ spec:
           limits:
             memory: "2Gi"
             cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 4005
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 4005
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
         securityContext:
           runAsNonRoot: true
           runAsUser: 1000

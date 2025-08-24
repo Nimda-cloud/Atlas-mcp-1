@@ -22,12 +22,16 @@ spec:
         prometheus.io/port: "8000"
         prometheus.io/path: "/metrics"
     spec:
+      hostAliases:
+      - ip: "172.19.0.1"
+        hostnames:
+        - "host.docker.internal"
       imagePullSecrets:
         - name: registry-secret
       containers:
       - name: atlas-core
         image: atlas-mcp/atlas-core:latest
-        imagePullPolicy: Always
+        imagePullPolicy: Never
         ports:
         - containerPort: 8000
           name: http
@@ -42,9 +46,6 @@ spec:
           mountPath: /app/data
         - name: atlas-logs
           mountPath: /app/logs
-        - name: docker-socket
-          mountPath: /var/run/docker.sock
-          readOnly: true
         resources:
           requests:
             memory: "512Mi"
@@ -86,10 +87,6 @@ spec:
       - name: atlas-logs
         persistentVolumeClaim:
           claimName: atlas-logs-pvc
-      - name: docker-socket
-        hostPath:
-          path: /var/run/docker.sock
-          type: Socket
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -102,10 +99,3 @@ spec:
                   values:
                   - atlas-core
               topologyKey: kubernetes.io/hostname
-      tolerations:
-      - key: "kubernetes.io/arch"
-        operator: "Equal"
-        value: "amd64"
-        effect: "NoSchedule"
-      nodeSelector:
-        kubernetes.io/arch: amd64
