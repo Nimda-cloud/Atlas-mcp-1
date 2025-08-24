@@ -1,0 +1,88 @@
+Name:             atlas-core-6dbf5bf65c-nbc47
+Namespace:        atlas-mcp-dev
+Priority:         0
+Service Account:  default
+Node:             atlas-mcp-ci-test-worker/172.19.0.4
+Start Time:       Mon, 25 Aug 2025 01:56:20 +0300
+Labels:           app.kubernetes.io/instance=atlas-mcp
+                  app.kubernetes.io/managed-by=kustomize
+                  app.kubernetes.io/name=atlas-core
+                  app.kubernetes.io/part-of=atlas-autonomous-system
+                  environment=development
+                  pod-template-hash=6dbf5bf65c
+                  tier=dev
+Annotations:      prometheus.io/path: /metrics
+                  prometheus.io/port: 8000
+                  prometheus.io/scrape: true
+Status:           Pending
+IP:               10.244.1.22
+IPs:
+  IP:           10.244.1.22
+Controlled By:  ReplicaSet/atlas-core-6dbf5bf65c
+Containers:
+  atlas-core:
+    Container ID:   
+    Image:          atlas-mcp/atlas-core:dev-latest
+    Image ID:       
+    Port:           8000/TCP
+    Host Port:      0/TCP
+    State:          Waiting
+      Reason:       ErrImageNeverPull
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     500m
+      memory:  1Gi
+    Requests:
+      cpu:      100m
+      memory:   256Mi
+    Liveness:   http-get http://:8000/status delay=60s timeout=10s period=30s #success=1 #failure=3
+    Readiness:  http-get http://:8000/status delay=30s timeout=5s period=10s #success=1 #failure=3
+    Startup:    http-get http://:8000/status delay=10s timeout=5s period=10s #success=1 #failure=10
+    Environment Variables from:
+      atlas-core-config  ConfigMap  Optional: false
+      atlas-secrets      Secret     Optional: false
+    Environment:
+      OLLAMA_URL:           http://ollama-host-service:11434
+      USE_EMBEDDED_OLLAMA:  false
+      ATLAS_LLM1_MODEL:     llama3.1:8b
+      ATLAS_LLM1_FALLBACK:  llama3.1:8b
+      ATLAS_LLM2_MODEL:     gpt-oss:latest
+      ATLAS_LLM3_MODEL:     llama3.1:8b
+      ATLAS_LLM3_FALLBACK:  llama3.1:8b
+    Mounts:
+      /app/data from atlas-data (rw)
+      /app/logs from atlas-logs (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-f8pfr (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  atlas-data:
+    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
+    ClaimName:  atlas-data-pvc
+    ReadOnly:   false
+  atlas-logs:
+    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
+    ClaimName:  atlas-logs-pvc
+    ReadOnly:   false
+  kube-api-access-f8pfr:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason             Age                     From               Message
+  ----     ------             ----                    ----               -------
+  Normal   Scheduled          4m46s                   default-scheduler  Successfully assigned atlas-mcp-dev/atlas-core-6dbf5bf65c-nbc47 to atlas-mcp-ci-test-worker
+  Warning  Failed             2m39s (x12 over 4m46s)  kubelet            Error: ErrImageNeverPull
+  Warning  ErrImageNeverPull  2m27s (x13 over 4m46s)  kubelet            Container image "atlas-mcp/atlas-core:dev-latest" is not present with pull policy of Never

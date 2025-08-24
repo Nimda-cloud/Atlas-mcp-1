@@ -1,0 +1,73 @@
+Name:             mcp-tts-564bb8978-qgpmm
+Namespace:        atlas-mcp-dev
+Priority:         0
+Service Account:  default
+Node:             atlas-mcp-ci-test-worker/172.19.0.4
+Start Time:       Mon, 25 Aug 2025 01:56:09 +0300
+Labels:           app.kubernetes.io/instance=atlas-mcp
+                  app.kubernetes.io/managed-by=kustomize
+                  app.kubernetes.io/name=mcp-tts
+                  app.kubernetes.io/part-of=atlas-autonomous-system
+                  environment=development
+                  pod-template-hash=564bb8978
+                  tier=dev
+Annotations:      <none>
+Status:           Pending
+IP:               10.244.1.12
+IPs:
+  IP:           10.244.1.12
+Controlled By:  ReplicaSet/mcp-tts-564bb8978
+Containers:
+  mcp-tts:
+    Container ID:   
+    Image:          atlas-mcp/mcp-tts:dev-latest
+    Image ID:       
+    Port:           4004/TCP
+    Host Port:      0/TCP
+    State:          Waiting
+      Reason:       ErrImageNeverPull
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     500m
+      memory:  1Gi
+    Requests:
+      cpu:      100m
+      memory:   256Mi
+    Liveness:   http-get http://:4004/health delay=30s timeout=10s period=30s #success=1 #failure=3
+    Readiness:  http-get http://:4004/health delay=10s timeout=5s period=10s #success=1 #failure=3
+    Environment Variables from:
+      mcp-tts-config  ConfigMap  Optional: false
+      atlas-secrets   Secret     Optional: false
+    Environment:      <none>
+    Mounts:
+      /data/tts from tts-audio (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-txktp (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  tts-audio:
+    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
+    ClaimName:  tts-audio-pvc
+    ReadOnly:   false
+  kube-api-access-txktp:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason             Age                     From               Message
+  ----     ------             ----                    ----               -------
+  Normal   Scheduled          4m57s                   default-scheduler  Successfully assigned atlas-mcp-dev/mcp-tts-564bb8978-qgpmm to atlas-mcp-ci-test-worker
+  Warning  Failed             2m55s (x12 over 4m57s)  kubelet            Error: ErrImageNeverPull
+  Warning  ErrImageNeverPull  2m43s (x13 over 4m57s)  kubelet            Container image "atlas-mcp/mcp-tts:dev-latest" is not present with pull policy of Never

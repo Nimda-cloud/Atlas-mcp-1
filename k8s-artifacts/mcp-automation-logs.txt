@@ -1,0 +1,1 @@
+Error from server (BadRequest): container "mcp-automation" in pod "mcp-automation-55d98f8b4-66blx" is waiting to start: ErrImageNeverPull

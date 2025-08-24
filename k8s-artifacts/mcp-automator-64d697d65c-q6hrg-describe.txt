@@ -1,0 +1,67 @@
+Name:             mcp-automator-64d697d65c-q6hrg
+Namespace:        atlas-mcp-dev
+Priority:         0
+Service Account:  default
+Node:             atlas-mcp-ci-test-worker/172.19.0.4
+Start Time:       Mon, 25 Aug 2025 01:56:05 +0300
+Labels:           app.kubernetes.io/instance=atlas-mcp
+                  app.kubernetes.io/managed-by=kustomize
+                  app.kubernetes.io/name=mcp-automator
+                  app.kubernetes.io/part-of=atlas-autonomous-system
+                  environment=development
+                  pod-template-hash=64d697d65c
+                  tier=dev
+Annotations:      <none>
+Status:           Pending
+IP:               10.244.1.7
+IPs:
+  IP:           10.244.1.7
+Controlled By:  ReplicaSet/mcp-automator-64d697d65c
+Containers:
+  mcp-automator:
+    Container ID:   
+    Image:          atlas-mcp/mcp-automator:dev-latest
+    Image ID:       
+    Port:           4003/TCP
+    Host Port:      0/TCP
+    State:          Waiting
+      Reason:       ErrImageNeverPull
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     250m
+      memory:  512Mi
+    Requests:
+      cpu:      50m
+      memory:   128Mi
+    Liveness:   http-get http://:4003/health delay=10s timeout=10s period=30s #success=1 #failure=3
+    Readiness:  http-get http://:4003/health delay=5s timeout=5s period=10s #success=1 #failure=3
+    Environment Variables from:
+      mcp-automator-config  ConfigMap  Optional: false
+    Environment:            <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-2kct7 (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-2kct7:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason             Age                    From               Message
+  ----     ------             ----                   ----               -------
+  Normal   Scheduled          5m1s                   default-scheduler  Successfully assigned atlas-mcp-dev/mcp-automator-64d697d65c-q6hrg to atlas-mcp-ci-test-worker
+  Warning  Failed             2m57s (x12 over 5m1s)  kubelet            Error: ErrImageNeverPull
+  Warning  ErrImageNeverPull  2m44s (x13 over 5m1s)  kubelet            Container image "atlas-mcp/mcp-automator:dev-latest" is not present with pull policy of Never

@@ -1,0 +1,72 @@
+Name:             mcp-playwright-54449ffd46-kxkx7
+Namespace:        atlas-mcp-dev
+Priority:         0
+Service Account:  default
+Node:             atlas-mcp-ci-test-worker/172.19.0.4
+Start Time:       Mon, 25 Aug 2025 01:56:20 +0300
+Labels:           app.kubernetes.io/instance=atlas-mcp
+                  app.kubernetes.io/managed-by=kustomize
+                  app.kubernetes.io/name=mcp-playwright
+                  app.kubernetes.io/part-of=atlas-autonomous-system
+                  environment=development
+                  pod-template-hash=54449ffd46
+                  tier=dev
+Annotations:      <none>
+Status:           Pending
+IP:               10.244.1.24
+IPs:
+  IP:           10.244.1.24
+Controlled By:  ReplicaSet/mcp-playwright-54449ffd46
+Containers:
+  mcp-playwright:
+    Container ID:  
+    Image:         atlas-mcp/mcp-playwright:latest
+    Image ID:      
+    Port:          4005/TCP
+    Host Port:     0/TCP
+    Command:
+      python
+    Args:
+      /app/app.py
+    State:          Waiting
+      Reason:       ErrImageNeverPull
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     250m
+      memory:  512Mi
+    Requests:
+      cpu:      50m
+      memory:   128Mi
+    Liveness:   http-get http://:4005/health delay=30s timeout=10s period=30s #success=1 #failure=3
+    Readiness:  http-get http://:4005/health delay=10s timeout=5s period=10s #success=1 #failure=3
+    Environment:
+      HOST:      0.0.0.0
+      PORT:      4005
+      HEADLESS:  true
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-nqswj (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-nqswj:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason             Age                     From               Message
+  ----     ------             ----                    ----               -------
+  Normal   Scheduled          4m46s                   default-scheduler  Successfully assigned atlas-mcp-dev/mcp-playwright-54449ffd46-kxkx7 to atlas-mcp-ci-test-worker
+  Warning  Failed             2m34s (x12 over 4m45s)  kubelet            Error: ErrImageNeverPull
+  Warning  ErrImageNeverPull  2m21s (x13 over 4m45s)  kubelet            Container image "atlas-mcp/mcp-playwright:latest" is not present with pull policy of Never

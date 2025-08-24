@@ -1,0 +1,3 @@
+NAME                              STATUS   ROLES           AGE     VERSION   INTERNAL-IP   EXTERNAL-IP   OS-IMAGE                         KERNEL-VERSION     CONTAINER-RUNTIME
+atlas-mcp-ci-test-control-plane   Ready    control-plane   7m7s    v1.33.1   172.19.0.5    <none>        Debian GNU/Linux 12 (bookworm)   6.10.14-linuxkit   containerd://2.1.1
+atlas-mcp-ci-test-worker          Ready    <none>          6m57s   v1.33.1   172.19.0.4    <none>        Debian GNU/Linux 12 (bookworm)   6.10.14-linuxkit   containerd://2.1.1

@@ -1,0 +1,3503 @@
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      prometheus.io/path: /metrics
+      prometheus.io/port: "8000"
+      prometheus.io/scrape: "true"
+    creationTimestamp: "2025-08-24T22:56:20Z"
+    generateName: atlas-core-6dbf5bf65c-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: atlas-mcp
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/name: atlas-core
+      app.kubernetes.io/part-of: atlas-autonomous-system
+      environment: development
+      pod-template-hash: 6dbf5bf65c
+      tier: dev
+    name: atlas-core-6dbf5bf65c-nbc47
+    namespace: atlas-mcp-dev
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: atlas-core-6dbf5bf65c
+      uid: 8762a4b8-0854-4393-b046-4191330bbc9d
+    resourceVersion: "1301"
+    uid: 65055b05-b40c-48d8-b102-0ba355726039
+  spec:
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                - atlas-core
+            topologyKey: kubernetes.io/hostname
+          weight: 100
+    containers:
+    - env:
+      - name: OLLAMA_URL
+        value: http://ollama-host-service:11434
+      - name: USE_EMBEDDED_OLLAMA
+        value: "false"
+      - name: ATLAS_LLM1_MODEL
+        value: llama3.1:8b
+      - name: ATLAS_LLM1_FALLBACK
+        value: llama3.1:8b
+      - name: ATLAS_LLM2_MODEL
+        value: gpt-oss:latest
+      - name: ATLAS_LLM3_MODEL
+        value: llama3.1:8b
+      - name: ATLAS_LLM3_FALLBACK
+        value: llama3.1:8b
+      envFrom:
+      - configMapRef:
+          name: atlas-core-config
+      - secretRef:
+          name: atlas-secrets
+      image: atlas-mcp/atlas-core:dev-latest
+      imagePullPolicy: Never
+      livenessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /status
+          port: 8000
+          scheme: HTTP
+        initialDelaySeconds: 60
+        periodSeconds: 30
+        successThreshold: 1
+        timeoutSeconds: 10
+      name: atlas-core
+      ports:
+      - containerPort: 8000
+        name: http
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /status
+          port: 8000
+          scheme: HTTP
+        initialDelaySeconds: 30
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      resources:
+        limits:
+          cpu: 500m
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      startupProbe:
+        failureThreshold: 10
+        httpGet:
+          path: /status
+          port: 8000
+          scheme: HTTP
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /app/data
+        name: atlas-data
+      - mountPath: /app/logs
+        name: atlas-logs
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-f8pfr
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    imagePullSecrets:
+    - name: registry-secret
+    nodeName: atlas-mcp-ci-test-worker
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: atlas-data
+      persistentVolumeClaim:
+        claimName: atlas-data-pvc
+    - name: atlas-logs
+      persistentVolumeClaim:
+        claimName: atlas-logs-pvc
+    - name: kube-api-access-f8pfr
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:21Z"
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      message: 'containers with unready status: [atlas-core]'
+      reason: ContainersNotReady
+      status: "False"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      message: 'containers with unready status: [atlas-core]'
+      reason: ContainersNotReady
+      status: "False"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - image: atlas-mcp/atlas-core:dev-latest
+      imageID: ""
+      lastState: {}
+      name: atlas-core
+      ready: false
+      restartCount: 0
+      started: false
+      state:
+        waiting:
+          message: Container image "atlas-mcp/atlas-core:dev-latest" is not present
+            with pull policy of Never
+          reason: ErrImageNeverPull
+      volumeMounts:
+      - mountPath: /app/data
+        name: atlas-data
+      - mountPath: /app/logs
+        name: atlas-logs
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-f8pfr
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.19.0.4
+    hostIPs:
+    - ip: 172.19.0.4
+    phase: Pending
+    podIP: 10.244.1.22
+    podIPs:
+    - ip: 10.244.1.22
+    qosClass: Burstable
+    startTime: "2025-08-24T22:56:20Z"
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      prometheus.io/path: /metrics
+      prometheus.io/port: "8000"
+      prometheus.io/scrape: "true"
+    creationTimestamp: "2025-08-24T22:56:05Z"
+    generateName: atlas-core-6dbf5bf65c-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: atlas-mcp
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/name: atlas-core
+      app.kubernetes.io/part-of: atlas-autonomous-system
+      environment: development
+      pod-template-hash: 6dbf5bf65c
+      tier: dev
+    name: atlas-core-6dbf5bf65c-rct6d
+    namespace: atlas-mcp-dev
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: atlas-core-6dbf5bf65c
+      uid: 8762a4b8-0854-4393-b046-4191330bbc9d
+    resourceVersion: "1094"
+    uid: dbab8d35-a230-4b86-8134-abaa66f8432e
+  spec:
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                - atlas-core
+            topologyKey: kubernetes.io/hostname
+          weight: 100
+    containers:
+    - env:
+      - name: OLLAMA_URL
+        value: http://ollama-host-service:11434
+      - name: USE_EMBEDDED_OLLAMA
+        value: "false"
+      - name: ATLAS_LLM1_MODEL
+        value: llama3.1:8b
+      - name: ATLAS_LLM1_FALLBACK
+        value: llama3.1:8b
+      - name: ATLAS_LLM2_MODEL
+        value: gpt-oss:latest
+      - name: ATLAS_LLM3_MODEL
+        value: llama3.1:8b
+      - name: ATLAS_LLM3_FALLBACK
+        value: llama3.1:8b
+      envFrom:
+      - configMapRef:
+          name: atlas-core-config
+      - secretRef:
+          name: atlas-secrets
+      image: atlas-mcp/atlas-core:dev-latest
+      imagePullPolicy: Never
+      livenessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /status
+          port: 8000
+          scheme: HTTP
+        initialDelaySeconds: 60
+        periodSeconds: 30
+        successThreshold: 1
+        timeoutSeconds: 10
+      name: atlas-core
+      ports:
+      - containerPort: 8000
+        name: http
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /status
+          port: 8000
+          scheme: HTTP
+        initialDelaySeconds: 30
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      resources:
+        limits:
+          cpu: 500m
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      startupProbe:
+        failureThreshold: 10
+        httpGet:
+          path: /status
+          port: 8000
+          scheme: HTTP
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /app/data
+        name: atlas-data
+      - mountPath: /app/logs
+        name: atlas-logs
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-w2x5v
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    imagePullSecrets:
+    - name: registry-secret
+    nodeName: atlas-mcp-ci-test-worker
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: atlas-data
+      persistentVolumeClaim:
+        claimName: atlas-data-pvc
+    - name: atlas-logs
+      persistentVolumeClaim:
+        claimName: atlas-logs-pvc
+    - name: kube-api-access-w2x5v
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:13Z"
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:12Z"
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:12Z"
+      message: 'containers with unready status: [atlas-core]'
+      reason: ContainersNotReady
+      status: "False"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:12Z"
+      message: 'containers with unready status: [atlas-core]'
+      reason: ContainersNotReady
+      status: "False"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:12Z"
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - image: atlas-mcp/atlas-core:dev-latest
+      imageID: ""
+      lastState: {}
+      name: atlas-core
+      ready: false
+      restartCount: 0
+      started: false
+      state:
+        waiting:
+          message: Container image "atlas-mcp/atlas-core:dev-latest" is not present
+            with pull policy of Never
+          reason: ErrImageNeverPull
+      volumeMounts:
+      - mountPath: /app/data
+        name: atlas-data
+      - mountPath: /app/logs
+        name: atlas-logs
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-w2x5v
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.19.0.4
+    hostIPs:
+    - ip: 172.19.0.4
+    phase: Pending
+    podIP: 10.244.1.14
+    podIPs:
+    - ip: 10.244.1.14
+    qosClass: Burstable
+    startTime: "2025-08-24T22:56:12Z"
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      prometheus.io/path: /metrics
+      prometheus.io/port: "8080"
+      prometheus.io/scrape: "true"
+    creationTimestamp: "2025-08-24T22:56:05Z"
+    generateName: atlas-frontend-58ccd575fd-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: atlas-mcp
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/name: atlas-frontend
+      app.kubernetes.io/part-of: atlas-autonomous-system
+      environment: development
+      pod-template-hash: 58ccd575fd
+      tier: dev
+    name: atlas-frontend-58ccd575fd-9t7k6
+    namespace: atlas-mcp-dev
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: atlas-frontend-58ccd575fd
+      uid: 866edb12-2234-4b23-a9e6-58632e8efb6e
+    resourceVersion: "947"
+    uid: b5ead9a1-3280-4003-90ac-4b0592b4bfd5
+  spec:
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                - atlas-frontend
+            topologyKey: kubernetes.io/hostname
+          weight: 100
+    containers:
+    - envFrom:
+      - configMapRef:
+          name: atlas-frontend-config
+      image: atlas-mcp/atlas-frontend:dev-latest
+      imagePullPolicy: Never
+      livenessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 8080
+          scheme: HTTP
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        successThreshold: 1
+        timeoutSeconds: 10
+      name: atlas-frontend
+      ports:
+      - containerPort: 8080
+        name: http
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 8080
+          scheme: HTTP
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      resources:
+        limits:
+          cpu: 500m
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      startupProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /health
+          port: 8080
+          scheme: HTTP
+        initialDelaySeconds: 5
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-zt2q8
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    imagePullSecrets:
+    - name: registry-secret
+    nodeName: atlas-mcp-ci-test-worker
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: kube-api-access-zt2q8
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:06Z"
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:05Z"
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:05Z"
+      message: 'containers with unready status: [atlas-frontend]'
+      reason: ContainersNotReady
+      status: "False"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:05Z"
+      message: 'containers with unready status: [atlas-frontend]'
+      reason: ContainersNotReady
+      status: "False"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:05Z"
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - image: atlas-mcp/atlas-frontend:dev-latest
+      imageID: ""
+      lastState: {}
+      name: atlas-frontend
+      ready: false
+      restartCount: 0
+      started: false
+      state:
+        waiting:
+          message: Container image "atlas-mcp/atlas-frontend:dev-latest" is not present
+            with pull policy of Never
+          reason: ErrImageNeverPull
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-zt2q8
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.19.0.4
+    hostIPs:
+    - ip: 172.19.0.4
+    phase: Pending
+    podIP: 10.244.1.2
+    podIPs:
+    - ip: 10.244.1.2
+    qosClass: Burstable
+    startTime: "2025-08-24T22:56:05Z"
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      prometheus.io/path: /metrics
+      prometheus.io/port: "8080"
+      prometheus.io/scrape: "true"
+    creationTimestamp: "2025-08-24T22:56:20Z"
+    generateName: atlas-frontend-58ccd575fd-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: atlas-mcp
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/name: atlas-frontend
+      app.kubernetes.io/part-of: atlas-autonomous-system
+      environment: development
+      pod-template-hash: 58ccd575fd
+      tier: dev
+    name: atlas-frontend-58ccd575fd-bgcbl
+    namespace: atlas-mcp-dev
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: atlas-frontend-58ccd575fd
+      uid: 866edb12-2234-4b23-a9e6-58632e8efb6e
+    resourceVersion: "1333"
+    uid: 1dfc79c7-3096-4b6a-ba37-13975cc6855f
+  spec:
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                - atlas-frontend
+            topologyKey: kubernetes.io/hostname
+          weight: 100
+    containers:
+    - envFrom:
+      - configMapRef:
+          name: atlas-frontend-config
+      image: atlas-mcp/atlas-frontend:dev-latest
+      imagePullPolicy: Never
+      livenessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 8080
+          scheme: HTTP
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        successThreshold: 1
+        timeoutSeconds: 10
+      name: atlas-frontend
+      ports:
+      - containerPort: 8080
+        name: http
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 8080
+          scheme: HTTP
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      resources:
+        limits:
+          cpu: 500m
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      startupProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /health
+          port: 8080
+          scheme: HTTP
+        initialDelaySeconds: 5
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-crfcb
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    imagePullSecrets:
+    - name: registry-secret
+    nodeName: atlas-mcp-ci-test-worker
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: kube-api-access-crfcb
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:22Z"
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      message: 'containers with unready status: [atlas-frontend]'
+      reason: ContainersNotReady
+      status: "False"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      message: 'containers with unready status: [atlas-frontend]'
+      reason: ContainersNotReady
+      status: "False"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - image: atlas-mcp/atlas-frontend:dev-latest
+      imageID: ""
+      lastState: {}
+      name: atlas-frontend
+      ready: false
+      restartCount: 0
+      started: false
+      state:
+        waiting:
+          message: Container image "atlas-mcp/atlas-frontend:dev-latest" is not present
+            with pull policy of Never
+          reason: ErrImageNeverPull
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-crfcb
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.19.0.4
+    hostIPs:
+    - ip: 172.19.0.4
+    phase: Pending
+    podIP: 10.244.1.25
+    podIPs:
+    - ip: 10.244.1.25
+    qosClass: Burstable
+    startTime: "2025-08-24T22:56:20Z"
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      prometheus.io/path: /metrics
+      prometheus.io/port: "8080"
+      prometheus.io/scrape: "true"
+    creationTimestamp: "2025-08-24T22:56:20Z"
+    generateName: atlas-frontend-58ccd575fd-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: atlas-mcp
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/name: atlas-frontend
+      app.kubernetes.io/part-of: atlas-autonomous-system
+      environment: development
+      pod-template-hash: 58ccd575fd
+      tier: dev
+    name: atlas-frontend-58ccd575fd-p4qz8
+    namespace: atlas-mcp-dev
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: atlas-frontend-58ccd575fd
+      uid: 866edb12-2234-4b23-a9e6-58632e8efb6e
+    resourceVersion: "1340"
+    uid: 3122083a-1e1d-4385-8926-b32f7959c7a1
+  spec:
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                - atlas-frontend
+            topologyKey: kubernetes.io/hostname
+          weight: 100
+    containers:
+    - envFrom:
+      - configMapRef:
+          name: atlas-frontend-config
+      image: atlas-mcp/atlas-frontend:dev-latest
+      imagePullPolicy: Never
+      livenessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 8080
+          scheme: HTTP
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        successThreshold: 1
+        timeoutSeconds: 10
+      name: atlas-frontend
+      ports:
+      - containerPort: 8080
+        name: http
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 8080
+          scheme: HTTP
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      resources:
+        limits:
+          cpu: 500m
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      startupProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /health
+          port: 8080
+          scheme: HTTP
+        initialDelaySeconds: 5
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-5c5bb
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    imagePullSecrets:
+    - name: registry-secret
+    nodeName: atlas-mcp-ci-test-worker
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: kube-api-access-5c5bb
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:22Z"
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      message: 'containers with unready status: [atlas-frontend]'
+      reason: ContainersNotReady
+      status: "False"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      message: 'containers with unready status: [atlas-frontend]'
+      reason: ContainersNotReady
+      status: "False"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - image: atlas-mcp/atlas-frontend:dev-latest
+      imageID: ""
+      lastState: {}
+      name: atlas-frontend
+      ready: false
+      restartCount: 0
+      started: false
+      state:
+        waiting:
+          message: Container image "atlas-mcp/atlas-frontend:dev-latest" is not present
+            with pull policy of Never
+          reason: ErrImageNeverPull
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-5c5bb
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.19.0.4
+    hostIPs:
+    - ip: 172.19.0.4
+    phase: Pending
+    podIP: 10.244.1.27
+    podIPs:
+    - ip: 10.244.1.27
+    qosClass: Burstable
+    startTime: "2025-08-24T22:56:20Z"
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    creationTimestamp: "2025-08-24T22:56:05Z"
+    generateName: grafana-65c58c94b-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: atlas-mcp
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/name: grafana
+      app.kubernetes.io/part-of: atlas-autonomous-system
+      environment: development
+      pod-template-hash: 65c58c94b
+      tier: dev
+    name: grafana-65c58c94b-4bzng
+    namespace: atlas-mcp-dev
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: grafana-65c58c94b
+      uid: 256517e4-b232-4bf8-a642-7673b6bbbfe6
+    resourceVersion: "2123"
+    uid: 974c977b-f59c-4df0-a98c-ee2b18a5dd54
+  spec:
+    containers:
+    - env:
+      - name: GF_SECURITY_ADMIN_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: GRAFANA_ADMIN_PASSWORD
+            name: atlas-secrets
+      - name: GF_INSTALL_PLUGINS
+        value: grafana-piechart-panel,grafana-worldmap-panel,grafana-clock-panel
+      - name: GF_SECURITY_ALLOW_EMBEDDING
+        value: "true"
+      - name: GF_AUTH_ANONYMOUS_ENABLED
+        value: "false"
+      image: grafana/grafana:latest
+      imagePullPolicy: Always
+      livenessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /api/health
+          port: 3000
+          scheme: HTTP
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        successThreshold: 1
+        timeoutSeconds: 10
+      name: grafana
+      ports:
+      - containerPort: 3000
+        name: http
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /api/health
+          port: 3000
+          scheme: HTTP
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      resources:
+        limits:
+          cpu: 500m
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/lib/grafana
+        name: grafana-data
+      - mountPath: /etc/grafana/provisioning/dashboards
+        name: grafana-dashboards
+      - mountPath: /etc/grafana/provisioning/datasources
+        name: grafana-datasources
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-2srcn
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    nodeName: atlas-mcp-ci-test-worker
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: grafana-data
+      persistentVolumeClaim:
+        claimName: grafana-data-pvc
+    - configMap:
+        defaultMode: 420
+        name: grafana-dashboards
+      name: grafana-dashboards
+    - configMap:
+        defaultMode: 420
+        name: grafana-datasources
+      name: grafana-datasources
+    - name: kube-api-access-2srcn
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:21Z"
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:11Z"
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:11Z"
+      message: 'containers with unready status: [grafana]'
+      reason: ContainersNotReady
+      status: "False"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:11Z"
+      message: 'containers with unready status: [grafana]'
+      reason: ContainersNotReady
+      status: "False"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:11Z"
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - allocatedResources:
+        cpu: 100m
+        memory: 256Mi
+      containerID: containerd://4a1f05318639a1b09b08a571399ff639939148505402356f4e9f75e0dd201fe2
+      image: docker.io/grafana/grafana:latest
+      imageID: docker.io/grafana/grafana@sha256:a1701c2180249361737a99a01bc770db39381640e4d631825d38ff4535efa47d
+      lastState:
+        terminated:
+          containerID: containerd://4a1f05318639a1b09b08a571399ff639939148505402356f4e9f75e0dd201fe2
+          exitCode: 1
+          finishedAt: "2025-08-24T22:59:27Z"
+          reason: Error
+          startedAt: "2025-08-24T22:59:27Z"
+      name: grafana
+      ready: false
+      resources:
+        limits:
+          cpu: 500m
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      restartCount: 2
+      started: false
+      state:
+        waiting:
+          message: back-off 20s restarting failed container=grafana pod=grafana-65c58c94b-4bzng_atlas-mcp-dev(974c977b-f59c-4df0-a98c-ee2b18a5dd54)
+          reason: CrashLoopBackOff
+      user:
+        linux:
+          gid: 0
+          supplementalGroups:
+          - 0
+          uid: 472
+      volumeMounts:
+      - mountPath: /var/lib/grafana
+        name: grafana-data
+      - mountPath: /etc/grafana/provisioning/dashboards
+        name: grafana-dashboards
+      - mountPath: /etc/grafana/provisioning/datasources
+        name: grafana-datasources
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-2srcn
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.19.0.4
+    hostIPs:
+    - ip: 172.19.0.4
+    phase: Running
+    podIP: 10.244.1.13
+    podIPs:
+    - ip: 10.244.1.13
+    qosClass: Burstable
+    startTime: "2025-08-24T22:56:11Z"
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    creationTimestamp: "2025-08-24T22:56:05Z"
+    generateName: mcp-automation-55d98f8b4-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: atlas-mcp
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/name: mcp-automation
+      app.kubernetes.io/part-of: atlas-autonomous-system
+      environment: development
+      pod-template-hash: 55d98f8b4
+      tier: dev
+    name: mcp-automation-55d98f8b4-66blx
+    namespace: atlas-mcp-dev
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: mcp-automation-55d98f8b4
+      uid: afc279d8-9961-4e36-a965-aee9f63c3141
+    resourceVersion: "935"
+    uid: efb6c87b-8396-4f2a-948c-4bbec298d41f
+  spec:
+    containers:
+    - envFrom:
+      - configMapRef:
+          name: mcp-automation-config
+      image: atlas-mcp/mcp-automation:dev-latest
+      imagePullPolicy: Never
+      livenessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 4002
+          scheme: HTTP
+        initialDelaySeconds: 10
+        periodSeconds: 30
+        successThreshold: 1
+        timeoutSeconds: 10
+      name: mcp-automation
+      ports:
+      - containerPort: 4002
+        name: http
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 4002
+          scheme: HTTP
+        initialDelaySeconds: 5
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      resources:
+        limits:
+          cpu: 250m
+          memory: 512Mi
+        requests:
+          cpu: 50m
+          memory: 128Mi
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-j22c6
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    imagePullSecrets:
+    - name: registry-secret
+    nodeName: atlas-mcp-ci-test-worker
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: kube-api-access-j22c6
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:06Z"
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:05Z"
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:05Z"
+      message: 'containers with unready status: [mcp-automation]'
+      reason: ContainersNotReady
+      status: "False"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:05Z"
+      message: 'containers with unready status: [mcp-automation]'
+      reason: ContainersNotReady
+      status: "False"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:05Z"
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - image: atlas-mcp/mcp-automation:dev-latest
+      imageID: ""
+      lastState: {}
+      name: mcp-automation
+      ready: false
+      restartCount: 0
+      started: false
+      state:
+        waiting:
+          message: Container image "atlas-mcp/mcp-automation:dev-latest" is not present
+            with pull policy of Never
+          reason: ErrImageNeverPull
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-j22c6
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.19.0.4
+    hostIPs:
+    - ip: 172.19.0.4
+    phase: Pending
+    podIP: 10.244.1.6
+    podIPs:
+    - ip: 10.244.1.6
+    qosClass: Burstable
+    startTime: "2025-08-24T22:56:05Z"
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    creationTimestamp: "2025-08-24T22:56:20Z"
+    generateName: mcp-automation-55d98f8b4-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: atlas-mcp
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/name: mcp-automation
+      app.kubernetes.io/part-of: atlas-autonomous-system
+      environment: development
+      pod-template-hash: 55d98f8b4
+      tier: dev
+    name: mcp-automation-55d98f8b4-cvmmj
+    namespace: atlas-mcp-dev
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: mcp-automation-55d98f8b4
+      uid: afc279d8-9961-4e36-a965-aee9f63c3141
+    resourceVersion: "1293"
+    uid: 22b07e13-3718-4081-8b2f-0a73806a012b
+  spec:
+    containers:
+    - envFrom:
+      - configMapRef:
+          name: mcp-automation-config
+      image: atlas-mcp/mcp-automation:dev-latest
+      imagePullPolicy: Never
+      livenessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 4002
+          scheme: HTTP
+        initialDelaySeconds: 10
+        periodSeconds: 30
+        successThreshold: 1
+        timeoutSeconds: 10
+      name: mcp-automation
+      ports:
+      - containerPort: 4002
+        name: http
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 4002
+          scheme: HTTP
+        initialDelaySeconds: 5
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      resources:
+        limits:
+          cpu: 250m
+          memory: 512Mi
+        requests:
+          cpu: 50m
+          memory: 128Mi
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-gqwmn
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    imagePullSecrets:
+    - name: registry-secret
+    nodeName: atlas-mcp-ci-test-worker
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: kube-api-access-gqwmn
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:21Z"
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      message: 'containers with unready status: [mcp-automation]'
+      reason: ContainersNotReady
+      status: "False"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      message: 'containers with unready status: [mcp-automation]'
+      reason: ContainersNotReady
+      status: "False"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - image: atlas-mcp/mcp-automation:dev-latest
+      imageID: ""
+      lastState: {}
+      name: mcp-automation
+      ready: false
+      restartCount: 0
+      started: false
+      state:
+        waiting:
+          message: Container image "atlas-mcp/mcp-automation:dev-latest" is not present
+            with pull policy of Never
+          reason: ErrImageNeverPull
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-gqwmn
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.19.0.4
+    hostIPs:
+    - ip: 172.19.0.4
+    phase: Pending
+    podIP: 10.244.1.26
+    podIPs:
+    - ip: 10.244.1.26
+    qosClass: Burstable
+    startTime: "2025-08-24T22:56:20Z"
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    creationTimestamp: "2025-08-24T22:56:20Z"
+    generateName: mcp-automator-64d697d65c-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: atlas-mcp
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/name: mcp-automator
+      app.kubernetes.io/part-of: atlas-autonomous-system
+      environment: development
+      pod-template-hash: 64d697d65c
+      tier: dev
+    name: mcp-automator-64d697d65c-4tp8m
+    namespace: atlas-mcp-dev
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: mcp-automator-64d697d65c
+      uid: 1eb5f695-f9ad-40b4-8c61-022afd322e32
+    resourceVersion: "1307"
+    uid: c84e3cc6-f05c-4095-a6a3-9620a3cbb3e5
+  spec:
+    containers:
+    - envFrom:
+      - configMapRef:
+          name: mcp-automator-config
+      image: atlas-mcp/mcp-automator:dev-latest
+      imagePullPolicy: Never
+      livenessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 4003
+          scheme: HTTP
+        initialDelaySeconds: 10
+        periodSeconds: 30
+        successThreshold: 1
+        timeoutSeconds: 10
+      name: mcp-automator
+      ports:
+      - containerPort: 4003
+        name: http
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 4003
+          scheme: HTTP
+        initialDelaySeconds: 5
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      resources:
+        limits:
+          cpu: 250m
+          memory: 512Mi
+        requests:
+          cpu: 50m
+          memory: 128Mi
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-zlcqd
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    imagePullSecrets:
+    - name: registry-secret
+    nodeName: atlas-mcp-ci-test-worker
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: kube-api-access-zlcqd
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:21Z"
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      message: 'containers with unready status: [mcp-automator]'
+      reason: ContainersNotReady
+      status: "False"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      message: 'containers with unready status: [mcp-automator]'
+      reason: ContainersNotReady
+      status: "False"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - image: atlas-mcp/mcp-automator:dev-latest
+      imageID: ""
+      lastState: {}
+      name: mcp-automator
+      ready: false
+      restartCount: 0
+      started: false
+      state:
+        waiting:
+          message: Container image "atlas-mcp/mcp-automator:dev-latest" is not present
+            with pull policy of Never
+          reason: ErrImageNeverPull
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-zlcqd
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.19.0.4
+    hostIPs:
+    - ip: 172.19.0.4
+    phase: Pending
+    podIP: 10.244.1.23
+    podIPs:
+    - ip: 10.244.1.23
+    qosClass: Burstable
+    startTime: "2025-08-24T22:56:20Z"
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    creationTimestamp: "2025-08-24T22:56:05Z"
+    generateName: mcp-automator-64d697d65c-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: atlas-mcp
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/name: mcp-automator
+      app.kubernetes.io/part-of: atlas-autonomous-system
+      environment: development
+      pod-template-hash: 64d697d65c
+      tier: dev
+    name: mcp-automator-64d697d65c-q6hrg
+    namespace: atlas-mcp-dev
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: mcp-automator-64d697d65c
+      uid: 1eb5f695-f9ad-40b4-8c61-022afd322e32
+    resourceVersion: "928"
+    uid: fe3e2e42-f2b3-452a-9f5b-722c7200c338
+  spec:
+    containers:
+    - envFrom:
+      - configMapRef:
+          name: mcp-automator-config
+      image: atlas-mcp/mcp-automator:dev-latest
+      imagePullPolicy: Never
+      livenessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 4003
+          scheme: HTTP
+        initialDelaySeconds: 10
+        periodSeconds: 30
+        successThreshold: 1
+        timeoutSeconds: 10
+      name: mcp-automator
+      ports:
+      - containerPort: 4003
+        name: http
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 4003
+          scheme: HTTP
+        initialDelaySeconds: 5
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      resources:
+        limits:
+          cpu: 250m
+          memory: 512Mi
+        requests:
+          cpu: 50m
+          memory: 128Mi
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-2kct7
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    imagePullSecrets:
+    - name: registry-secret
+    nodeName: atlas-mcp-ci-test-worker
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: kube-api-access-2kct7
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:06Z"
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:05Z"
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:05Z"
+      message: 'containers with unready status: [mcp-automator]'
+      reason: ContainersNotReady
+      status: "False"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:05Z"
+      message: 'containers with unready status: [mcp-automator]'
+      reason: ContainersNotReady
+      status: "False"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:05Z"
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - image: atlas-mcp/mcp-automator:dev-latest
+      imageID: ""
+      lastState: {}
+      name: mcp-automator
+      ready: false
+      restartCount: 0
+      started: false
+      state:
+        waiting:
+          message: Container image "atlas-mcp/mcp-automator:dev-latest" is not present
+            with pull policy of Never
+          reason: ErrImageNeverPull
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-2kct7
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.19.0.4
+    hostIPs:
+    - ip: 172.19.0.4
+    phase: Pending
+    podIP: 10.244.1.7
+    podIPs:
+    - ip: 10.244.1.7
+    qosClass: Burstable
+    startTime: "2025-08-24T22:56:05Z"
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    creationTimestamp: "2025-08-24T22:56:05Z"
+    generateName: mcp-playwright-54449ffd46-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: atlas-mcp
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/name: mcp-playwright
+      app.kubernetes.io/part-of: atlas-autonomous-system
+      environment: development
+      pod-template-hash: 54449ffd46
+      tier: dev
+    name: mcp-playwright-54449ffd46-24sx2
+    namespace: atlas-mcp-dev
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: mcp-playwright-54449ffd46
+      uid: 33b814ee-5190-4847-ba4f-226adb0d50a4
+    resourceVersion: "943"
+    uid: 268ebce4-3770-4138-9898-28fea067ed8e
+  spec:
+    containers:
+    - args:
+      - /app/app.py
+      command:
+      - python
+      env:
+      - name: HOST
+        value: 0.0.0.0
+      - name: PORT
+        value: "4005"
+      - name: HEADLESS
+        value: "true"
+      image: atlas-mcp/mcp-playwright:latest
+      imagePullPolicy: Never
+      livenessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 4005
+          scheme: HTTP
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        successThreshold: 1
+        timeoutSeconds: 10
+      name: mcp-playwright
+      ports:
+      - containerPort: 4005
+        name: http
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 4005
+          scheme: HTTP
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      resources:
+        limits:
+          cpu: 250m
+          memory: 512Mi
+        requests:
+          cpu: 50m
+          memory: 128Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-5d662
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    imagePullSecrets:
+    - name: registry-secret
+    nodeName: atlas-mcp-ci-test-worker
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: kube-api-access-5d662
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:06Z"
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:05Z"
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:05Z"
+      message: 'containers with unready status: [mcp-playwright]'
+      reason: ContainersNotReady
+      status: "False"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:05Z"
+      message: 'containers with unready status: [mcp-playwright]'
+      reason: ContainersNotReady
+      status: "False"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:05Z"
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - image: atlas-mcp/mcp-playwright:latest
+      imageID: ""
+      lastState: {}
+      name: mcp-playwright
+      ready: false
+      restartCount: 0
+      started: false
+      state:
+        waiting:
+          message: Container image "atlas-mcp/mcp-playwright:latest" is not present
+            with pull policy of Never
+          reason: ErrImageNeverPull
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-5d662
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.19.0.4
+    hostIPs:
+    - ip: 172.19.0.4
+    phase: Pending
+    podIP: 10.244.1.8
+    podIPs:
+    - ip: 10.244.1.8
+    qosClass: Burstable
+    startTime: "2025-08-24T22:56:05Z"
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    creationTimestamp: "2025-08-24T22:56:20Z"
+    generateName: mcp-playwright-54449ffd46-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: atlas-mcp
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/name: mcp-playwright
+      app.kubernetes.io/part-of: atlas-autonomous-system
+      environment: development
+      pod-template-hash: 54449ffd46
+      tier: dev
+    name: mcp-playwright-54449ffd46-kxkx7
+    namespace: atlas-mcp-dev
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: mcp-playwright-54449ffd46
+      uid: 33b814ee-5190-4847-ba4f-226adb0d50a4
+    resourceVersion: "1327"
+    uid: c8472d35-61f4-46ff-bb46-b2324be104b1
+  spec:
+    containers:
+    - args:
+      - /app/app.py
+      command:
+      - python
+      env:
+      - name: HOST
+        value: 0.0.0.0
+      - name: PORT
+        value: "4005"
+      - name: HEADLESS
+        value: "true"
+      image: atlas-mcp/mcp-playwright:latest
+      imagePullPolicy: Never
+      livenessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 4005
+          scheme: HTTP
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        successThreshold: 1
+        timeoutSeconds: 10
+      name: mcp-playwright
+      ports:
+      - containerPort: 4005
+        name: http
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 4005
+          scheme: HTTP
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      resources:
+        limits:
+          cpu: 250m
+          memory: 512Mi
+        requests:
+          cpu: 50m
+          memory: 128Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-nqswj
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    imagePullSecrets:
+    - name: registry-secret
+    nodeName: atlas-mcp-ci-test-worker
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: kube-api-access-nqswj
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:22Z"
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      message: 'containers with unready status: [mcp-playwright]'
+      reason: ContainersNotReady
+      status: "False"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      message: 'containers with unready status: [mcp-playwright]'
+      reason: ContainersNotReady
+      status: "False"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - image: atlas-mcp/mcp-playwright:latest
+      imageID: ""
+      lastState: {}
+      name: mcp-playwright
+      ready: false
+      restartCount: 0
+      started: false
+      state:
+        waiting:
+          message: Container image "atlas-mcp/mcp-playwright:latest" is not present
+            with pull policy of Never
+          reason: ErrImageNeverPull
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-nqswj
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.19.0.4
+    hostIPs:
+    - ip: 172.19.0.4
+    phase: Pending
+    podIP: 10.244.1.24
+    podIPs:
+    - ip: 10.244.1.24
+    qosClass: Burstable
+    startTime: "2025-08-24T22:56:20Z"
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    creationTimestamp: "2025-08-24T22:56:20Z"
+    generateName: mcp-tts-564bb8978-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: atlas-mcp
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/name: mcp-tts
+      app.kubernetes.io/part-of: atlas-autonomous-system
+      environment: development
+      pod-template-hash: 564bb8978
+      tier: dev
+    name: mcp-tts-564bb8978-pbp2r
+    namespace: atlas-mcp-dev
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: mcp-tts-564bb8978
+      uid: 140e9cec-9541-4ee0-a505-694e505e4477
+    resourceVersion: "1347"
+    uid: 1d10b6a8-577b-488c-8ef9-b64ee8b2fe9c
+  spec:
+    containers:
+    - envFrom:
+      - configMapRef:
+          name: mcp-tts-config
+      - secretRef:
+          name: atlas-secrets
+      image: atlas-mcp/mcp-tts:dev-latest
+      imagePullPolicy: Never
+      livenessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 4004
+          scheme: HTTP
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        successThreshold: 1
+        timeoutSeconds: 10
+      name: mcp-tts
+      ports:
+      - containerPort: 4004
+        name: http
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 4004
+          scheme: HTTP
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      resources:
+        limits:
+          cpu: 500m
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /data/tts
+        name: tts-audio
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-x4smz
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    imagePullSecrets:
+    - name: registry-secret
+    nodeName: atlas-mcp-ci-test-worker
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: tts-audio
+      persistentVolumeClaim:
+        claimName: tts-audio-pvc
+    - name: kube-api-access-x4smz
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:22Z"
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      message: 'containers with unready status: [mcp-tts]'
+      reason: ContainersNotReady
+      status: "False"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      message: 'containers with unready status: [mcp-tts]'
+      reason: ContainersNotReady
+      status: "False"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:20Z"
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - image: atlas-mcp/mcp-tts:dev-latest
+      imageID: ""
+      lastState: {}
+      name: mcp-tts
+      ready: false
+      restartCount: 0
+      started: false
+      state:
+        waiting:
+          message: Container image "atlas-mcp/mcp-tts:dev-latest" is not present with
+            pull policy of Never
+          reason: ErrImageNeverPull
+      volumeMounts:
+      - mountPath: /data/tts
+        name: tts-audio
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-x4smz
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.19.0.4
+    hostIPs:
+    - ip: 172.19.0.4
+    phase: Pending
+    podIP: 10.244.1.28
+    podIPs:
+    - ip: 10.244.1.28
+    qosClass: Burstable
+    startTime: "2025-08-24T22:56:20Z"
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    creationTimestamp: "2025-08-24T22:56:05Z"
+    generateName: mcp-tts-564bb8978-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: atlas-mcp
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/name: mcp-tts
+      app.kubernetes.io/part-of: atlas-autonomous-system
+      environment: development
+      pod-template-hash: 564bb8978
+      tier: dev
+    name: mcp-tts-564bb8978-qgpmm
+    namespace: atlas-mcp-dev
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: mcp-tts-564bb8978
+      uid: 140e9cec-9541-4ee0-a505-694e505e4477
+    resourceVersion: "1027"
+    uid: dc37f60f-ec0a-41b5-b98c-e1b31ae426fa
+  spec:
+    containers:
+    - envFrom:
+      - configMapRef:
+          name: mcp-tts-config
+      - secretRef:
+          name: atlas-secrets
+      image: atlas-mcp/mcp-tts:dev-latest
+      imagePullPolicy: Never
+      livenessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 4004
+          scheme: HTTP
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        successThreshold: 1
+        timeoutSeconds: 10
+      name: mcp-tts
+      ports:
+      - containerPort: 4004
+        name: http
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /health
+          port: 4004
+          scheme: HTTP
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      resources:
+        limits:
+          cpu: 500m
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /data/tts
+        name: tts-audio
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-txktp
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    imagePullSecrets:
+    - name: registry-secret
+    nodeName: atlas-mcp-ci-test-worker
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: tts-audio
+      persistentVolumeClaim:
+        claimName: tts-audio-pvc
+    - name: kube-api-access-txktp
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:10Z"
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:09Z"
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:09Z"
+      message: 'containers with unready status: [mcp-tts]'
+      reason: ContainersNotReady
+      status: "False"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:09Z"
+      message: 'containers with unready status: [mcp-tts]'
+      reason: ContainersNotReady
+      status: "False"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:09Z"
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - image: atlas-mcp/mcp-tts:dev-latest
+      imageID: ""
+      lastState: {}
+      name: mcp-tts
+      ready: false
+      restartCount: 0
+      started: false
+      state:
+        waiting:
+          message: Container image "atlas-mcp/mcp-tts:dev-latest" is not present with
+            pull policy of Never
+          reason: ErrImageNeverPull
+      volumeMounts:
+      - mountPath: /data/tts
+        name: tts-audio
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-txktp
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.19.0.4
+    hostIPs:
+    - ip: 172.19.0.4
+    phase: Pending
+    podIP: 10.244.1.12
+    podIPs:
+    - ip: 10.244.1.12
+    qosClass: Burstable
+    startTime: "2025-08-24T22:56:09Z"
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    creationTimestamp: "2025-08-24T22:56:05Z"
+    generateName: ollama-755fd45d7b-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: atlas-mcp
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/name: ollama
+      app.kubernetes.io/part-of: atlas-autonomous-system
+      environment: development
+      pod-template-hash: 755fd45d7b
+      tier: dev
+    name: ollama-755fd45d7b-mtsbm
+    namespace: atlas-mcp-dev
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: ollama-755fd45d7b
+      uid: 0844f7c8-f985-412c-aaa6-687f44c3f8a9
+    resourceVersion: "2180"
+    uid: 3b9696ea-485b-46a1-a006-b30152c14bd8
+  spec:
+    containers:
+    - env:
+      - name: OLLAMA_HOST
+        value: 0.0.0.0:11434
+      image: ollama/ollama:latest
+      imagePullPolicy: Always
+      livenessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /api/tags
+          port: 11434
+          scheme: HTTP
+        initialDelaySeconds: 30
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      name: ollama
+      ports:
+      - containerPort: 11434
+        name: http
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /api/tags
+          port: 11434
+          scheme: HTTP
+        initialDelaySeconds: 10
+        periodSeconds: 5
+        successThreshold: 1
+        timeoutSeconds: 3
+      resources:
+        limits:
+          cpu: "4"
+          memory: 8Gi
+        requests:
+          cpu: 500m
+          memory: 2Gi
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /root/.ollama
+        name: ollama-data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-kxntc
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    nodeName: atlas-mcp-ci-test-worker
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: ollama-data
+      persistentVolumeClaim:
+        claimName: ollama-data-pvc
+    - name: kube-api-access-kxntc
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:57:42Z"
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:14Z"
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:14Z"
+      message: 'containers with unready status: [ollama]'
+      reason: ContainersNotReady
+      status: "False"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:14Z"
+      message: 'containers with unready status: [ollama]'
+      reason: ContainersNotReady
+      status: "False"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:14Z"
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - image: ollama/ollama:latest
+      imageID: ""
+      lastState: {}
+      name: ollama
+      ready: false
+      restartCount: 0
+      started: false
+      state:
+        waiting:
+          message: 'Back-off pulling image "ollama/ollama:latest": ErrImagePull: failed
+            to pull and unpack image "docker.io/ollama/ollama:latest": failed to extract
+            layer sha256:5fe86a47d2ea6e60e0996341fbc862ac39e4b87d3afed25309d95864e8b3b6c2:
+            write /var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/153/fs/usr/lib/ollama/cuda_sbsa/libcublasLt.so.12.8.4.1:
+            no space left on device'
+          reason: ImagePullBackOff
+      volumeMounts:
+      - mountPath: /root/.ollama
+        name: ollama-data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-kxntc
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.19.0.4
+    hostIPs:
+    - ip: 172.19.0.4
+    phase: Pending
+    podIP: 10.244.1.18
+    podIPs:
+    - ip: 10.244.1.18
+    qosClass: Burstable
+    startTime: "2025-08-24T22:56:14Z"
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    creationTimestamp: "2025-08-24T22:56:05Z"
+    generateName: prometheus-7f499f44c4-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: atlas-mcp
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/name: prometheus
+      app.kubernetes.io/part-of: atlas-autonomous-system
+      environment: development
+      pod-template-hash: 7f499f44c4
+      tier: dev
+    name: prometheus-7f499f44c4-r5jx6
+    namespace: atlas-mcp-dev
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: prometheus-7f499f44c4
+      uid: a65bab56-2e75-4dd4-8743-5f407033ac31
+    resourceVersion: "2125"
+    uid: 0ea59778-e4f6-4861-88a6-7d60bc061ab1
+  spec:
+    containers:
+    - args:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.console.libraries=/etc/prometheus/console_libraries
+      - --web.console.templates=/etc/prometheus/consoles
+      - --web.enable-lifecycle
+      - --storage.tsdb.retention.time=30d
+      - --storage.tsdb.retention.size=10GB
+      image: prom/prometheus:latest
+      imagePullPolicy: Always
+      livenessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /-/healthy
+          port: 9090
+          scheme: HTTP
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        successThreshold: 1
+        timeoutSeconds: 10
+      name: prometheus
+      ports:
+      - containerPort: 9090
+        name: http
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /-/ready
+          port: 9090
+          scheme: HTTP
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      resources:
+        limits:
+          cpu: "1"
+          memory: 2Gi
+        requests:
+          cpu: 200m
+          memory: 512Mi
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /etc/prometheus
+        name: prometheus-config
+      - mountPath: /prometheus
+        name: prometheus-data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-2t9pg
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    nodeName: atlas-mcp-ci-test-worker
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: prometheus
+    serviceAccountName: prometheus
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - configMap:
+        defaultMode: 420
+        name: prometheus-config
+      name: prometheus-config
+    - name: prometheus-data
+      persistentVolumeClaim:
+        claimName: prometheus-data-pvc
+    - name: kube-api-access-2t9pg
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:57:49Z"
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:15Z"
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:15Z"
+      message: 'containers with unready status: [prometheus]'
+      reason: ContainersNotReady
+      status: "False"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:15Z"
+      message: 'containers with unready status: [prometheus]'
+      reason: ContainersNotReady
+      status: "False"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:15Z"
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - allocatedResources:
+        cpu: 200m
+        memory: 512Mi
+      containerID: containerd://a12ded340f864fd35034558a05e6e4e1d9e4c5714011322731112bc1d56ee350
+      image: docker.io/prom/prometheus:latest
+      imageID: docker.io/prom/prometheus@sha256:63805ebb8d2b3920190daf1cb14a60871b16fd38bed42b857a3182bc621f4996
+      lastState:
+        terminated:
+          containerID: containerd://a12ded340f864fd35034558a05e6e4e1d9e4c5714011322731112bc1d56ee350
+          exitCode: 2
+          finishedAt: "2025-08-24T22:59:28Z"
+          reason: Error
+          startedAt: "2025-08-24T22:59:28Z"
+      name: prometheus
+      ready: false
+      resources:
+        limits:
+          cpu: "1"
+          memory: 2Gi
+        requests:
+          cpu: 200m
+          memory: 512Mi
+      restartCount: 2
+      started: false
+      state:
+        waiting:
+          message: back-off 20s restarting failed container=prometheus pod=prometheus-7f499f44c4-r5jx6_atlas-mcp-dev(0ea59778-e4f6-4861-88a6-7d60bc061ab1)
+          reason: CrashLoopBackOff
+      user:
+        linux:
+          gid: 65534
+          supplementalGroups:
+          - 65534
+          uid: 65534
+      volumeMounts:
+      - mountPath: /etc/prometheus
+        name: prometheus-config
+      - mountPath: /prometheus
+        name: prometheus-data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-2t9pg
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.19.0.4
+    hostIPs:
+    - ip: 172.19.0.4
+    phase: Running
+    podIP: 10.244.1.19
+    podIPs:
+    - ip: 10.244.1.19
+    qosClass: Burstable
+    startTime: "2025-08-24T22:56:15Z"
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    creationTimestamp: "2025-08-24T22:56:05Z"
+    generateName: qdrant-5748f45fd4-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: atlas-mcp
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/name: qdrant
+      app.kubernetes.io/part-of: atlas-autonomous-system
+      environment: development
+      pod-template-hash: 5748f45fd4
+      tier: dev
+    name: qdrant-5748f45fd4-zs25t
+    namespace: atlas-mcp-dev
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: qdrant-5748f45fd4
+      uid: 743e3307-2d0b-43bd-9764-b55d00869b14
+    resourceVersion: "1897"
+    uid: 035b85c1-1a75-4c64-b00d-f4a5a66f2413
+  spec:
+    containers:
+    - envFrom:
+      - configMapRef:
+          name: qdrant-config
+      image: qdrant/qdrant:latest
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /
+          port: 6333
+          scheme: HTTP
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        successThreshold: 1
+        timeoutSeconds: 10
+      name: qdrant
+      ports:
+      - containerPort: 6333
+        name: http
+        protocol: TCP
+      - containerPort: 6334
+        name: grpc
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 3
+        httpGet:
+          path: /
+          port: 6333
+          scheme: HTTP
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      resources:
+        limits:
+          cpu: "1"
+          memory: 2Gi
+        requests:
+          cpu: 200m
+          memory: 512Mi
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /qdrant/storage
+        name: qdrant-data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-2fd8d
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    nodeName: atlas-mcp-ci-test-worker
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: qdrant-data
+      persistentVolumeClaim:
+        claimName: qdrant-data-pvc
+    - name: kube-api-access-2fd8d
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:57:55Z"
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:16Z"
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:58:06Z"
+      status: "True"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:58:06Z"
+      status: "True"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:16Z"
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - allocatedResources:
+        cpu: 200m
+        memory: 512Mi
+      containerID: containerd://7942f2aec2392ce816f632e6839d1f50cbf2d9601497cbbb32cdea7eb4f69d02
+      image: docker.io/qdrant/qdrant:latest
+      imageID: docker.io/qdrant/qdrant@sha256:31407c0e8e32eb771b71718f1a4772e2ad47a07557917b21ac96792f40eb8007
+      lastState: {}
+      name: qdrant
+      ready: true
+      resources:
+        limits:
+          cpu: "1"
+          memory: 2Gi
+        requests:
+          cpu: 200m
+          memory: 512Mi
+      restartCount: 0
+      started: true
+      state:
+        running:
+          startedAt: "2025-08-24T22:57:55Z"
+      user:
+        linux:
+          gid: 0
+          supplementalGroups:
+          - 0
+          uid: 0
+      volumeMounts:
+      - mountPath: /qdrant/storage
+        name: qdrant-data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-2fd8d
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.19.0.4
+    hostIPs:
+    - ip: 172.19.0.4
+    phase: Running
+    podIP: 10.244.1.20
+    podIPs:
+    - ip: 10.244.1.20
+    qosClass: Burstable
+    startTime: "2025-08-24T22:56:16Z"
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    creationTimestamp: "2025-08-24T22:56:06Z"
+    generateName: redis-85d6ff84c4-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: atlas-mcp
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/name: redis
+      app.kubernetes.io/part-of: atlas-autonomous-system
+      environment: development
+      pod-template-hash: 85d6ff84c4
+      tier: dev
+    name: redis-85d6ff84c4-mrtrz
+    namespace: atlas-mcp-dev
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: redis-85d6ff84c4
+      uid: cd749d34-fe65-4824-8e61-41578002d23b
+    resourceVersion: "1924"
+    uid: b52769c9-86d7-4fdb-9b74-c04eb5bf4f2d
+  spec:
+    containers:
+    - command:
+      - redis-server
+      - /etc/redis/redis.conf
+      image: redis:7-alpine
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 3
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        successThreshold: 1
+        tcpSocket:
+          port: 6379
+        timeoutSeconds: 5
+      name: redis
+      ports:
+      - containerPort: 6379
+        name: redis
+        protocol: TCP
+      readinessProbe:
+        exec:
+          command:
+          - redis-cli
+          - ping
+        failureThreshold: 3
+        initialDelaySeconds: 5
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 5
+      resources:
+        limits:
+          cpu: 250m
+          memory: 512Mi
+        requests:
+          cpu: 50m
+          memory: 128Mi
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /data
+        name: redis-data
+      - mountPath: /etc/redis
+        name: redis-config
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-ljnz4
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    nodeName: atlas-mcp-ci-test-worker
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: redis-data
+      persistentVolumeClaim:
+        claimName: redis-data-pvc
+    - configMap:
+        defaultMode: 420
+        name: redis-config
+      name: redis-config
+    - name: kube-api-access-ljnz4
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:57:59Z"
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:17Z"
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:58:11Z"
+      status: "True"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:58:11Z"
+      status: "True"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:17Z"
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - allocatedResources:
+        cpu: 50m
+        memory: 128Mi
+      containerID: containerd://e55ab04c40ae659ff2430880460b871d0e2c7ad6d69d03384bcc3e0e81f16666
+      image: docker.io/library/redis:7-alpine
+      imageID: docker.io/library/redis@sha256:bb186d083732f669da90be8b0f975a37812b15e913465bb14d845db72a4e3e08
+      lastState: {}
+      name: redis
+      ready: true
+      resources:
+        limits:
+          cpu: 250m
+          memory: 512Mi
+        requests:
+          cpu: 50m
+          memory: 128Mi
+      restartCount: 0
+      started: true
+      state:
+        running:
+          startedAt: "2025-08-24T22:57:59Z"
+      user:
+        linux:
+          gid: 0
+          supplementalGroups:
+          - 0
+          - 1
+          - 2
+          - 3
+          - 4
+          - 6
+          - 10
+          - 11
+          - 20
+          - 26
+          - 27
+          uid: 0
+      volumeMounts:
+      - mountPath: /data
+        name: redis-data
+      - mountPath: /etc/redis
+        name: redis-config
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-ljnz4
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.19.0.4
+    hostIPs:
+    - ip: 172.19.0.4
+    phase: Running
+    podIP: 10.244.1.21
+    podIPs:
+    - ip: 10.244.1.21
+    qosClass: Burstable
+    startTime: "2025-08-24T22:56:17Z"
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    creationTimestamp: "2025-08-24T22:56:06Z"
+    generateName: redis-exporter-748b84f6df-
+    generation: 1
+    labels:
+      app.kubernetes.io/instance: atlas-mcp
+      app.kubernetes.io/managed-by: kustomize
+      app.kubernetes.io/name: redis-exporter
+      app.kubernetes.io/part-of: atlas-autonomous-system
+      environment: development
+      pod-template-hash: 748b84f6df
+      tier: dev
+    name: redis-exporter-748b84f6df-g65rc
+    namespace: atlas-mcp-dev
+    ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ReplicaSet
+      name: redis-exporter-748b84f6df
+      uid: f1631917-530d-4123-bb15-8b47da983d5f
+    resourceVersion: "1066"
+    uid: 1f4f53ba-f592-4be7-aa11-cac8b6027992
+  spec:
+    containers:
+    - env:
+      - name: REDIS_ADDR
+        value: redis-service:6379
+      image: oliver006/redis_exporter:v1.66.0
+      imagePullPolicy: IfNotPresent
+      name: redis-exporter
+      ports:
+      - containerPort: 9121
+        name: metrics
+        protocol: TCP
+      resources:
+        limits:
+          cpu: 100m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-jkhjc
+        readOnly: true
+    dnsPolicy: ClusterFirst
+    enableServiceLinks: true
+    nodeName: atlas-mcp-ci-test-worker
+    preemptionPolicy: PreemptLowerPriority
+    priority: 0
+    restartPolicy: Always
+    schedulerName: default-scheduler
+    securityContext: {}
+    serviceAccount: default
+    serviceAccountName: default
+    terminationGracePeriodSeconds: 30
+    tolerations:
+    - effect: NoExecute
+      key: node.kubernetes.io/not-ready
+      operator: Exists
+      tolerationSeconds: 300
+    - effect: NoExecute
+      key: node.kubernetes.io/unreachable
+      operator: Exists
+      tolerationSeconds: 300
+    volumes:
+    - name: kube-api-access-jkhjc
+      projected:
+        defaultMode: 420
+        sources:
+        - serviceAccountToken:
+            expirationSeconds: 3607
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
+              path: namespace
+  status:
+    conditions:
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:12Z"
+      status: "True"
+      type: PodReadyToStartContainers
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:06Z"
+      status: "True"
+      type: Initialized
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:12Z"
+      status: "True"
+      type: Ready
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:12Z"
+      status: "True"
+      type: ContainersReady
+    - lastProbeTime: null
+      lastTransitionTime: "2025-08-24T22:56:06Z"
+      status: "True"
+      type: PodScheduled
+    containerStatuses:
+    - allocatedResources:
+        cpu: 25m
+        memory: 64Mi
+      containerID: containerd://df9a223e290f22a99accebc6c04e86d8dcd38880c185efa3a1710f9e7ea2590d
+      image: docker.io/oliver006/redis_exporter:v1.66.0
+      imageID: docker.io/oliver006/redis_exporter@sha256:d98e6db8094f491b95791e9f776b0ba30a20aeacb90e18334935d5e51bf2e6a1
+      lastState: {}
+      name: redis-exporter
+      ready: true
+      resources:
+        limits:
+          cpu: 100m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      restartCount: 0
+      started: true
+      state:
+        running:
+          startedAt: "2025-08-24T22:56:11Z"
+      user:
+        linux:
+          gid: 0
+          supplementalGroups:
+          - 0
+          uid: 59000
+      volumeMounts:
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: kube-api-access-jkhjc
+        readOnly: true
+        recursiveReadOnly: Disabled
+    hostIP: 172.19.0.4
+    hostIPs:
+    - ip: 172.19.0.4
+    phase: Running
+    podIP: 10.244.1.10
+    podIPs:
+    - ip: 10.244.1.10
+    qosClass: Burstable
+    startTime: "2025-08-24T22:56:06Z"
+kind: List
+metadata:
+  resourceVersion: ""

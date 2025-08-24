@@ -1,0 +1,70 @@
+Name:             atlas-frontend-58ccd575fd-9t7k6
+Namespace:        atlas-mcp-dev
+Priority:         0
+Service Account:  default
+Node:             atlas-mcp-ci-test-worker/172.19.0.4
+Start Time:       Mon, 25 Aug 2025 01:56:05 +0300
+Labels:           app.kubernetes.io/instance=atlas-mcp
+                  app.kubernetes.io/managed-by=kustomize
+                  app.kubernetes.io/name=atlas-frontend
+                  app.kubernetes.io/part-of=atlas-autonomous-system
+                  environment=development
+                  pod-template-hash=58ccd575fd
+                  tier=dev
+Annotations:      prometheus.io/path: /metrics
+                  prometheus.io/port: 8080
+                  prometheus.io/scrape: true
+Status:           Pending
+IP:               10.244.1.2
+IPs:
+  IP:           10.244.1.2
+Controlled By:  ReplicaSet/atlas-frontend-58ccd575fd
+Containers:
+  atlas-frontend:
+    Container ID:   
+    Image:          atlas-mcp/atlas-frontend:dev-latest
+    Image ID:       
+    Port:           8080/TCP
+    Host Port:      0/TCP
+    State:          Waiting
+      Reason:       ErrImageNeverPull
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     500m
+      memory:  1Gi
+    Requests:
+      cpu:      100m
+      memory:   256Mi
+    Liveness:   http-get http://:8080/health delay=30s timeout=10s period=30s #success=1 #failure=3
+    Readiness:  http-get http://:8080/health delay=10s timeout=5s period=10s #success=1 #failure=3
+    Startup:    http-get http://:8080/health delay=5s timeout=5s period=10s #success=1 #failure=6
+    Environment Variables from:
+      atlas-frontend-config  ConfigMap  Optional: false
+    Environment:             <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-zt2q8 (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-zt2q8:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason             Age                    From               Message
+  ----     ------             ----                   ----               -------
+  Normal   Scheduled          5m1s                   default-scheduler  Successfully assigned atlas-mcp-dev/atlas-frontend-58ccd575fd-9t7k6 to atlas-mcp-ci-test-worker
+  Warning  Failed             2m48s (x12 over 5m1s)  kubelet            Error: ErrImageNeverPull
+  Warning  ErrImageNeverPull  1s (x25 over 5m1s)     kubelet            Container image "atlas-mcp/atlas-frontend:dev-latest" is not present with pull policy of Never

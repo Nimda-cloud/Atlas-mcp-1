@@ -1,0 +1,11 @@
+{
+  "status": "healthy",
+  "tools": [
+    "read_file",
+    "write_file",
+    "list_directory",
+    "execute_command",
+    "http_request",
+    "system_info"
+  ]
+}

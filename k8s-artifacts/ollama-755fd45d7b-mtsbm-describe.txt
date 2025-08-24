@@ -1,0 +1,75 @@
+Name:             ollama-755fd45d7b-mtsbm
+Namespace:        atlas-mcp-dev
+Priority:         0
+Service Account:  default
+Node:             atlas-mcp-ci-test-worker/172.19.0.4
+Start Time:       Mon, 25 Aug 2025 01:56:14 +0300
+Labels:           app.kubernetes.io/instance=atlas-mcp
+                  app.kubernetes.io/managed-by=kustomize
+                  app.kubernetes.io/name=ollama
+                  app.kubernetes.io/part-of=atlas-autonomous-system
+                  environment=development
+                  pod-template-hash=755fd45d7b
+                  tier=dev
+Annotations:      <none>
+Status:           Pending
+IP:               10.244.1.18
+IPs:
+  IP:           10.244.1.18
+Controlled By:  ReplicaSet/ollama-755fd45d7b
+Containers:
+  ollama:
+    Container ID:   
+    Image:          ollama/ollama:latest
+    Image ID:       
+    Port:           11434/TCP
+    Host Port:      0/TCP
+    State:          Waiting
+      Reason:       ImagePullBackOff
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     4
+      memory:  8Gi
+    Requests:
+      cpu:      500m
+      memory:   2Gi
+    Liveness:   http-get http://:11434/api/tags delay=30s timeout=5s period=10s #success=1 #failure=3
+    Readiness:  http-get http://:11434/api/tags delay=10s timeout=3s period=5s #success=1 #failure=3
+    Environment:
+      OLLAMA_HOST:  0.0.0.0:11434
+    Mounts:
+      /root/.ollama from ollama-data (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-kxntc (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  ollama-data:
+    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
+    ClaimName:  ollama-data-pvc
+    ReadOnly:   false
+  kube-api-access-kxntc:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason     Age                   From               Message
+  ----     ------     ----                  ----               -------
+  Normal   Scheduled  4m52s                 default-scheduler  Successfully assigned atlas-mcp-dev/ollama-755fd45d7b-mtsbm to atlas-mcp-ci-test-worker
+  Warning  Failed     3m24s                 kubelet            Failed to pull image "ollama/ollama:latest": failed to pull and unpack image "docker.io/ollama/ollama:latest": failed to extract layer sha256:5fe86a47d2ea6e60e0996341fbc862ac39e4b87d3afed25309d95864e8b3b6c2: write /var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/112/fs/usr/lib/ollama/cuda_sbsa/libggml-cuda.so: no space left on device
+  Warning  Failed     100s (x2 over 3m24s)  kubelet            Error: ErrImagePull
+  Warning  Failed     100s                  kubelet            Failed to pull image "ollama/ollama:latest": failed to pull and unpack image "docker.io/ollama/ollama:latest": failed to extract layer sha256:5fe86a47d2ea6e60e0996341fbc862ac39e4b87d3afed25309d95864e8b3b6c2: write /var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/153/fs/usr/lib/ollama/cuda_sbsa/libcublasLt.so.12.8.4.1: no space left on device
+  Normal   BackOff    86s (x2 over 3m24s)   kubelet            Back-off pulling image "ollama/ollama:latest"
+  Warning  Failed     86s (x2 over 3m24s)   kubelet            Error: ImagePullBackOff
+  Normal   Pulling    71s (x3 over 4m51s)   kubelet            Pulling image "ollama/ollama:latest"

@@ -1,0 +1,1 @@
+Error from server (BadRequest): container "atlas-core" in pod "atlas-core-6dbf5bf65c-nbc47" is waiting to start: ErrImageNeverPull

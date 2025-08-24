@@ -1,0 +1,14 @@
+{
+  "status": "healthy",
+  "tools": [
+    "app_control",
+    "applescript",
+    "shortcuts",
+    "system_prefs",
+    "finder",
+    "notify",
+    "speak",
+    "screenshot",
+    "window_control"
+  ]
+}
