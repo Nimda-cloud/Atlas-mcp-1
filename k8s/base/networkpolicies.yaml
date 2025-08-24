@@ -1,0 +1,182 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: atlas-network-policy
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Дозволяємо вхідний трафік від інших подів в namespace
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: atlas-mcp
+  # Дозволяємо вхідний трафік від ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+  # Дозволяємо вхідний трафік для monitoring
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+  egress:
+  # Дозволяємо вихідний трафік до інших подів в namespace
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: atlas-mcp
+  # Дозволяємо DNS резолюцію
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # Дозволяємо HTTPS для зовнішніх API
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  # Дозволяємо HTTP для зовнішніх API (якщо потрібно)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: atlas-frontend-ingress
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: atlas-frontend
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: atlas-frontend
+  policyTypes:
+  - Ingress
+  ingress:
+  # Дозволяємо вхідний трафік від ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+  # Дозволяємо вхідний трафік від інших подів в namespace
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: atlas-mcp
+    ports:
+    - protocol: TCP
+      port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: atlas-core-ingress
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: atlas-core
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: atlas-core
+  policyTypes:
+  - Ingress
+  ingress:
+  # Дозволяємо вхідний трафік від atlas-frontend
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: atlas-frontend
+    ports:
+    - protocol: TCP
+      port: 8000
+  # Дозволяємо вхідний трафік від ingress controller (для API)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8000
+  # Дозволяємо monitoring трафік
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis-access
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  policyTypes:
+  - Ingress
+  ingress:
+  # Дозволяємо доступ тільки від atlas-core та MCP сервісів
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: atlas-core
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: mcp-automation
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: mcp-automator
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: mcp-tts
+    ports:
+    - protocol: TCP
+      port: 6379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: qdrant-access
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: qdrant
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: qdrant
+  policyTypes:
+  - Ingress
+  ingress:
+  # Дозволяємо доступ тільки від atlas-core
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: atlas-core
+    ports:
+    - protocol: TCP
+      port: 6333
+    - protocol: TCP
+      port: 6334

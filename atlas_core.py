@@ -1118,7 +1118,8 @@ class AtlasCore:
             for name in names:
                 url = self.mcp_endpoints[name]["health_url"]
                 tasks.append(self._probe(session, name, url))
-            probe_results = await asyncio.gather(*tasks, return_exceptions=True)
+            # All exceptions are handled inside _probe, so we don't expect exceptions here
+            probe_results = await asyncio.gather(*tasks)
             for name, ok in probe_results:
                 result[name] = bool(ok)
         return result

@@ -1,0 +1,104 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: atlas-core-config
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: atlas-core
+    app.kubernetes.io/part-of: atlas-autonomous-system
+data:
+  ATLAS_WEB_HOST: "0.0.0.0"
+  ATLAS_WEB_PORT: "8000"
+  ATLAS_LOG_LEVEL: "INFO"
+  ATLAS_DATA_DIR: "/app/data"
+  OLLAMA_URL: "http://host.docker.internal:11434"
+  USE_EMBEDDED_OLLAMA: "false"
+  ATLAS_LLM_PROVIDER: "ollama"
+  ATLAS_LLM1_MODEL: "llama3.1:8b"
+  ATLAS_LLM2_MODEL: "gpt-oss:latest"
+  ATLAS_LLM3_MODEL: "llama3.1:8b"
+  ATLAS_MCP_SERVERS: "automation,macos-automator,tts,playwright"
+  ATLAS_MCP_TTS_URL: "http://mcp-tts-service:4004"
+  ATLAS_MCP_PLAYWRIGHT_URL: "http://mcp-playwright-service:4005/mcp"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: atlas-frontend-config
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: atlas-frontend
+    app.kubernetes.io/part-of: atlas-autonomous-system
+data:
+  ATLAS_CORE_URL: "http://atlas-core-service:8000"
+  TTS_SERVICE_URL: "http://mcp-tts-service:4004"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-automation-config
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: mcp-automation
+    app.kubernetes.io/part-of: atlas-autonomous-system
+data:
+  MCP_PORT: "4002"
+  AUTOMATION_LOG_LEVEL: "INFO"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-automator-config
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: mcp-automator
+    app.kubernetes.io/part-of: atlas-autonomous-system
+data:
+  MCP_PORT: "4003"
+  MACOS_AUTOMATOR_ENABLED: "true"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-tts-config
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: mcp-tts
+    app.kubernetes.io/part-of: atlas-autonomous-system
+data:
+  MCP_PORT: "4004"
+  TTS_PROVIDERS: "ukrainian_tts,google_tts"
+  TTS_DEFAULT_PROVIDER: "ukrainian_tts"
+  ATLAS_TTS_LANG: "uk"
+  TTS_OUTPUT_DIR: "/data/tts"
+  UK_TTS_DEVICE: "cpu"
+  UK_TTS_PREFERRED_FORMAT: "wav"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: atlas-autonomous-system
+data:
+  redis.conf: |
+    appendonly yes
+    save 900 1
+    save 300 10
+    save 60 10000
+    maxmemory 256mb
+    maxmemory-policy allkeys-lru
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qdrant-config
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: qdrant
+    app.kubernetes.io/part-of: atlas-autonomous-system
+data:
+  QDRANT__SERVICE__HTTP_PORT: "6333"
+  QDRANT__SERVICE__GRPC_PORT: "6334"

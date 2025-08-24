@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: atlas-mcp
+  labels:
+    name: atlas-mcp
+    app.kubernetes.io/name: atlas-mcp
+    app.kubernetes.io/part-of: atlas-autonomous-system
+    app.kubernetes.io/managed-by: kubernetes

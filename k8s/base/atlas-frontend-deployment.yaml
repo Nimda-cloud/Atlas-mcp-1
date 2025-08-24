@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: atlas-frontend
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: atlas-frontend
+    app.kubernetes.io/part-of: atlas-autonomous-system
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: atlas-frontend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: atlas-frontend
+        app.kubernetes.io/part-of: atlas-autonomous-system
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      imagePullSecrets:
+        - name: registry-secret
+      containers:
+      - name: atlas-frontend
+        image: atlas-mcp/atlas-frontend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: atlas-frontend-config
+        volumeMounts:
+        - name: docker-socket
+          mountPath: /var/run/docker.sock
+          readOnly: true
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 6
+      volumes:
+      - name: docker-socket
+        hostPath:
+          path: /var/run/docker.sock
+          type: Socket
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                  - atlas-frontend
+              topologyKey: kubernetes.io/hostname
+      tolerations:
+      - key: "kubernetes.io/arch"
+        operator: "Equal"
+        value: "amd64"
+        effect: "NoSchedule"

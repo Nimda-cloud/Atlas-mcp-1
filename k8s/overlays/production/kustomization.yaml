@@ -1,0 +1,98 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: atlas-mcp-prod
+
+namePrefix: prod-
+
+resources:
+- ../../base
+- ../../ingress
+- ../../monitoring
+
+patchesStrategicMerge:
+- deployment-patches.yaml
+- hpa-patches.yaml
+
+configMapGenerator:
+- name: atlas-core-config
+  behavior: merge
+  literals:
+  - ATLAS_LOG_LEVEL=INFO
+  - ATLAS_WEB_HOST=0.0.0.0
+  - ATLAS_WEB_PORT=8000
+  - USE_EMBEDDED_OLLAMA=false
+
+secretGenerator:
+- name: atlas-secrets
+  behavior: merge
+  files:
+  - GOOGLE_TTS_API_KEY=secrets/google-tts-api-key.txt
+  - GRAFANA_ADMIN_PASSWORD=secrets/grafana-admin-password.txt
+
+images:
+- name: atlas-mcp/atlas-core
+  newTag: v1.0.0
+- name: atlas-mcp/atlas-frontend
+  newTag: v1.0.0
+- name: atlas-mcp/mcp-automation
+  newTag: v1.0.0
+- name: atlas-mcp/mcp-automator
+  newTag: v1.0.0
+- name: atlas-mcp/mcp-tts
+  newTag: v1.0.0
+
+replicas:
+- name: atlas-core
+  count: 3
+- name: atlas-frontend
+  count: 5
+- name: mcp-automation
+  count: 3
+- name: mcp-automator
+  count: 3
+- name: mcp-tts
+  count: 3
+- name: mcp-playwright
+  count: 3
+
+commonLabels:
+  environment: production
+  tier: prod
+
+patchesJson6902:
+- target:
+    version: v1
+    kind: Service
+    name: atlas-frontend-service
+  patch: |-
+    - op: replace
+      path: /spec/type
+      value: LoadBalancer
+
+- target:
+    version: v1
+    kind: PersistentVolumeClaim
+    name: atlas-data-pvc
+  patch: |-
+    - op: replace
+      path: /spec/resources/requests/storage
+      value: 100Gi
+
+- target:
+    version: v1
+    kind: PersistentVolumeClaim
+    name: qdrant-data-pvc
+  patch: |-
+    - op: replace
+      path: /spec/resources/requests/storage
+      value: 200Gi
+
+- target:
+    version: v1
+    kind: PersistentVolumeClaim
+    name: prometheus-data-pvc
+  patch: |-
+    - op: replace
+      path: /spec/resources/requests/storage
+      value: 100Gi

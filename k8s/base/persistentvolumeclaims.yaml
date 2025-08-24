@@ -1,0 +1,111 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: atlas-data-pvc
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: atlas-core
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: fast-ssd
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: atlas-logs-pvc
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: atlas-core
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: fast-ssd
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-data-pvc
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: fast-ssd
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qdrant-data-pvc
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: qdrant
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: fast-ssd
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-data-pvc
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 15Gi
+  storageClassName: fast-ssd
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data-pvc
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: fast-ssd
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tts-audio-pvc
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: mcp-tts
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: fast-ssd

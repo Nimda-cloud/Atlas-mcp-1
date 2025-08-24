@@ -1,0 +1,83 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: atlas-core-pdb
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: atlas-core
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: atlas-core
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: atlas-frontend-pdb
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: atlas-frontend
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: atlas-frontend
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mcp-automation-pdb
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: mcp-automation
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mcp-automation
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mcp-automator-pdb
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: mcp-automator
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mcp-automator
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mcp-tts-pdb
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: mcp-tts
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mcp-tts
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mcp-playwright-pdb
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: mcp-playwright
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mcp-playwright

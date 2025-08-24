@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-service
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9090
+    targetPort: 9090
+    protocol: TCP
+    name: http
+  selector:
+    app.kubernetes.io/name: prometheus
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana-service
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3000
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  selector:
+    app.kubernetes.io/name: grafana
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-exporter-service
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: redis-exporter
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9121
+    targetPort: 9121
+    protocol: TCP
+    name: metrics
+  selector:
+    app.kubernetes.io/name: redis-exporter

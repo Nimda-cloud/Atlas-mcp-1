@@ -38,6 +38,17 @@ Atlas is an advanced autonomous system that uses multiple AI agents to intellige
 - **MCP Servers**: Containerized microservices for different capabilities
 - **Plugin System**: Easy to extend with new automation modules
 - **Docker Support**: Full containerization for easy deployment
+- **Kubernetes Ready**: Production-grade orchestration with professional monitoring
+
+### ☸️ Enterprise Kubernetes Deployment
+- **Professional Orchestration**: Full Kubernetes configuration with best practices
+- **Auto-scaling**: Horizontal Pod Autoscaler with intelligent resource management
+- **High Availability**: Multi-replica deployments with Pod Disruption Budgets
+- **Monitoring Stack**: Prometheus + Grafana with custom dashboards and alerts
+- **Security**: Network policies, RBAC, secrets management
+- **Load Balancing**: NGINX Ingress with SSL/TLS termination
+- **Storage**: Persistent volumes for data persistence
+- **Development/Production**: Separate overlays for different environments
 
 ## 📋 Requirements
 
@@ -462,7 +473,7 @@ export ATLAS_WEB_PORT=8001
 - [ ] Multi-language support
 
 ### Version 1.2
-- [ ] Kubernetes deployment support
+- [x] Kubernetes deployment support ✅
 - [ ] Advanced security features
 - [ ] Plugin marketplace
 - [ ] Mobile companion app
@@ -472,6 +483,129 @@ export ATLAS_WEB_PORT=8001
 - [ ] Advanced AI model support
 - [ ] Enterprise features
 - [ ] Cloud deployment options
+
+## ☸️ Kubernetes Deployment
+
+Atlas MCP включає повну професійну Kubernetes конфігурацію для enterprise розгортання.
+
+### 🚀 Швидкий старт з Kubernetes
+
+```bash
+# Клонування репозиторію
+git clone <repository>
+cd Atlas-mcp
+
+# Інтерактивне встановлення
+./setup-k8s.sh
+
+# Або автоматичне встановлення
+./setup-k8s.sh development
+```
+
+### 🏗️ Що включено
+
+- **Професійна оркестрація**: Повна Kubernetes конфігурація з best practices
+- **Автоматичне масштабування**: HPA з розумним управлінням ресурсами
+- **Високодоступність**: Multi-replica деплойменти з Pod Disruption Budgets
+- **Моніторинг**: Prometheus + Grafana з кастомними дашбордами та алертами
+- **Безпека**: Network policies, RBAC, secrets management
+- **Балансування навантаження**: NGINX Ingress з SSL/TLS
+- **Зберігання**: Persistent volumes для збереження даних
+- **Середовища**: Окремі overlay для development/production
+
+### 📊 Компоненти стеку
+
+#### Основні сервіси
+- **Atlas Core** (2-3 репліки) - основний AI сервіс
+- **Atlas Frontend** (3-5 реплік) - 3D веб-інтерфейс  
+- **MCP Services** (по 2-3 репліки кожний):
+  - MCP Automation - автоматизація задач
+  - MCP Automator - macOS автоматизація
+  - MCP TTS - текст-в-мову сервіс
+  - MCP Playwright - браузер автоматизація
+
+#### Підтримуючі сервіси
+- **Redis** - кешування та черги
+- **Qdrant** - векторна база даних для AI
+- **Prometheus** - збір метрик
+- **Grafana** - візуалізація даних
+
+### 🛠️ Управління кластером
+
+```bash
+# Використання make команд
+make install-dev          # Встановити development
+make install-prod         # Встановити production
+make status-dev           # Статус development
+make logs-dev             # Логи development
+make monitoring-dev       # Моніторинг development
+make scale-frontend-dev REPLICAS=5  # Масштабування
+
+# Або безпосередньо через скрипт
+./k8s-manage.sh install development
+./k8s-manage.sh status development
+./k8s-manage.sh logs development atlas-core
+./k8s-manage.sh scale development atlas-frontend 5
+```
+
+### 📈 Доступ до сервісів
+
+```bash
+# Atlas Frontend
+make port-forward-atlas-dev
+# Відкрийте http://localhost:8080
+
+# Grafana Dashboard
+make port-forward-grafana-dev  
+# Відкрийте http://localhost:3000 (admin/dev_admin)
+
+# Prometheus Metrics
+make port-forward-prometheus-dev
+# Відкрийте http://localhost:9090
+```
+
+### 🔧 Налаштування
+
+1. **Скопіюйте конфігурацію**:
+   ```bash
+   cp .env.k8s.example .env.k8s
+   # Відредагуйте налаштування за потребою
+   ```
+
+2. **Налаштуйте secrets для production**:
+   ```bash
+   mkdir secrets/
+   echo "your-api-key" > secrets/google-tts-api-key.txt
+   echo "secure-password" > secrets/grafana-admin-password.txt
+   ```
+
+3. **Побудуйте образи**:
+   ```bash
+   make build-images
+   ```
+
+4. **Розгорніть**:
+   ```bash
+   ./setup-k8s.sh production
+   ```
+
+### 📋 Вимоги для Kubernetes
+
+#### Мінімальні
+- **CPU**: 4 vCPU
+- **RAM**: 8 GB  
+- **Storage**: 50 GB
+- **Nodes**: 2+
+
+#### Рекомендовані для production
+- **CPU**: 12+ vCPU
+- **RAM**: 24+ GB
+- **Storage**: 200+ GB
+- **Nodes**: 3+
+
+### 📚 Документація
+
+Повна документація по Kubernetes розгортанню доступна в [k8s/README.md](k8s/README.md).
 
 ## 🙏 Acknowledgments
 

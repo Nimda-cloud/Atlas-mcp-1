@@ -1,0 +1,60 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: atlas-mcp-dev
+
+namePrefix: dev-
+
+resources:
+- ../../base
+- ../../ingress
+- ../../monitoring
+
+patchesStrategicMerge:
+- deployment-patches.yaml
+- service-patches.yaml
+
+configMapGenerator:
+- name: atlas-core-config
+  behavior: merge
+  literals:
+  - ATLAS_LOG_LEVEL=DEBUG
+  - ATLAS_WEB_HOST=0.0.0.0
+  - ATLAS_WEB_PORT=8000
+  - USE_EMBEDDED_OLLAMA=true
+
+secretGenerator:
+- name: atlas-secrets
+  behavior: merge
+  literals:
+  - GRAFANA_ADMIN_PASSWORD=dev_admin
+
+images:
+- name: atlas-mcp/atlas-core
+  newTag: dev-latest
+- name: atlas-mcp/atlas-frontend
+  newTag: dev-latest
+- name: atlas-mcp/mcp-automation
+  newTag: dev-latest
+- name: atlas-mcp/mcp-automator
+  newTag: dev-latest
+- name: atlas-mcp/mcp-tts
+  newTag: dev-latest
+
+replicas:
+- name: atlas-core
+  count: 1
+- name: atlas-frontend
+  count: 1
+- name: mcp-automation
+  count: 1
+- name: mcp-automator
+  count: 1
+- name: mcp-tts
+  count: 1
+- name: mcp-playwright
+  count: 1
+
+commonLabels:
+  environment: development
+  tier: dev

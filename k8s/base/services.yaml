@@ -1,0 +1,155 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: atlas-core-service
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: atlas-core
+    app.kubernetes.io/part-of: atlas-autonomous-system
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app.kubernetes.io/name: atlas-core
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: atlas-frontend-service
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: atlas-frontend
+    app.kubernetes.io/part-of: atlas-autonomous-system
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app.kubernetes.io/name: atlas-frontend
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-automation-service
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: mcp-automation
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  type: ClusterIP
+  ports:
+  - port: 4002
+    targetPort: 4002
+    protocol: TCP
+    name: http
+  selector:
+    app.kubernetes.io/name: mcp-automation
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-automator-service
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: mcp-automator
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  type: ClusterIP
+  ports:
+  - port: 4003
+    targetPort: 4003
+    protocol: TCP
+    name: http
+  selector:
+    app.kubernetes.io/name: mcp-automator
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-tts-service
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: mcp-tts
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  type: ClusterIP
+  ports:
+  - port: 4004
+    targetPort: 4004
+    protocol: TCP
+    name: http
+  selector:
+    app.kubernetes.io/name: mcp-tts
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-playwright-service
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: mcp-playwright
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  type: ClusterIP
+  ports:
+  - port: 4005
+    targetPort: 4005
+    protocol: TCP
+    name: http
+  selector:
+    app.kubernetes.io/name: mcp-playwright
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  type: ClusterIP
+  ports:
+  - port: 6379
+    targetPort: 6379
+    protocol: TCP
+    name: redis
+  selector:
+    app.kubernetes.io/name: redis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qdrant-service
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: qdrant
+    app.kubernetes.io/part-of: atlas-autonomous-system
+spec:
+  type: ClusterIP
+  ports:
+  - port: 6333
+    targetPort: 6333
+    protocol: TCP
+    name: http
+  - port: 6334
+    targetPort: 6334
+    protocol: TCP
+    name: grpc
+  selector:
+    app.kubernetes.io/name: qdrant

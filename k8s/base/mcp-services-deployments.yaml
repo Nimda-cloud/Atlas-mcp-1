@@ -1,0 +1,230 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-automation
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: mcp-automation
+    app.kubernetes.io/part-of: atlas-autonomous-system
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mcp-automation
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mcp-automation
+        app.kubernetes.io/part-of: atlas-autonomous-system
+    spec:
+      imagePullSecrets:
+        - name: registry-secret
+      containers:
+      - name: mcp-automation
+        image: atlas-mcp/mcp-automation:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 4002
+          name: http
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: mcp-automation-config
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 4002
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 4002
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-automator
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: mcp-automator
+    app.kubernetes.io/part-of: atlas-autonomous-system
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mcp-automator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mcp-automator
+        app.kubernetes.io/part-of: atlas-autonomous-system
+    spec:
+      imagePullSecrets:
+        - name: registry-secret
+      containers:
+      - name: mcp-automator
+        image: atlas-mcp/mcp-automator:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 4003
+          name: http
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: mcp-automator-config
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 4003
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 4003
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-tts
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: mcp-tts
+    app.kubernetes.io/part-of: atlas-autonomous-system
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mcp-tts
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mcp-tts
+        app.kubernetes.io/part-of: atlas-autonomous-system
+    spec:
+      imagePullSecrets:
+        - name: registry-secret
+      containers:
+      - name: mcp-tts
+        image: atlas-mcp/mcp-tts:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 4004
+          name: http
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: mcp-tts-config
+        - secretRef:
+            name: atlas-secrets
+        volumeMounts:
+        - name: tts-audio
+          mountPath: /data/tts
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 4004
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 4004
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+      volumes:
+      - name: tts-audio
+        persistentVolumeClaim:
+          claimName: tts-audio-pvc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-playwright
+  namespace: atlas-mcp
+  labels:
+    app.kubernetes.io/name: mcp-playwright
+    app.kubernetes.io/part-of: atlas-autonomous-system
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mcp-playwright
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mcp-playwright
+        app.kubernetes.io/part-of: atlas-autonomous-system
+    spec:
+      containers:
+      - name: mcp-playwright
+        image: mcr.microsoft.com/playwright/mcp:latest
+        imagePullPolicy: Always
+        command: ["--port", "4005", "--host", "0.0.0.0", "--headless", "--browser", "chromium", "--no-sandbox"]
+        ports:
+        - containerPort: 4005
+          name: http
+          protocol: TCP
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "200m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
