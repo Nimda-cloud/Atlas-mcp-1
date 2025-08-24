@@ -1107,17 +1107,24 @@ class AtlasCore:
     async def process_user_message(self, message: str) -> str:
         """Process user message through the agent system"""
         try:
+            logger.info(f"Processing user message: {message}")
+            
             # LLM1 processes the user interface and memory
             context = "You are LLM1, the interface agent for Atlas autonomous system. Process user requests and maintain conversation context."
             interface_response = await self.agents["interface"].generate_response(message, context)
+            logger.info(f"LLM1 response generated")
             
             # LLM2 orchestrates the task if needed
             if any(keyword in message.lower() for keyword in ['open', 'close', 'run', 'execute', 'automate', 'start', 'launch', 'відкрий', 'запусти']):
+                logger.info(f"Action keywords detected in message, activating LLM2 orchestrator")
                 orchestrator_context = f"You are LLM2, the orchestrator agent using gpt-oss:latest. The user said: {message}. Plan and coordinate the execution."
                 orchestrator_response = await self.agents["orchestrator"].generate_response(message, orchestrator_context)
+                logger.info(f"LLM2 orchestrator response generated")
                 
                 # Execute the planned action through intelligent MCP routing
+                logger.info(f"Starting task execution via execute_orchestrated_task")
                 execution_results = await self.execute_orchestrated_task(message)
+                logger.info(f"Task execution completed with {len(execution_results) if execution_results else 0} results")
                 
                 # Format results for user
                 results_summary = ""
@@ -1169,7 +1176,7 @@ class AtlasCore:
     async def execute_orchestrated_task(self, task_description: str):
         """Execute tasks orchestrated by LLM2 using gpt-oss:latest model"""
         try:
-            logger.info(f"LLM2 analyzing task: {task_description}")
+            logger.info(f"🎯 LLM2 (gpt-oss) analyzing task: {task_description}")
             
             # LLM2 with gpt-oss:latest analyzes the task and creates execution plan
             orchestrator_prompt = f"""You are LLM2, the intelligent orchestrator agent using gpt-oss:latest model. 
@@ -1193,9 +1200,9 @@ Respond with a JSON execution plan in this format:
     "steps": [
         {{
             "service": "mcp-automator|mcp-automation|mcp-playwright|mcp-tts",
-            "tool": "tool_name",
-            "parameters": {{"param1": "value1", "param2": "value2"}},
-            "description": "What this step does"
+            "tool": "app_control",
+            "parameters": {{"action": "open", "app_name": "Google Chrome"}},
+            "description": "Open Google Chrome browser"
         }}
     ],
     "expected_outcome": "What should happen after execution"
@@ -1204,12 +1211,13 @@ Respond with a JSON execution plan in this format:
 Important: Only use actions that the MCP services actually support. For macOS apps, use mcp-automator with app_control tool."""
 
             # Generate execution plan with LLM2
+            logger.info("🤖 Requesting execution plan from LLM2 (gpt-oss)...")
             plan_response = await self.agents["orchestrator"].generate_response(
                 orchestrator_prompt, 
-                "You are the intelligent orchestrator. Create precise execution plans."
+                "You are the intelligent orchestrator using gpt-oss:latest. Create precise execution plans in JSON format."
             )
             
-            logger.info(f"LLM2 execution plan: {plan_response}")
+            logger.info(f"📋 LLM2 execution plan received: {plan_response[:200]}...")
             
             # Try to parse the JSON plan
             execution_results = []
