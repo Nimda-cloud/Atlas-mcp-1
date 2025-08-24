@@ -37,6 +37,9 @@ logs/
 *.log
 *.pid
 
+# Archive directory (local organization)
+archive/
+
 # System Files
 .DS_Store
 .DS_Store?
