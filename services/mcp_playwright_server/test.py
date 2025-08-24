@@ -11,7 +11,8 @@ import requests
 import time
 import sys
 
-SERVER_URL = "http://localhost:4005"
+BASE_URL = "http://localhost:4015"
+SERVER_URL = BASE_URL
 
 def test_server_health():
     """Test server health endpoint"""

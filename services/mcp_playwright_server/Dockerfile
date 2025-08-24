@@ -39,8 +39,8 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 RUN playwright install chromium
 RUN playwright install-deps chromium
 
-# Copy enhanced application
-COPY app_enhanced.py /app/app.py
+# Copy application
+COPY app.py /app/app.py
 
 # Create a non-root user for security
 RUN useradd -m -u 1000 playwright && chown -R playwright:playwright /app
