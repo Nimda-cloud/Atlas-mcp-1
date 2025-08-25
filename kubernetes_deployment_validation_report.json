@@ -1,10 +1,10 @@
 {
-  "timestamp": "2025-08-24T22:33:38.002891",
+  "timestamp": "2025-08-25T02:38:54.753099",
   "validation_results": {
     "kustomize_configs": {
       "kustomize_build": {
         "status": "success",
-        "yaml_size": 73571,
+        "yaml_size": 73593,
         "resource_count": 68
       },
       "selector_analysis": {
@@ -43,38 +43,7 @@
       "conflicts": []
     },
     "image_policies": {
-      "never_policies": [
-        {
-          "deployment": "atlas-core",
-          "container": "atlas-core",
-          "image": "atlas-mcp/atlas-core:latest"
-        },
-        {
-          "deployment": "atlas-frontend",
-          "container": "atlas-frontend",
-          "image": "atlas-mcp/atlas-frontend:latest"
-        },
-        {
-          "deployment": "mcp-automation",
-          "container": "mcp-automation",
-          "image": "atlas-mcp/mcp-automation:latest"
-        },
-        {
-          "deployment": "mcp-automator",
-          "container": "mcp-automator",
-          "image": "atlas-mcp/mcp-automator:latest"
-        },
-        {
-          "deployment": "mcp-tts",
-          "container": "mcp-tts",
-          "image": "atlas-mcp/mcp-tts:latest"
-        },
-        {
-          "deployment": "mcp-playwright",
-          "container": "mcp-playwright",
-          "image": "atlas-mcp/mcp-playwright:latest"
-        }
-      ],
+      "never_policies": [],
       "latest_tags": [
         {
           "deployment": "atlas-core",
@@ -106,24 +75,19 @@
         }
       ],
       "recommendations": [
-        "For kind clusters, ensure images are loaded with: kind load docker-image <image-name>",
         "Consider using specific version tags instead of 'latest' for production stability"
       ]
     },
     "docker_images": {
       "available_images": [
         "atlas-mcp/atlas-core:latest",
-        "atlas-mcp/mcp-automation:latest",
-        "atlas-mcp/mcp-automator:latest"
-      ],
-      "missing_images": [
         "atlas-mcp/atlas-frontend:latest",
+        "atlas-mcp/mcp-automation:latest",
+        "atlas-mcp/mcp-automator:latest",
         "atlas-mcp/mcp-tts:latest"
       ],
-      "build_commands": [
-        "docker build -t atlas-mcp/atlas-frontend:latest 3d_helmet_viewer/",
-        "docker build -t atlas-mcp/mcp-tts:latest services/tts_mcp_adapter/"
-      ]
+      "missing_images": [],
+      "build_commands": []
     },
     "kind_cluster": {
       "kind_available": true,
@@ -134,20 +98,12 @@
   },
   "fixes_applied": [
     {
-      "issue": "Missing Docker images: 2 images",
-      "fix": "Build missing Docker images",
-      "commands": [
-        "docker build -t atlas-mcp/atlas-frontend:latest 3d_helmet_viewer/",
-        "docker build -t atlas-mcp/mcp-tts:latest services/tts_mcp_adapter/"
-      ]
-    },
-    {
       "issue": "Kind cluster not available",
       "fix": "Create kind cluster with proper configuration",
       "command": "kind create cluster --name atlas-mcp --config kind-config.yaml"
     }
   ],
   "recommendations": [],
-  "automation_score": 80.0,
-  "readiness_level": "development_ready"
+  "automation_score": 90.0,
+  "readiness_level": "staging_ready"
 }
