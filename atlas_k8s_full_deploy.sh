@@ -87,16 +87,18 @@ create_cluster() {
     fi
     
     # Создаем новый кластер
-    if [[ -f "kind-config.yaml" ]]; then
+    if [[ -f "kind-config-safe.yaml" ]]; then
+        kind create cluster --name "$CLUSTER_NAME" --config kind-config-safe.yaml
+    elif [[ -f "kind-config.yaml" ]]; then
         kind create cluster --name "$CLUSTER_NAME" --config kind-config.yaml
     else
-        # Создаем базовую конфигурацию
+        # Создаем базовую конфигурацию без портов 80/443
         cat > kind-config-temp.yaml << EOF
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 networking:
   apiServerAddress: "127.0.0.1"
-  apiServerPort: 6443
+  apiServerPort: 6444
 nodes:
 - role: control-plane
   kubeadmConfigPatches:
@@ -106,14 +108,11 @@ nodes:
       kubeletExtraArgs:
         node-labels: "ingress-ready=true"
   extraPortMappings:
-  - containerPort: 80
-    hostPort: 80
-    protocol: TCP
-  - containerPort: 443
-    hostPort: 443
-    protocol: TCP
   - containerPort: 30000
     hostPort: 30000
+    protocol: TCP
+  - containerPort: 30001
+    hostPort: 30001
     protocol: TCP
 - role: worker
 - role: worker

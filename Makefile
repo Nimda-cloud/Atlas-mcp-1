@@ -1,117 +1,243 @@
-# Atlas MCP Kubernetes Makefile
+# Atlas MCP Kubernetes Makefile - Расширенная версия
 
-.PHONY: help install-dev install-prod update-dev update-prod status-dev status-prod logs scale restart backup monitoring diagnose clean
+.PHONY: help deploy deploy-full restart clean status logs ports scale build-images test health monitoring debug
 
-# Змінні
+# Переменные
 SCRIPT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+DEPLOY_SCRIPT := $(SCRIPT_DIR)/atlas_k8s_full_deploy.sh
 K8S_SCRIPT := $(SCRIPT_DIR)/k8s-manage.sh
 ENV_DEV := development
 ENV_PROD := production
+NAMESPACE := atlas-mcp-dev
 
-# Кольори для виводу
+# Цвета для вывода
 GREEN := \033[0;32m
 YELLOW := \033[1;33m
+RED := \033[0;31m
+BLUE := \033[0;34m
 NC := \033[0m
 
-# Допомога
-help: ## Показати цю допомогу
-	@echo "$(GREEN)Atlas MCP Kubernetes Management$(NC)"
+# Помощь
+help: ## Показать эту справку
+	@echo "$(BLUE)╔══════════════════════════════════════════════════════╗$(NC)"
+	@echo "$(BLUE)║          Atlas MCP Kubernetes Management             ║$(NC)"
+	@echo "$(BLUE)╚══════════════════════════════════════════════════════╝$(NC)"
 	@echo ""
-	@echo "Доступні команди:"
+	@echo "$(GREEN)🚀 Основные команды:$(NC)"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "$(YELLOW)📝 Примеры использования:$(NC)"
+	@echo "  make deploy-full     # Полное развертывание с нуля"
+	@echo "  make status          # Проверить состояние системы"
+	@echo "  make logs            # Посмотреть логи Atlas Core"
+	@echo "  make clean           # Полная очистка"
 
-# Встановлення
-install-dev: ## Встановити в development середовище
-	@echo "$(GREEN)Встановлення Atlas MCP в development середовище...$(NC)"
+# Полное развертывание
+deploy-full: ## 🚀 Полное развертывание Atlas MCP (новый подход)
+	@echo "$(GREEN)🚀 Запуск полного развертывания Atlas MCP...$(NC)"
+	$(DEPLOY_SCRIPT) deploy
+
+restart: ## 🔄 Перезапуск всего стека
+	@echo "$(YELLOW)🔄 Перезапуск Atlas MCP стека...$(NC)"
+	$(DEPLOY_SCRIPT) restart
+
+# Быстрое развертывание (старый подход)
+deploy: install-dev ## 📦 Быстрое развертывание (legacy)
+
+install-dev: ## 📦 Установить в development среду
+	@echo "$(GREEN)📦 Установка Atlas MCP в development среду...$(NC)"
 	$(K8S_SCRIPT) install $(ENV_DEV)
 
-install-prod: ## Встановити в production середовище
-	@echo "$(GREEN)Встановлення Atlas MCP в production середовище...$(NC)"
+install-prod: ## 📦 Установить в production среду
+	@echo "$(GREEN)📦 Установка Atlas MCP в production среду...$(NC)"
 	$(K8S_SCRIPT) install $(ENV_PROD)
 
-# Оновлення
-update-dev: ## Оновити development середовище
-	@echo "$(GREEN)Оновлення Atlas MCP в development середовище...$(NC)"
+# Обновление
+update-dev: ## 🔄 Обновить development среду
+	@echo "$(GREEN)🔄 Обновление Atlas MCP в development среду...$(NC)"
 	$(K8S_SCRIPT) update $(ENV_DEV)
 
-update-prod: ## Оновити production середовище
-	@echo "$(GREEN)Оновлення Atlas MCP в production середовище...$(NC)"
+update-prod: ## 🔄 Обновить production среду
+	@echo "$(GREEN)🔄 Обновление Atlas MCP в production среду...$(NC)"
 	$(K8S_SCRIPT) update $(ENV_PROD)
 
-# Статус
-status-dev: ## Показати статус development середовища
+# Статус и мониторинг
+status: ## 📊 Показать статус всех сервисов
+	@echo "$(BLUE)📊 Статус Atlas MCP системы:$(NC)"
+	$(DEPLOY_SCRIPT) status
+
+status-dev: ## 📊 Показать статус development среды
 	$(K8S_SCRIPT) status $(ENV_DEV)
 
-status-prod: ## Показати статус production середовища
+status-prod: ## 📊 Показать статус production среды
 	$(K8S_SCRIPT) status $(ENV_PROD)
 
 # Логи
-logs-dev: ## Показати логи Atlas Core в development
+logs: ## 📜 Показать логи Atlas Core
+	@echo "$(BLUE)📜 Логи Atlas Core:$(NC)"
+	$(DEPLOY_SCRIPT) logs
+
+logs-dev: ## 📜 Показать логи Atlas Core в development
 	$(K8S_SCRIPT) logs $(ENV_DEV) atlas-core
 
-logs-prod: ## Показати логи Atlas Core в production
+logs-prod: ## 📜 Показать логи Atlas Core в production
 	$(K8S_SCRIPT) logs $(ENV_PROD) atlas-core
 
-logs-frontend-dev: ## Показати логи Frontend в development
-	$(K8S_SCRIPT) logs $(ENV_DEV) atlas-frontend
+logs-all: ## 📜 Показать все логи
+	@echo "$(BLUE)📜 Все логи системы:$(NC)"
+	kubectl logs -n $(NAMESPACE) -l app=atlas-core --tail=50
+	kubectl logs -n $(NAMESPACE) -l app=atlas-frontend --tail=30
+	kubectl logs -n $(NAMESPACE) -l app=mcp-automation --tail=20
 
-logs-frontend-prod: ## Показати логи Frontend в production
-	$(K8S_SCRIPT) logs $(ENV_PROD) atlas-frontend
+# Порты и доступ
+ports: ## 🌐 Настроить port forwarding
+	@echo "$(GREEN)🌐 Настройка port forwarding...$(NC)"
+	@echo "Atlas Core:      http://localhost:8000"
+	@echo "3D Frontend:     http://localhost:8080"
+	@echo "Grafana:         http://localhost:3000"
+	@echo "Prometheus:      http://localhost:9090"
+	kubectl port-forward -n $(NAMESPACE) service/atlas-core-service 8000:8000 &
+	kubectl port-forward -n $(NAMESPACE) service/atlas-frontend-service 8080:8080 &
+	kubectl port-forward -n $(NAMESPACE) service/grafana-service 3000:3000 &
+	kubectl port-forward -n $(NAMESPACE) service/prometheus-service 9090:9090 &
 
-# Скалювання
-scale-frontend-dev: ## Скалювати frontend в development (використайте REPLICAS=N)
+# Сборка образов
+build-images: ## 🏗️ Собрать все Docker образы
+	@echo "$(GREEN)🏗️ Сборка Docker образов...$(NC)"
+	docker build -t atlas-core:latest .
+	docker build -t atlas-frontend:latest ./3d_helmet_viewer/
+	docker build -t mcp-automation:latest -f Dockerfile.mcp-automation .
+	docker build -t mcp-automator:latest -f Dockerfile.mcp-automator .
+
+# Тестирование
+test: ## 🧪 Запустить тесты
+	@echo "$(GREEN)🧪 Запуск тестов...$(NC)"
+	python test_basic.py
+	python test_atlas.py
+
+health: ## 🏥 Проверить здоровье всех сервисов
+	@echo "$(BLUE)🏥 Проверка здоровья сервисов:$(NC)"
+	@curl -s -f http://localhost:8000/health && echo "✅ Atlas Core: OK" || echo "❌ Atlas Core: FAIL"
+	@curl -s -f http://localhost:8080/ && echo "✅ Frontend: OK" || echo "❌ Frontend: FAIL"
+	@curl -s -f http://localhost:3000/ && echo "✅ Grafana: OK" || echo "❌ Grafana: FAIL"
+	@curl -s -f http://localhost:9090/ && echo "✅ Prometheus: OK" || echo "❌ Prometheus: FAIL"
+	@curl -s -f http://localhost:4002/health && echo "✅ MCP Automation: OK" || echo "❌ MCP Automation: FAIL"
+	@curl -s -f http://localhost:4003/health && echo "✅ MCP Automator: OK" || echo "❌ MCP Automator: FAIL"
+	@curl -s -f http://localhost:4004/health && echo "✅ MCP TTS: OK" || echo "❌ MCP TTS: FAIL"
+	@curl -s -f http://localhost:4005/health && echo "✅ MCP Playwright: OK" || echo "❌ MCP Playwright: FAIL"
+
+# Масштабирование
+scale: ## ⚖️ Масштабировать сервисы (REPLICAS=N)
+	@echo "$(YELLOW)⚖️ Масштабирование сервисов...$(NC)"
+	kubectl scale deployment atlas-core -n $(NAMESPACE) --replicas=$(or $(REPLICAS),2)
+	kubectl scale deployment atlas-frontend -n $(NAMESPACE) --replicas=$(or $(REPLICAS),3)
+
+scale-frontend-dev: ## ⚖️ Масштабировать frontend в development (REPLICAS=N)
 	$(K8S_SCRIPT) scale $(ENV_DEV) atlas-frontend $(or $(REPLICAS),3)
 
-scale-frontend-prod: ## Скалювати frontend в production (використайте REPLICAS=N)
+scale-frontend-prod: ## ⚖️ Масштабировать frontend в production (REPLICAS=N)
 	$(K8S_SCRIPT) scale $(ENV_PROD) atlas-frontend $(or $(REPLICAS),5)
 
-scale-core-dev: ## Скалювати core в development (використайте REPLICAS=N)
+scale-core-dev: ## ⚖️ Масштабировать core в development (REPLICAS=N)
 	$(K8S_SCRIPT) scale $(ENV_DEV) atlas-core $(or $(REPLICAS),2)
 
-scale-core-prod: ## Скалювати core в production (використайте REPLICAS=N)
+scale-core-prod: ## ⚖️ Масштабировать core в production (REPLICAS=N)
 	$(K8S_SCRIPT) scale $(ENV_PROD) atlas-core $(or $(REPLICAS),3)
 
-# Перезапуск
-restart-dev: ## Перезапустити всі сервіси в development
-	$(K8S_SCRIPT) restart $(ENV_DEV)
+# Мониторинг
+monitoring: ## 📊 Открыть мониторинг
+	@echo "$(BLUE)📊 Открытие интерфейсов мониторинга...$(NC)"
+	@echo "Grafana:    http://localhost:3000 (admin/atlas_admin)"
+	@echo "Prometheus: http://localhost:9090"
+	open http://localhost:3000 || true
+	open http://localhost:9090 || true
 
-restart-prod: ## Перезапустити всі сервіси в production
-	$(K8S_SCRIPT) restart $(ENV_PROD)
-
-# Резервне копіювання
-backup-dev: ## Створити резервну копію development
-	$(K8S_SCRIPT) backup $(ENV_DEV)
-
-backup-prod: ## Створити резервну копію production
-	$(K8S_SCRIPT) backup $(ENV_PROD)
-
-# Моніторинг
-monitoring-dev: ## Показати моніторинг development
+monitoring-dev: ## 📊 Показать мониторинг development
 	$(K8S_SCRIPT) monitoring $(ENV_DEV)
 
-monitoring-prod: ## Показати моніторинг production
+monitoring-prod: ## 📊 Показать мониторинг production
 	$(K8S_SCRIPT) monitoring $(ENV_PROD)
 
-# Діагностика
-diagnose-dev: ## Виконати діагностику development
+# Диагностика и отладка
+debug: ## 🔍 Показать подробную информацию для отладки
+	@echo "$(BLUE)🔍 Диагностическая информация:$(NC)"
+	@echo "$(YELLOW)Кластер:$(NC)"
+	kubectl cluster-info
+	@echo "$(YELLOW)Namespace $(NAMESPACE):$(NC)"
+	kubectl get all -n $(NAMESPACE)
+	@echo "$(YELLOW)События:$(NC)"
+	kubectl get events -n $(NAMESPACE) --sort-by='.lastTimestamp' | tail -10
+	@echo "$(YELLOW)Использование ресурсов:$(NC)"
+	kubectl top pods -n $(NAMESPACE) || echo "Metrics server не доступен"
+
+diagnose-dev: ## 🔍 Выполнить диагностику development
 	$(K8S_SCRIPT) diagnose $(ENV_DEV)
 
-diagnose-prod: ## Виконати діагностику production
+diagnose-prod: ## 🔍 Выполнить диагностику production
 	$(K8S_SCRIPT) diagnose $(ENV_PROD)
 
-# Очищення
-clean-dev: ## Видалити development середовище
-	@echo "$(YELLOW)УВАГА: Це видалить всі ресурси development середовища!$(NC)"
+# Очистка
+clean: ## 🧹 Полная очистка (удалить кластер и все данные)
+	@echo "$(RED)⚠️  ВНИМАНИЕ: Это удалит весь кластер и все данные!$(NC)"
+	@read -p "Введите 'YES' для подтверждения: " confirm && [ "$$confirm" = "YES" ] || exit 1
+	$(DEPLOY_SCRIPT) clean
+
+clean-dev: ## 🧹 Удалить development среду
+	@echo "$(YELLOW)⚠️  ВНИМАНИЕ: Это удалит все ресурсы development среды!$(NC)"
 	$(K8S_SCRIPT) uninstall $(ENV_DEV)
 
-clean-prod: ## Видалити production середовище
-	@echo "$(YELLOW)УВАГА: Це видалить всі ресурси production середовища!$(NC)"
+clean-prod: ## 🧹 Удалить production среду
+	@echo "$(RED)⚠️  ВНИМАНИЕ: Это удалит все ресурсы production среды!$(NC)"
 	$(K8S_SCRIPT) uninstall $(ENV_PROD)
 
-# Швидкі команди
-dev: install-dev ## Швидке встановлення в development
+# Резервное копирование
+backup-dev: ## 💾 Создать резервную копию development
+	$(K8S_SCRIPT) backup $(ENV_DEV)
 
-prod: install-prod ## Швидке встановлення в production
+backup-prod: ## 💾 Создать резервную копию production
+	$(K8S_SCRIPT) backup $(ENV_PROD)
+
+# Быстрые команды
+dev: install-dev ## ⚡ Быстрая установка в development
+
+prod: install-prod ## ⚡ Быстрая установка в production
+
+up: deploy-full ## ⚡ Быстрый запуск (алиас для deploy-full)
+
+down: clean ## ⚡ Быстрая остановка (алиас для clean)
+
+# Утилиты
+shell-atlas: ## 🐚 Подключиться к shell Atlas Core
+	kubectl exec -it -n $(NAMESPACE) deployment/atlas-core -- /bin/bash
+
+shell-frontend: ## 🐚 Подключиться к shell Frontend
+	kubectl exec -it -n $(NAMESPACE) deployment/atlas-frontend -- /bin/sh
+
+# Информация о системе
+info: ## ℹ️ Показать информацию о системе
+	@echo "$(BLUE)╔══════════════════════════════════════════════════════╗$(NC)"
+	@echo "$(BLUE)║               Atlas MCP System Info                  ║$(NC)"
+	@echo "$(BLUE)╚══════════════════════════════════════════════════════╝$(NC)"
+	@echo ""
+	@echo "$(GREEN)🌐 Доступные URL:$(NC)"
+	@echo "  Atlas Web UI:     http://localhost:8000"
+	@echo "  3D Frontend:      http://localhost:8080"
+	@echo "  Grafana:          http://localhost:3000 (admin/atlas_admin)"
+	@echo "  Prometheus:       http://localhost:9090"
+	@echo "  MCP Automation:   http://localhost:4002"
+	@echo "  MCP Automator:    http://localhost:4003"
+	@echo "  MCP TTS:          http://localhost:4004"
+	@echo "  MCP Playwright:   http://localhost:4005"
+	@echo ""
+	@echo "$(GREEN)🔧 Основные команды:$(NC)"
+	@echo "  make deploy-full  # Полное развертывание"
+	@echo "  make status       # Проверить статус"
+	@echo "  make health       # Проверить здоровье сервисов"
+	@echo "  make logs         # Показать логи"
+	@echo "  make clean        # Полная очистка"
+	@echo ""
+	@echo "$(GREEN)📊 Статус кластера:$(NC)"
+	@kubectl cluster-info --context kind-atlas-mcp-cluster 2>/dev/null || echo "  Кластер не запущен"
 
 status: status-dev ## Швидкий статус development
 
