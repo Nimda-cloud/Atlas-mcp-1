@@ -36,23 +36,46 @@ if ! is_container; then
       echo "🧩 Detected host execution. Launching FULL Atlas stack via Docker Compose..."
       DETACH=${ATLAS_DETACH:-true}
       BUILD=${ATLAS_BUILD:-true}
-      # Build args
-      CMD=(docker compose --profile monitoring --profile mcp --profile macos up)
-      [[ "$BUILD" == "true" ]] && CMD+=(--build)
-      [[ "$DETACH" == "true" ]] && CMD+=(-d)
-      echo "➡️  Command: ${CMD[*]}"
-      "${CMD[@]}"
-
-      echo "⏳ Waiting for key services to respond..."
+      
+      # Step 1: Start core services first
+      echo "🚀 Starting core services..."
+      CORE_CMD=(docker compose up)
+      [[ "$BUILD" == "true" ]] && CORE_CMD+=(--build)
+      [[ "$DETACH" == "true" ]] && CORE_CMD+=(-d)
+      echo "➡️  Core command: ${CORE_CMD[*]}"
+      "${CORE_CMD[@]}"
+      
+      # Wait for core services to be healthy
+      echo "⏳ Waiting for core services to be ready..."
       wait_for_url "http://localhost:8000/status" 40 1 || echo "⚠️ atlas-core not responding yet"
       wait_for_url "http://localhost:8080/health" 30 1 || echo "⚠️ frontend not responding yet"
       wait_for_url "http://localhost:4004/health" 30 1 || echo "⚠️ tts mcp not responding yet"
       wait_for_url "http://localhost:6333/dashboard" 20 1 || echo "⚠️ qdrant dashboard not responding yet"
+      
+      # Step 2: Start monitoring services
+      echo "� Starting monitoring services..."
+      MONITORING_CMD=(docker compose --profile monitoring up -d)
+      echo "➡️  Monitoring command: ${MONITORING_CMD[*]}"
+      "${MONITORING_CMD[@]}"
+      
+      # Step 3: Start MCP services if requested
+      if [[ "${ATLAS_ENABLE_MCP:-true}" == "true" ]]; then
+        echo "🔧 Starting MCP services..."
+        MCP_CMD=(docker compose --profile mcp --profile macos up -d)
+        echo "➡️  MCP command: ${MCP_CMD[*]}"
+        "${MCP_CMD[@]}"
+      fi
+      
+      # Wait for monitoring services
+      echo "⏳ Waiting for monitoring services..."
+      wait_for_url "http://localhost:9090" 30 1 || echo "⚠️ prometheus not responding yet"
+      wait_for_url "http://localhost:9121/metrics" 20 1 || echo "⚠️ redis-exporter not responding yet"
+      wait_for_url "http://localhost:3000" 20 1 || echo "⚠️ grafana not responding yet"
 
-      echo "📦 Current stack status:"
+      echo "�📦 Current stack status:"
       docker compose ps || true
 
-      echo "✅ Full stack startup invoked. Exiting host launcher path."
+      echo "✅ Full stack startup completed successfully. Exiting host launcher path."
       exit 0
     fi
   fi
