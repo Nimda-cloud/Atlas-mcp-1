@@ -180,16 +180,25 @@ class LLMAgent:
             api_base = os.getenv("OLLAMA_URL") or os.getenv("OLLAMA_HOST") or self.config.api_base
             if api_base and not api_base.startswith("http"):
                 api_base = f"http://{api_base}"
-            self.client = ollama.Client(host=api_base)
+            try:
+                self.client = ollama.Client(host=api_base)
+                logger.info(f"Initialized LLM client for {self.config.name} with provider={self.config.provider}, api_base={api_base}, model={self.config.model}")
+            except Exception as e:
+                self.client = None
+                logger.error(f"Failed to initialize LLM client for {self.config.name}: {e}")
         else:
             logger.warning(f"Provider {self.config.provider} not yet implemented")
 
     async def generate_response(self, prompt: str, context: str = "") -> str:
         """Generate response from the LLM"""
         try:
+            # Lazy init if needed
             if self.client is None:
-                logger.error("LLM client is not initialized")
-                return "Error: LLM client not initialized"
+                logger.warning(f"LLM client was not initialized for {self.config.name}. Attempting to initialize now...")
+                self.setup_client()
+            if self.client is None:
+                logger.error(f"LLM client is not initialized for {self.config.name} (provider={self.config.provider})")
+                return f"Error: LLM client not initialized for {self.config.name}"
             full_prompt = f"{context}\n\nUser: {prompt}\nAssistant:" if context else prompt
 
             response = self.client.generate(
@@ -1119,8 +1128,14 @@ class AtlasCore:
                 url = self.mcp_endpoints[name]["health_url"]
                 tasks.append(self._probe(session, name, url))
             probe_results = await asyncio.gather(*tasks, return_exceptions=True)
-            for name, ok in probe_results:
-                result[name] = bool(ok)
+            for item in probe_results:
+                # Ignore exceptions; just treat as down
+                if isinstance(item, BaseException):
+                    continue
+                # Expect (name, bool)
+                if isinstance(item, tuple) and len(item) == 2:
+                    name, ok = item
+                    result[name] = bool(ok)
         return result
 
     async def _probe(self, session: aiohttp.ClientSession, name: str, url: str):
