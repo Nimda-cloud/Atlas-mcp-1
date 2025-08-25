@@ -215,7 +215,7 @@ class LLMAgent:
             if self.client is None:
                 logger.error(f"LLM client is not initialized for {self.config.name} (provider={self.config.provider})")
                 return f"Error: LLM client not initialized for {self.config.name}"
-            full_prompt = f"{context}\n\nUser: {prompt}\nAssistant:" if context else prompt
+            full_prompt = f"{context}\n\nКористувач: {prompt}\nВідповідь:" if context else prompt
 
             response = self.client.generate(
                 model=self.config.model,
@@ -1044,26 +1044,62 @@ class AtlasCore:
     
     async def process_user_message(self, message: str) -> str:
         """Process user message through the agent system"""
+        logger.info(f"ENTERING process_user_message with message: {repr(message)}")
         try:
             # LLM1 processes the user interface and memory
-            context = "You are LLM1, the interface agent for Atlas autonomous system. Process user requests and maintain conversation context."
+            context = """Ти називаєшся Атлас. Ти розмовляєш ТІЛЬКИ українською мовою. 
+НІКОЛИ не використовуй російську мову. НІКОЛИ не додавай англійські переклади в дужках.
+НІКОЛИ не починай відповідь з "Atlas Interface:" або будь-якого іншого префіксу.
+Відповідай просто і природно українською мовою як звичайна людина."""
+            
             interface_response = await self.agents["interface"].generate_response(message, context)
             
+            # Debug: log the raw response
+            logger.info(f"Raw interface_response: {repr(interface_response)}")
+            
+            # Remove English translations in parentheses and clean up response
+            cleaned_response = self._clean_response(interface_response)
+            
             # LLM2 orchestrates the task if needed
-            if any(keyword in message.lower() for keyword in ['open', 'close', 'run', 'execute', 'automate']):
-                orchestrator_context = f"You are LLM2, the orchestrator agent. The user said: {message}. Plan and coordinate the execution."
+            if any(keyword in message.lower() for keyword in ['open', 'close', 'run', 'execute', 'automate', 'відкрий', 'закрий', 'запусти', 'виконай']):
+                orchestrator_context = f"""Ти - LLM2, агент-оркестратор. Користувач сказав: {message}. 
+Плануй та координуй виконання. Відповідай українською без англійських дублювань."""
+                
                 orchestrator_response = await self.agents["orchestrator"].generate_response(message, orchestrator_context)
+                cleaned_orchestrator = self._clean_response(orchestrator_response)
                 
                 # Execute the planned action
                 await self.execute_orchestrated_task(message)
                 
-                return f"Interface Agent: {interface_response}\n\nOrchestrator: {orchestrator_response}\n\nTask executed successfully."
+                return f"{cleaned_response}\n\n{cleaned_orchestrator}\n\nЗавдання виконано успішно."
             
-            return f"Atlas Interface: {interface_response}"
+            return cleaned_response
             
         except Exception as e:
             logger.error(f"Error processing message: {e}")
-            return f"Error processing your request: {str(e)}"
+            return f"Помилка при обробці вашого запиту: {str(e)}"
+    
+    def _clean_response(self, response: str) -> str:
+        """Clean response from English translations and system prefixes"""
+        import re
+        
+        # Remove common system prefixes at the beginning
+        cleaned = re.sub(r'^(Atlas Interface:|Interface Agent:|Atlas:|LLM1:|LLM1,|Assistant:)\s*', '', response.strip())
+        
+        # Remove English translations in parentheses (case insensitive)
+        cleaned = re.sub(r'\s*\([^)]*\b(?:Hello|Everything|good|how are you|thank you|please|sorry)\b[^)]*\)', '', cleaned, flags=re.IGNORECASE)
+        
+        # Remove any remaining full English parenthetical expressions
+        cleaned = re.sub(r'\s*\([A-Za-z\s,!?.-]+\)', '', cleaned)
+        
+        # Remove excessive context that might be leaked from prompts
+        cleaned = re.sub(r'^.*?User:.*?Assistant:\s*', '', cleaned, flags=re.DOTALL)
+        
+        # Clean up extra whitespace and newlines
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        cleaned = re.sub(r'^\s*\n+', '', cleaned)
+        
+        return cleaned
     
     async def execute_action(self, action: str) -> str:
         """Execute predefined actions"""
