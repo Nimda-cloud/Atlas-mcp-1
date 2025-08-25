@@ -624,27 +624,10 @@
             speakText(text) {
                 if (!this.ttsEnabled) return;
                 
-                // Use Web Speech API as fallback
-                if ('speechSynthesis' in window) {
-                    const utterance = new SpeechSynthesisUtterance(text);
-                    utterance.lang = 'uk-UA';
-                    utterance.rate = 0.9;
-                    utterance.pitch = 1.1;
-                    
-                    utterance.onstart = () => {
-                        this.isSpeaking = true;
-                        this.updateStatus("Atlas Speaking...");
-                        this.animateHelmetSpeaking(true);
-                    };
-                    
-                    utterance.onend = () => {
-                        this.isSpeaking = false;
-                        this.updateStatus("Atlas System Ready");
-                        this.animateHelmetSpeaking(false);
-                    };
-                    
-                    speechSynthesis.speak(utterance);
-                }
+                // Use TTS MCP service (Google TTS + Ukrainian fallback)
+                this.isSpeaking = true;
+                this.updateStatus("Atlas Speaking...");
+                this.animateHelmetSpeaking(true);
                 
                 // Try to integrate with TTS MCP service
                 this.callTTSService(text);
@@ -671,11 +654,33 @@
                         // Play the audio from the TTS service
                         if (data.url) {
                             const audio = new Audio(data.url);
+                            
+                            audio.onended = () => {
+                                this.isSpeaking = false;
+                                this.updateStatus("Atlas System Ready");
+                                this.animateHelmetSpeaking(false);
+                            };
+                            
+                            audio.onerror = () => {
+                                this.isSpeaking = false;
+                                this.updateStatus("Atlas System Ready");
+                                this.animateHelmetSpeaking(false);
+                            };
+                            
                             audio.play();
                         }
+                    } else {
+                        // If TTS service fails, reset state
+                        this.isSpeaking = false;
+                        this.updateStatus("Atlas System Ready");
+                        this.animateHelmetSpeaking(false);
                     }
                 } catch (error) {
-                    console.log('TTS Service not available, using browser TTS');
+                    console.log('TTS Service not available');
+                    // Reset state on error
+                    this.isSpeaking = false;
+                    this.updateStatus("Atlas System Ready");
+                    this.animateHelmetSpeaking(false);
                 }
             }
 
