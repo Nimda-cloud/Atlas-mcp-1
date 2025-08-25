@@ -30,7 +30,7 @@ nodes:
   - containerPort: 30002
     hostPort: 30002
     protocol: TCP
-  # Add Ollama host port mapping for direct access
+  # Ollama host port mapping for direct access
   - containerPort: 11434
     hostPort: 11434
     protocol: TCP
