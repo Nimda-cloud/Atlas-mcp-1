@@ -31,15 +31,15 @@ patches:
 
 images:
 - name: atlas-mcp/atlas-core
-  newTag: dev-latest
+  newTag: latest
 - name: atlas-mcp/atlas-frontend
-  newTag: dev-latest
+  newTag: latest
 - name: atlas-mcp/mcp-automation
-  newTag: dev-latest
+  newTag: latest
 - name: atlas-mcp/mcp-automator
-  newTag: dev-latest
+  newTag: latest
 - name: atlas-mcp/mcp-tts
-  newTag: dev-latest
+  newTag: latest
 
 replicas:
 - name: atlas-core
