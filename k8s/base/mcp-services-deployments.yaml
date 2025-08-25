@@ -23,7 +23,7 @@ spec:
       containers:
       - name: mcp-automation
         image: atlas-mcp/mcp-automation:latest
-        imagePullPolicy: Never
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 4002
           name: http
@@ -82,7 +82,7 @@ spec:
       containers:
       - name: mcp-automator
         image: atlas-mcp/mcp-automator:latest
-        imagePullPolicy: Never
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 4003
           name: http
@@ -141,7 +141,7 @@ spec:
       containers:
       - name: mcp-tts
         image: atlas-mcp/mcp-tts:latest
-        imagePullPolicy: Never
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 4004
           name: http
@@ -209,7 +209,7 @@ spec:
       containers:
       - name: mcp-playwright
         image: atlas-mcp/mcp-playwright:latest
-        imagePullPolicy: Never
+        imagePullPolicy: IfNotPresent
         command: ["python"]
         args: ["/app/app.py"]
         ports:

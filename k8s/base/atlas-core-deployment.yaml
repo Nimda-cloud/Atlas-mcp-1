@@ -27,7 +27,7 @@ spec:
       containers:
       - name: atlas-core
         image: atlas-mcp/atlas-core:latest
-        imagePullPolicy: Never
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
           name: http

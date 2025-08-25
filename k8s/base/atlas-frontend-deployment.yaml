@@ -27,7 +27,7 @@ spec:
       containers:
       - name: atlas-frontend
         image: atlas-mcp/atlas-frontend:latest
-        imagePullPolicy: Never
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
           name: http
