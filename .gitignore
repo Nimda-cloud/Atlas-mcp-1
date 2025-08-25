@@ -109,3 +109,7 @@ dmypy.json
 *.backup
 *~
 node_modules/
+
+# Test files
+test_*.py
+demo_*.py
