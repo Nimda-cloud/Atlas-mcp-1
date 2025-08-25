@@ -16,9 +16,9 @@ services:
       OLLAMA_URL: http://host.docker.internal:11434
       USE_EMBEDDED_OLLAMA: "${USE_EMBEDDED_OLLAMA:-false}"
       ATLAS_LLM_PROVIDER: ollama
-      ATLAS_LLM1_MODEL: "${ATLAS_LLM1_MODEL:-llama3.1:8b}"
-      ATLAS_LLM2_MODEL: "${ATLAS_LLM2_MODEL:-llama3.1:8b}"
-      ATLAS_LLM3_MODEL: "${ATLAS_LLM3_MODEL:-llama3.1:8b}"
+      ATLAS_LLM1_MODEL: "${ATLAS_LLM1_MODEL:-gpt-oss:latest}"
+      ATLAS_LLM2_MODEL: "${ATLAS_LLM2_MODEL:-gpt-oss:latest}"
+      ATLAS_LLM3_MODEL: "${ATLAS_LLM3_MODEL:-gpt-oss:latest}"
       ATLAS_MCP_SERVERS: automation,macos-automator,tts,playwright
       ATLAS_MCP_TTS_URL: http://mcp-tts:4004
       ATLAS_MCP_PLAYWRIGHT_URL: http://mcp-playwright:4005/mcp
@@ -29,6 +29,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+    # Підтягування змінних оточення з локального .env файлу (якщо існує)
+    env_file:
+      - .env
 
   atlas-enhanced-frontend:
     build: ./3d_helmet_viewer
@@ -52,6 +55,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    env_file:
+      - .env
 
   mcp-automation:
     build:
@@ -71,6 +76,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    env_file:
+      - .env
 
   mcp-automator:
     build:
@@ -90,6 +97,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    env_file:
+      - .env
 
   mcp-playwright:
     image: mcr.microsoft.com/playwright/mcp:latest
@@ -99,6 +108,8 @@ services:
       - "4005:4005"
     restart: unless-stopped
     profiles: ["mcp"]
+    env_file:
+      - .env
 
   mcp-tts:
     build: ./services/tts_mcp_adapter
@@ -124,6 +135,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    env_file:
+      - .env
 
   redis:
     image: redis:7-alpine

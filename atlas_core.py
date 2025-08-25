@@ -274,9 +274,9 @@ class AtlasCore:
         # Resolve common settings from env
         default_provider = os.getenv("ATLAS_LLM_PROVIDER", "ollama")
         # Prefer per-agent model envs, then common, then sensible defaults available in repo
-        llm1_model = os.getenv("ATLAS_LLM1_MODEL") or os.getenv("ATLAS_LLM_MODEL") or "llama3.2:latest"
+        llm1_model = os.getenv("ATLAS_LLM1_MODEL") or os.getenv("ATLAS_LLM_MODEL") or "gpt-oss:latest"
         llm2_model = os.getenv("ATLAS_LLM2_MODEL") or os.getenv("ATLAS_LLM_MODEL") or "gpt-oss:latest"
-        llm3_model = os.getenv("ATLAS_LLM3_MODEL") or os.getenv("ATLAS_LLM_MODEL") or "llama3.2:latest"
+        llm3_model = os.getenv("ATLAS_LLM3_MODEL") or os.getenv("ATLAS_LLM_MODEL") or "gpt-oss:latest"
         # Normalize any known aliases to valid Ollama tags
         llm1_model = self._normalize_model(llm1_model)
         llm2_model = self._normalize_model(llm2_model)
