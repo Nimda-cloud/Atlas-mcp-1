@@ -77,12 +77,12 @@ else
 fi
 
 # Resolve desired models from env with sensible fallbacks
-MODEL1="${ATLAS_LLM1_MODEL:-${ATLAS_LLM_MODEL:-llama3.1:8b}}"
+MODEL1="${ATLAS_LLM1_MODEL:-${ATLAS_LLM_MODEL:-llama3.2:latest}}"
 MODEL2="${ATLAS_LLM2_MODEL:-${ATLAS_LLM_MODEL:-gpt-oss:latest}}"
-MODEL3="${ATLAS_LLM3_MODEL:-${ATLAS_LLM_MODEL:-llama3.1:8b}}"
+MODEL3="${ATLAS_LLM3_MODEL:-${ATLAS_LLM_MODEL:-llama3.2:latest}}"
 
 # Build a unique list of models to pull, plus global fallbacks
-FALLBACK_MODELS=("gpt-oss:latest" "llama3.1:8b" "llama3:latest" "mistral:latest")
+FALLBACK_MODELS=("gpt-oss:latest" "llama3.2:latest" "llama3:latest" "mistral:latest")
 MODELS_TO_PULL=()
 for m in "$MODEL1" "$MODEL2" "$MODEL3"; do
   [[ -n "$m" ]] && MODELS_TO_PULL+=("$m")
