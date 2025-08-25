@@ -93,6 +93,22 @@ class AtlasEnhancedServer:
             """Health check endpoint"""
             return {"status": "ok", "service": "atlas-enhanced-frontend"}
         
+        @self.app.get("/audio/{filename}")
+        async def proxy_audio(filename: str):
+            """Proxy audio files from TTS service"""
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(f"{self.tts_service_url}/audio/{filename}") as resp:
+                        if resp.status == 200:
+                            content = await resp.read()
+                            content_type = resp.headers.get('content-type', 'audio/mpeg')
+                            return Response(content=content, media_type=content_type)
+                        else:
+                            raise HTTPException(status_code=resp.status, detail="Audio file not found")
+            except Exception as e:
+                logger.error(f"Error proxying audio file {filename}: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
         @self.app.post("/api/chat")
         async def chat_message(message_data: Dict[str, Any]):
             """Process chat messages through Atlas core"""
