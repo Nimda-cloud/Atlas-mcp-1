@@ -108,6 +108,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    security_opt:
+      - seccomp:unconfined
+    cap_add:
+      - SYS_ADMIN
+    shm_size: "2gb"
 
   mcp-tts:
     build: ./services/tts_mcp_adapter
