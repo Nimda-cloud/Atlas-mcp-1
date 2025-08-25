@@ -1046,11 +1046,11 @@ class AtlasCore:
         """Process user message through the agent system"""
         logger.info(f"ENTERING process_user_message with message: {repr(message)}")
         try:
-            # LLM1 processes the user interface and memory
+            # LLM1 processes the user interface and provides a brief response
             context = """Ти називаєшся Атлас. Ти розмовляєш ТІЛЬКИ українською мовою. 
 НІКОЛИ не використовуй російську мову. НІКОЛИ не додавай англійські переклади в дужках.
 НІКОЛИ не починай відповідь з "Atlas Interface:" або будь-якого іншого префіксу.
-Відповідай просто і природно українською мовою як звичайна людина."""
+Відповідай КОРОТКО і природно українською мовою. Максимум 1-2 речення для підтвердження."""
             
             interface_response = await self.agents["interface"].generate_response(message, context)
             
@@ -1061,17 +1061,28 @@ class AtlasCore:
             cleaned_response = self._clean_response(interface_response)
             
             # LLM2 orchestrates the task if needed
-            if any(keyword in message.lower() for keyword in ['open', 'close', 'run', 'execute', 'automate', 'відкрий', 'закрий', 'запусти', 'виконай']):
-                orchestrator_context = f"""Ти - LLM2, агент-оркестратор. Користувач сказав: {message}. 
-Плануй та координуй виконання. Відповідай українською без англійських дублювань."""
+            if any(keyword in message.lower() for keyword in ['open', 'close', 'run', 'execute', 'automate', 'відкрий', 'закрий', 'запусти', 'виконай', 'розгорни', 'фільм']):
+                # Execute the planned action via LLM2
+                execution_results = await self.execute_orchestrated_task(message)
                 
-                orchestrator_response = await self.agents["orchestrator"].generate_response(message, orchestrator_context)
-                cleaned_orchestrator = self._clean_response(orchestrator_response)
+                # Generate concise status report
+                results_summary = ""
+                if execution_results:
+                    successful_steps = [r for r in execution_results if r.get("success", True)]
+                    failed_steps = [r for r in execution_results if not r.get("success", True)]
+                    
+                    if successful_steps:
+                        results_summary += f"\n✅ Успішно виконано {len(successful_steps)} кроків:"
+                        for result in successful_steps[:3]:  # Show first 3 successful results
+                            if "description" in result:
+                                results_summary += f"\n  • {result.get('description', 'Завдання виконано')}"
+                    
+                    if failed_steps:
+                        results_summary += f"\n❌ Помилки у {len(failed_steps)} кроках:"
+                        for result in failed_steps[:2]:  # Show first 2 errors
+                            results_summary += f"\n  • {result.get('error', 'Невідома помилка')}"
                 
-                # Execute the planned action
-                await self.execute_orchestrated_task(message)
-                
-                return f"{cleaned_response}\n\n{cleaned_orchestrator}\n\nЗавдання виконано успішно."
+                return f"{cleaned_response}{results_summary}"
             
             return cleaned_response
             
@@ -1124,10 +1135,177 @@ class AtlasCore:
             return f"Error executing action: {str(e)}"
     
     async def execute_orchestrated_task(self, task_description: str):
-        """Execute tasks orchestrated by LLM2"""
-        # This would contain more sophisticated task execution logic
-        # For now, it's a placeholder that logs the task
-        logger.info(f"Executing orchestrated task: {task_description}")
+        """Execute tasks orchestrated by LLM2 using gpt-oss:latest model"""
+        logger.info(f"LLM2 orchestrating task: {task_description}")
+        
+        try:
+            # Use LLM2 to create detailed execution plan
+            orchestration_prompt = f"""You are LLM2, a task orchestrator. Create a detailed execution plan for: "{task_description}"
+            
+Return a JSON plan with steps using available MCP tools. Each step should have:
+- service: "macos-automator" | "automation" | "tts" | "playwright"  
+- tool: specific tool name from the service
+- params: parameters for the tool
+
+Available MCP tools:
+- macos-automator: app_control, window_control, shortcuts, applescript
+- automation: system_info, clipboard, screen_capture
+- playwright: browser_navigate, browser_click, browser_type
+- tts: speak, set_voice
+
+Example format:
+{{"steps": [
+  {{"service": "macos-automator", "tool": "app_control", "params": {{"action": "open", "app_name": "Safari"}}}},
+  {{"service": "playwright", "tool": "browser_navigate", "params": {{"url": "https://example.com"}}}}
+]}}
+
+Task: {task_description}"""
+
+            # Get execution plan from LLM2
+            execution_plan_text = await self.agents["orchestrator"].generate_response(
+                orchestration_prompt, 
+                "You are LLM2. Return ONLY valid JSON execution plan."
+            )
+            
+            logger.info(f"LLM2 execution plan: {execution_plan_text}")
+            
+            # Parse and execute the plan
+            execution_results = []
+            try:
+                # Extract JSON from response
+                json_start = execution_plan_text.find('{')
+                json_end = execution_plan_text.rfind('}') + 1
+                
+                if json_start >= 0 and json_end > json_start:
+                    json_text = execution_plan_text[json_start:json_end]
+                    execution_plan = json.loads(json_text)
+                    
+                    logger.info(f"Parsed execution plan: {execution_plan}")
+                    
+                    # Execute each step in the plan
+                    for i, step in enumerate(execution_plan.get("steps", [])):
+                        step_result = await self.execute_mcp_step(step, i+1)
+                        execution_results.append(step_result)
+                        
+                else:
+                    logger.warning("Could not extract JSON from LLM2 response, attempting direct execution")
+                    # Fallback: try to execute based on keywords
+                    fallback_result = await self.execute_fallback_task(task_description)
+                    execution_results.append(fallback_result)
+                    
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse LLM2 execution plan: {e}")
+                # Fallback execution
+                fallback_result = await self.execute_fallback_task(task_description)
+                execution_results.append(fallback_result)
+            
+            return execution_results
+            
+        except Exception as e:
+            logger.error(f"Error in task orchestration: {e}")
+            return [{"success": False, "error": str(e)}]
+    
+    async def execute_mcp_step(self, step: Dict[str, Any], step_number: int) -> Dict[str, Any]:
+        """Execute a single step from the LLM2 execution plan"""
+        try:
+            service = step.get("service", "")
+            tool = step.get("tool", "")
+            params = step.get("params", {})
+            
+            logger.info(f"Executing step {step_number}: {service}.{tool} with params {params}")
+            
+            # Get the MCP endpoint for this service
+            if service not in self.mcp_endpoints:
+                logger.error(f"MCP service '{service}' not configured")
+                return {
+                    "step": step_number,
+                    "service": service,
+                    "tool": tool,
+                    "success": False,
+                    "error": f"Service {service} not available"
+                }
+            
+            endpoint = self.mcp_endpoints[service]["base_url"]
+            tool_url = f"{endpoint}/tools/{tool}"
+            
+            # Execute the MCP tool
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                try:
+                    async with session.post(tool_url, json=params) as response:
+                        if response.status == 200:
+                            result = await response.json()
+                            logger.info(f"Step {step_number} completed successfully")
+                            return {
+                                "step": step_number,
+                                "service": service,
+                                "tool": tool,
+                                "success": True,
+                                "result": result,
+                                "description": f"Successfully executed {service}.{tool}"
+                            }
+                        else:
+                            error_text = await response.text()
+                            logger.error(f"Step {step_number} failed: HTTP {response.status} - {error_text}")
+                            return {
+                                "step": step_number,
+                                "service": service,
+                                "tool": tool,
+                                "success": False,
+                                "error": f"HTTP {response.status}: {error_text}"
+                            }
+                            
+                except asyncio.TimeoutError:
+                    logger.error(f"Step {step_number} timed out")
+                    return {
+                        "step": step_number,
+                        "service": service,
+                        "tool": tool,
+                        "success": False,
+                        "error": "Request timed out"
+                    }
+                    
+        except Exception as e:
+            logger.error(f"Error executing step {step_number}: {e}")
+            return {
+                "step": step_number,
+                "success": False,
+                "error": str(e)
+            }
+    
+    async def execute_fallback_task(self, task_description: str) -> Dict[str, Any]:
+        """Execute task using simple keyword matching when JSON parsing fails"""
+        logger.info(f"Executing fallback task: {task_description}")
+        
+        task_lower = task_description.lower()
+        
+        try:
+            if any(word in task_lower for word in ['safari', 'сафар', 'browser', 'браузер']):
+                if 'macos-automator' in self.mcp_endpoints:
+                    endpoint = self.mcp_endpoints['macos-automator']['base_url']
+                    async with aiohttp.ClientSession() as session:
+                        async with session.post(f"{endpoint}/tools/app_control", 
+                                                json={"action": "open", "app_name": "Safari"}) as response:
+                            if response.status == 200:
+                                return {
+                                    "success": True,
+                                    "description": "Opened Safari browser",
+                                    "fallback": True
+                                }
+            
+            return {
+                "success": False,
+                "error": "Could not determine appropriate action",
+                "fallback": True
+            }
+            
+        except Exception as e:
+            logger.error(f"Fallback execution error: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "fallback": True
+            }
     
     async def get_system_status(self) -> Dict[str, Any]:
         """Get current system status"""
