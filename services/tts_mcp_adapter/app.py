@@ -258,6 +258,37 @@ async def synthesize_via_chain(text: str, voice: str | None, provider: str | Non
     print("ERROR: No TTS providers configured")
     raise HTTPException(status_code=500, detail="No TTS providers configured")
 
+@app.get("/tools")
+async def tools():
+    """Return available MCP tools"""
+    return {
+        "speak": {
+            "description": "Synthesize speech from text",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string", "description": "Text to synthesize"},
+                    "voice": {"type": "string", "description": "Voice to use (optional)"},
+                    "provider": {"type": "string", "description": "TTS provider to use (optional)"}
+                },
+                "required": ["text"]
+            }
+        }
+    }
+
+@app.post("/execute")
+async def execute_mcp_tool(body: Dict[str, Any]):
+    """Execute MCP tool"""
+    tool = body.get("tool")
+    parameters = body.get("parameters", {})
+    
+    if tool == "speak":
+        # Route to existing speak endpoint
+        result = await synthesize_via_chain(**parameters)
+        return {"success": True, "result": result}
+    else:
+        raise HTTPException(status_code=404, detail=f"Tool '{tool}' not found")
+
 @app.post("/speak")
 async def speak(body: Dict[str, Any]):
     text = (body or {}).get("text", "").strip()
