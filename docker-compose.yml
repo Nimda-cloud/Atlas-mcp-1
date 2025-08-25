@@ -16,9 +16,9 @@ services:
       OLLAMA_URL: http://host.docker.internal:11434
       USE_EMBEDDED_OLLAMA: "${USE_EMBEDDED_OLLAMA:-false}"
       ATLAS_LLM_PROVIDER: ollama
-      ATLAS_LLM1_MODEL: "${ATLAS_LLM1_MODEL:-llama3.1:8b}"
+      ATLAS_LLM1_MODEL: "${ATLAS_LLM1_MODEL:-llama3.2:latest}"
       ATLAS_LLM2_MODEL: "${ATLAS_LLM2_MODEL:-gpt-oss:latest}"
-      ATLAS_LLM3_MODEL: "${ATLAS_LLM3_MODEL:-llama3.1:8b}"
+      ATLAS_LLM3_MODEL: "${ATLAS_LLM3_MODEL:-llama3.2:latest}"
       ATLAS_MCP_SERVERS: automation,macos-automator,tts,playwright
       ATLAS_MCP_TTS_URL: http://mcp-tts:4004
       ATLAS_MCP_PLAYWRIGHT_URL: http://mcp-playwright:4005/mcp

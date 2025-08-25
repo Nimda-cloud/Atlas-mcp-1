@@ -58,9 +58,25 @@ logging.basicConfig(
 )
 logger = logging.getLogger('Atlas')
 
-# Load environment variables from .env if present
+# Load environment variables from .env only when running on host (not in Docker)
+def _is_container() -> bool:
+    try:
+        if os.path.exists('/.dockerenv'):
+            return True
+        # cgroup hint (works on many distros)
+        cgroup_path = '/proc/1/cgroup'
+        if os.path.exists(cgroup_path):
+            with open(cgroup_path, 'r') as f:
+                data = f.read()
+            if 'docker' in data or 'containerd' in data:
+                return True
+    except Exception:
+        pass
+    return False
+
 try:
-    load_dotenv()
+    if not _is_container() and os.getenv("ATLAS_IGNORE_DOTENV", "0") != "1":
+        load_dotenv()
 except Exception:
     # It's safe to proceed if dotenv isn't available or .env is missing
     pass
@@ -228,15 +244,35 @@ class AtlasCore:
         self.setup_agents()
         self.setup_web_interface()
         self.load_mcp_config()
+    
+    @staticmethod
+    def _normalize_model(name: str) -> str:
+        """Normalize known model aliases to valid Ollama tags.
+        Keeps original if unknown.
+        """
+        if not name:
+            return name
+        aliases = {
+            # Common external aliases -> Ollama tags
+            "mistral-medium-latest": "mistral:latest",
+            "mistral-medium": "mistral:latest",
+            "llama3.1:8b-instruct": "llama3.1:8b",
+            "llama3-instruct": "llama3:latest",
+        }
+        return aliases.get(name, name)
         
     def setup_agents(self):
         """Initialize the three main LLM agents"""
         # Resolve common settings from env
         default_provider = os.getenv("ATLAS_LLM_PROVIDER", "ollama")
         # Prefer per-agent model envs, then common, then sensible defaults available in repo
-        llm1_model = os.getenv("ATLAS_LLM1_MODEL") or os.getenv("ATLAS_LLM_MODEL") or "llama3.1:8b"
+        llm1_model = os.getenv("ATLAS_LLM1_MODEL") or os.getenv("ATLAS_LLM_MODEL") or "llama3.2:latest"
         llm2_model = os.getenv("ATLAS_LLM2_MODEL") or os.getenv("ATLAS_LLM_MODEL") or "gpt-oss:latest"
-        llm3_model = os.getenv("ATLAS_LLM3_MODEL") or os.getenv("ATLAS_LLM_MODEL") or "llama3.1:8b"
+        llm3_model = os.getenv("ATLAS_LLM3_MODEL") or os.getenv("ATLAS_LLM_MODEL") or "llama3.2:latest"
+        # Normalize any known aliases to valid Ollama tags
+        llm1_model = self._normalize_model(llm1_model)
+        llm2_model = self._normalize_model(llm2_model)
+        llm3_model = self._normalize_model(llm3_model)
         api_base = os.getenv("OLLAMA_URL") or os.getenv("OLLAMA_HOST") or "http://localhost:11434"
         if api_base and not str(api_base).startswith("http"):
             api_base = f"http://{api_base}"
@@ -273,7 +309,17 @@ class AtlasCore:
             "orchestrator": LLMAgent(llm2_config),
             "monitor": LLMAgent(llm3_config)
         }
-        
+        # Log effective agent configs for troubleshooting
+        logger.info(
+            "LLM agent configs: LLM1(provider=%s, model=%s, api=%s), LLM2(provider=%s, model=%s), LLM3(provider=%s, model=%s)",
+            llm1_config.provider, llm1_config.model, llm1_config.api_base,
+            llm2_config.provider, llm2_config.model,
+            llm3_config.provider, llm3_config.model,
+        )
+        # Warn if non-ollama provider requested but not implemented
+        for key, agent in self.agents.items():
+            if agent.config.provider != "ollama":
+                logger.warning("Provider %s for %s is not implemented; fallback to ollama is not automatic.", agent.config.provider, key)
         logger.info("Initialized all three LLM agents")
     
     def setup_web_interface(self):
