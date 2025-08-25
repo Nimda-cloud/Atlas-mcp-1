@@ -241,6 +241,14 @@ class AtlasCore:
         self.app = FastAPI(title="Atlas Autonomous System", version="1.0.0")
         # MCP config store
         self.mcp_endpoints: Dict[str, Dict[str, str]] = {}
+        
+        # LLM1 log monitoring and feedback system
+        self.log_monitor_task = None
+        self.last_feedback_time = datetime.now()
+        self.monitoring_enabled = True
+        self.log_buffer = []
+        self.max_log_buffer_size = 100
+        
         self.setup_agents()
         self.setup_web_interface()
         self.load_mcp_config()
@@ -1138,6 +1146,9 @@ class AtlasCore:
         """Execute tasks orchestrated by LLM2 using gpt-oss:latest model"""
         logger.info(f"LLM2 orchestrating task: {task_description}")
         
+        # Add to log buffer for LLM1 monitoring
+        self.add_log_entry("INFO", f"Starting task orchestration: {task_description}", "atlas-orchestrator")
+        
         try:
             # Use LLM2 to create detailed execution plan
             orchestration_prompt = f"""You are LLM2, a task orchestrator. Create a detailed execution plan for: "{task_description}"
@@ -1148,15 +1159,15 @@ Return a JSON plan with steps using available MCP tools. Each step should have:
 - params: parameters for the tool
 
 Available MCP tools:
-- macos-automator: app_control, window_control, shortcuts, applescript
-- automation: system_info, clipboard, screen_capture
-- playwright: browser_navigate, browser_click, browser_type
-- tts: speak, set_voice
+- macos-automator: app_control, applescript, shortcuts, window_control
+- automation: read_file, write_file, execute_command, http_request, system_info
+- playwright: open_page, goto, click, fill, eval, screenshot, get_title, close
+- tts: speak
 
 Example format:
 {{"steps": [
   {{"service": "macos-automator", "tool": "app_control", "params": {{"action": "open", "app_name": "Safari"}}}},
-  {{"service": "playwright", "tool": "browser_navigate", "params": {{"url": "https://example.com"}}}}
+  {{"service": "playwright", "tool": "open_page", "params": {{"url": "https://example.com"}}}}
 ]}}
 
 Task: {task_description}"""
@@ -1182,6 +1193,10 @@ Task: {task_description}"""
                     
                     logger.info(f"Parsed execution plan: {execution_plan}")
                     
+                    # Add to log buffer for LLM1 monitoring
+                    steps_count = len(execution_plan.get("steps", []))
+                    self.add_log_entry("INFO", f"LLM2 created execution plan with {steps_count} steps", "atlas-orchestrator")
+                    
                     # Execute each step in the plan
                     for i, step in enumerate(execution_plan.get("steps", [])):
                         step_result = await self.execute_mcp_step(step, i+1)
@@ -1205,6 +1220,143 @@ Task: {task_description}"""
             logger.error(f"Error in task orchestration: {e}")
             return [{"success": False, "error": str(e)}]
     
+    def add_log_entry(self, level: str, message: str, source: str = "atlas-core"):
+        """Add log entry to buffer for LLM1 analysis"""
+        log_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "level": level,
+            "source": source, 
+            "message": message
+        }
+        
+        self.log_buffer.append(log_entry)
+        
+        # Keep buffer size manageable
+        if len(self.log_buffer) > self.max_log_buffer_size:
+            self.log_buffer = self.log_buffer[-self.max_log_buffer_size:]
+    
+    async def start_log_monitoring(self):
+        """Start LLM1 log monitoring and feedback system"""
+        if self.log_monitor_task is not None:
+            return
+            
+        logger.info("🔍 Starting LLM1 log monitoring and feedback system")
+        self.log_monitor_task = asyncio.create_task(self._log_monitoring_loop())
+    
+    async def stop_log_monitoring(self):
+        """Stop log monitoring"""
+        if self.log_monitor_task:
+            self.log_monitor_task.cancel()
+            try:
+                await self.log_monitor_task
+            except asyncio.CancelledError:
+                pass
+            self.log_monitor_task = None
+    
+    async def _log_monitoring_loop(self):
+        """Main loop for LLM1 log monitoring and feedback"""
+        try:
+            while self.monitoring_enabled:
+                await asyncio.sleep(10)  # Check every 10 seconds
+                
+                # Check if enough time has passed since last feedback
+                time_since_feedback = datetime.now() - self.last_feedback_time
+                if time_since_feedback.total_seconds() < 15:  # Minimum 15 seconds between feedback
+                    continue
+                
+                # Get recent logs for analysis
+                recent_logs = self.log_buffer[-20:] if self.log_buffer else []
+                if not recent_logs:
+                    continue
+                
+                # Check MCP service status
+                mcp_status = await self.check_mcp_status()
+                
+                # Analyze logs and system status with LLM1
+                await self._analyze_and_provide_feedback(recent_logs, mcp_status)
+                
+        except asyncio.CancelledError:
+            logger.info("Log monitoring stopped")
+        except Exception as e:
+            logger.error(f"Error in log monitoring loop: {e}")
+    
+    async def _analyze_and_provide_feedback(self, recent_logs: List[Dict], mcp_status: Dict[str, bool]):
+        """Analyze logs and provide verbal feedback through LLM1"""
+        try:
+            # Create analysis prompt for LLM1
+            logs_text = "\n".join([
+                f"[{log['timestamp']}] [{log['level']}] [{log['source']}] {log['message']}"
+                for log in recent_logs[-10:]  # Last 10 logs
+            ])
+            
+            online_services = [name for name, status in mcp_status.items() if status]
+            offline_services = [name for name, status in mcp_status.items() if not status]
+            
+            analysis_prompt = f"""Ти LLM1 - інтерфейсний агент Atlas системи. Твоє завдання - аналізувати логи та надавати короткі голосові коментарі українською мовою про стан системи.
+
+Поточні логи системи:
+{logs_text}
+
+Статус MCP сервісів:
+- Онлайн: {', '.join(online_services) if online_services else 'Немає'}
+- Офлайн: {', '.join(offline_services) if offline_services else 'Немає'}
+
+Дай короткий (1-2 речення) голосовий коментар про:
+1. Що відбувається в системі зараз
+2. Чи є проблеми що потребують уваги
+3. Загальний стан виконання завдань
+
+Відповідай ТІЛЬКИ українською мовою, коротко і зрозуміло."""
+
+            # Get analysis from LLM1
+            if "interface" in self.agents:
+                feedback = await self.agents["interface"].generate_response(
+                    analysis_prompt,
+                    "Ти LLM1. Аналізуй логи і давай короткі голосові коментарі українською мовою."
+                )
+                
+                # Provide verbal feedback via TTS
+                await self._provide_verbal_feedback(feedback)
+                
+                self.last_feedback_time = datetime.now()
+                
+        except Exception as e:
+            logger.error(f"Error in log analysis: {e}")
+    
+    async def _provide_verbal_feedback(self, feedback_text: str):
+        """Provide verbal feedback using TTS service"""
+        try:
+            if 'tts' not in self.mcp_endpoints:
+                logger.warning("TTS service not available for feedback")
+                return
+            
+            # Clean up the feedback text
+            cleaned_feedback = self._clean_response(feedback_text)
+            
+            # Make TTS request
+            endpoint = self.mcp_endpoints['tts']['base_url']
+            mcp_payload = {
+                "tool": "speak",
+                "parameters": {
+                    "text": cleaned_feedback,
+                    "provider": "ukrainian_tts"
+                }
+            }
+            
+            headers = {"Content-Type": "application/json", "Accept": "application/json"}
+            
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
+                async with session.post(f"{endpoint}/execute", json=mcp_payload, headers=headers) as response:
+                    if response.status == 200:
+                        logger.info(f"🔊 LLM1 feedback: {cleaned_feedback}")
+                        # Also add to log buffer for monitoring
+                        self.add_log_entry("INFO", f"LLM1 feedback: {cleaned_feedback}", "atlas-llm1")
+                    else:
+                        logger.warning(f"TTS feedback failed: {response.status}")
+                        
+        except Exception as e:
+            logger.error(f"Error providing verbal feedback: {e}")
+    
     async def execute_mcp_step(self, step: Dict[str, Any], step_number: int) -> Dict[str, Any]:
         """Execute a single step from the LLM2 execution plan"""
         try:
@@ -1226,16 +1378,36 @@ Task: {task_description}"""
                 }
             
             endpoint = self.mcp_endpoints[service]["base_url"]
-            tool_url = f"{endpoint}/tools/{tool}"
+            execute_url = f"{endpoint}/execute"
+            
+            # Prepare MCP request payload in the correct format
+            mcp_payload = {
+                "tool": tool,
+                "parameters": params
+            }
+            
+            # Prepare headers with proper Accept headers for different services
+            headers = {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+            
+            # Special handling for Playwright service which may need event-stream support
+            if service == "playwright":
+                headers["Accept"] = "application/json, text/event-stream"
             
             # Execute the MCP tool
             timeout = aiohttp.ClientTimeout(total=30)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 try:
-                    async with session.post(tool_url, json=params) as response:
+                    async with session.post(execute_url, json=mcp_payload, headers=headers) as response:
                         if response.status == 200:
                             result = await response.json()
                             logger.info(f"Step {step_number} completed successfully")
+                            
+                            # Add to log buffer for LLM1 monitoring
+                            self.add_log_entry("INFO", f"Step {step_number}: {service}.{tool} completed successfully", "atlas-executor")
+                            
                             return {
                                 "step": step_number,
                                 "service": service,
@@ -1247,6 +1419,10 @@ Task: {task_description}"""
                         else:
                             error_text = await response.text()
                             logger.error(f"Step {step_number} failed: HTTP {response.status} - {error_text}")
+                            
+                            # Add to log buffer for LLM1 monitoring
+                            self.add_log_entry("ERROR", f"Step {step_number}: {service}.{tool} failed - HTTP {response.status}: {error_text}", "atlas-executor")
+                            
                             return {
                                 "step": step_number,
                                 "service": service,
@@ -1283,9 +1459,14 @@ Task: {task_description}"""
             if any(word in task_lower for word in ['safari', 'сафар', 'browser', 'браузер']):
                 if 'macos-automator' in self.mcp_endpoints:
                     endpoint = self.mcp_endpoints['macos-automator']['base_url']
+                    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+                    mcp_payload = {
+                        "tool": "app_control",
+                        "parameters": {"action": "open", "app_name": "Safari"}
+                    }
                     async with aiohttp.ClientSession() as session:
-                        async with session.post(f"{endpoint}/tools/app_control", 
-                                                json={"action": "open", "app_name": "Safari"}) as response:
+                        async with session.post(f"{endpoint}/execute", 
+                                                json=mcp_payload, headers=headers) as response:
                             if response.status == 200:
                                 return {
                                     "success": True,
@@ -1426,6 +1607,9 @@ Task: {task_description}"""
     async def run(self, host: str = "0.0.0.0", port: int = 8000):
         """Start the Atlas system"""
         logger.info("Starting Atlas Autonomous System...")
+        
+        # Start LLM1 log monitoring and feedback
+        await self.start_log_monitoring()
         
         # Start background monitoring
         monitoring_task = asyncio.create_task(self.start_monitoring())
