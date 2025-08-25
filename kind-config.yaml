@@ -30,10 +30,8 @@ nodes:
   - containerPort: 30002
     hostPort: 30002
     protocol: TCP
-  # Ollama host port mapping for direct access
-  - containerPort: 11434
-    hostPort: 11434
-    protocol: TCP
+  # NOTE: Removed Ollama port mapping - используем host.docker.internal:11434
+  # Ollama works on host system and pods connect via host.docker.internal
 - role: worker
   labels:
     tier: worker

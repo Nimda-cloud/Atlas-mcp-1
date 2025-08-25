@@ -169,6 +169,28 @@ start_docker() {
 start_kubernetes() {
     log_info "Запускаю Atlas в Kubernetes режимі..."
     
+    # Перевірка наявності Kind кластера
+    if ! kind get clusters 2>/dev/null | grep -q "atlas-mcp-dev"; then
+        log_info "Створюю Kind кластер atlas-mcp-dev..."
+        kind create cluster --name atlas-mcp-dev --config kind-config.yaml || {
+            log_error "Не вдалося створити Kind кластер"
+            return 1
+        }
+        
+        # Очікування готовності кластера
+        log_info "Очікування готовності кластера..."
+        sleep 30
+        
+        # Перевірка підключення
+        kubectl cluster-info --context kind-atlas-mcp-dev || {
+            log_error "Не можу підключитися до створеного кластера"
+            return 1
+        }
+    else
+        log_info "Kind кластер atlas-mcp-dev вже існує"
+        kubectl config use-context kind-atlas-mcp-dev
+    fi
+    
     # Збірка образів
     log_info "Будую Docker образи для Kubernetes (може зайняти 10-15 хвилин)..."
     make build-images || {
@@ -176,11 +198,28 @@ start_kubernetes() {
         return 1
     }
     
+    # Завантаження образів в Kind кластер
+    log_info "Завантажую образи в Kind кластер..."
+    kind load docker-image atlas-mcp/atlas-core:latest --name atlas-mcp-dev
+    kind load docker-image atlas-mcp/atlas-frontend:latest --name atlas-mcp-dev
+    kind load docker-image atlas-mcp/mcp-automation:latest --name atlas-mcp-dev
+    kind load docker-image atlas-mcp/mcp-automator:latest --name atlas-mcp-dev
+    kind load docker-image atlas-mcp/mcp-tts:latest --name atlas-mcp-dev
+    
     # Розгортання
     log_info "Розгортаю в Kubernetes (може зайняти 5-8 хвилин)..."
     make install-dev || {
         log_error "Не вдалося розгорнути в Kubernetes"
         return 1
+    }
+    
+    # Очікування готовності подів
+    log_info "Очікування готовності подів..."
+    kubectl wait --for=condition=Ready pod \
+      -l app.kubernetes.io/part-of=atlas-autonomous-system \
+      -n atlas-mcp-dev \
+      --timeout=300s || {
+        log_warning "Деякі поди не готові за 5 хвилин"
     }
     
     # Port forwarding
@@ -196,6 +235,7 @@ start_kubernetes() {
     echo "  • Grafana: http://localhost:3000 (port-forward)"
     echo "  • Prometheus: http://localhost:9090 (port-forward)"
     echo "  • Статус: make status-dev"
+    echo "  • Логи: make logs-dev"
 }
 
 # Функція показу статусу
