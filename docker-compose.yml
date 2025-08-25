@@ -1,3 +1,4 @@
+version: "3.8"
 services:
   atlas-core:
     build: .
@@ -16,9 +17,9 @@ services:
       OLLAMA_URL: http://host.docker.internal:11434
       USE_EMBEDDED_OLLAMA: "${USE_EMBEDDED_OLLAMA:-false}"
       ATLAS_LLM_PROVIDER: ollama
-      ATLAS_LLM1_MODEL: "${ATLAS_LLM1_MODEL:-llama3.2:latest}"
-      ATLAS_LLM2_MODEL: "${ATLAS_LLM2_MODEL:-gpt-oss:latest}"
-      ATLAS_LLM3_MODEL: "${ATLAS_LLM3_MODEL:-llama3.2:latest}"
+      ATLAS_LLM1_MODEL: "${ATLAS_LLM1_MODEL:-llama3.1:8b}"
+      ATLAS_LLM2_MODEL: "${ATLAS_LLM2_MODEL:-llama3.1:8b}"
+      ATLAS_LLM3_MODEL: "${ATLAS_LLM3_MODEL:-llama3.1:8b}"
       ATLAS_MCP_SERVERS: automation,macos-automator,tts,playwright
       ATLAS_MCP_TTS_URL: http://mcp-tts:4004
       ATLAS_MCP_PLAYWRIGHT_URL: http://mcp-playwright:4005/mcp
@@ -107,8 +108,8 @@ services:
       - "4004:4004"
     environment:
       - MCP_PORT=4004
-      - TTS_PROVIDERS=${TTS_PROVIDERS:-ukrainian_tts,google_tts}
-      - TTS_DEFAULT_PROVIDER=${TTS_DEFAULT_PROVIDER:-ukrainian_tts}
+      - TTS_PROVIDERS=${TTS_PROVIDERS:-google_tts,ukrainian_tts}
+      - TTS_DEFAULT_PROVIDER=${TTS_DEFAULT_PROVIDER:-google_tts}
       - GOOGLE_TTS_API_KEY=${GOOGLE_TTS_API_KEY}
       - GOOGLE_TTS_LANGUAGE=${GOOGLE_TTS_LANGUAGE}
       - ATLAS_TTS_LANG=${ATLAS_TTS_LANG:-uk}
