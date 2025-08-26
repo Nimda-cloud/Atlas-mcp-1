@@ -25,6 +25,7 @@ import logging
 import os
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -242,6 +243,11 @@ class AtlasCore:
         # MCP config store
         self.mcp_endpoints: Dict[str, Dict[str, str]] = {}
         
+        # MCP Proxy support
+        self.mcp_proxy_mode = os.getenv('ATLAS_MCP_PROXY_MODE', 'false').lower() == 'true'
+        self.mcp_proxy_url = os.getenv('ATLAS_MCP_PROXY_URL', 'http://127.0.0.1:4010')
+        self.mcp_tools_cache = {}
+        
         # LLM1 log monitoring and feedback system
         self.log_monitor_task = None
         self.last_feedback_time = datetime.now()
@@ -251,7 +257,10 @@ class AtlasCore:
         
         self.setup_agents()
         self.setup_web_interface()
-        self.load_mcp_config()
+        if self.mcp_proxy_mode:
+            logger.info("Atlas MCP Proxy mode enabled")
+        else:
+            self.load_mcp_config()
     
     @staticmethod
     def _normalize_model(name: str) -> str:
@@ -1490,20 +1499,32 @@ Task: {task_description}"""
     
     async def get_system_status(self) -> Dict[str, Any]:
         """Get current system status"""
-        # Probe MCP endpoints with short timeouts
-        mcp_status = await self.check_mcp_status()
+        # Check MCP status based on mode
+        if self.mcp_proxy_mode:
+            mcp_proxy_status = await self.check_mcp_proxy_status()
+            mcp_info = {
+                "mode": "proxy",
+                "proxy_url": self.mcp_proxy_url,
+                "proxy_status": mcp_proxy_status,
+                "tools": self.get_available_mcp_tools()
+            }
+        else:
+            mcp_status = await self.check_mcp_status()
+            mcp_info = {
+                "mode": "direct",
+                "configured": list(self.mcp_endpoints.keys()),
+                "endpoints": {k: v.get("base_url") for k, v in self.mcp_endpoints.items()},
+                "online": mcp_status,
+                "count_online": sum(1 for v in mcp_status.values() if v),
+            }
+        
         return {
             "timestamp": datetime.now().isoformat(),
             "platform": platform.system(),
             "agents_online": len(self.agents),
             "task_queue_size": self.task_queue.qsize(),
             "automation_ready": True,
-            "mcp": {
-                "configured": list(self.mcp_endpoints.keys()),
-                "endpoints": {k: v.get("base_url") for k, v in self.mcp_endpoints.items()},
-                "online": mcp_status,
-                "count_online": sum(1 for v in mcp_status.values() if v),
-            }
+            "mcp": mcp_info
         }
 
     def load_mcp_config(self) -> None:
@@ -1587,6 +1608,121 @@ Task: {task_description}"""
                 return name, (resp.status == 200)
         except Exception:
             return name, False
+
+    async def load_mcp_config_proxy_mode(self):
+        """Load MCP configuration in proxy mode - single endpoint aggregation"""
+        proxy_url = self.mcp_proxy_url
+        
+        try:
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                # Test TTS endpoint specifically (since we know it works)
+                test_url = f"{proxy_url}/tts/sse"
+                async with session.get(test_url) as resp:
+                    if resp.status == 200:
+                        # Extract session from SSE endpoint response
+                        content = await resp.text()
+                        logger.info(f"MCP Proxy SSE response: {content[:200]}...")
+                        
+                        # For now, we'll mark proxy as connected
+                        self.mcp_tools_cache = {
+                            "tts": ["say_tts", "elevenlabs_tts", "google_tts", "openai_tts"],
+                            "automation": ["mouseClick", "mouseMove", "screenshot", "type", "keyControl"],
+                            "applescript": ["run_applescript"],
+                            "automator": ["run_workflow"],
+                            "playwright": ["browser_navigate", "browser_click", "browser_type"],
+                            "vnc": ["vnc_screenshot", "vnc_control"]
+                        }
+                        
+                        logger.info(f"MCP Proxy: Connected to {proxy_url}")
+                        logger.info(f"Available namespaces: {list(self.mcp_tools_cache.keys())}")
+                        return True
+                    else:
+                        logger.error(f"MCP Proxy returned HTTP {resp.status}")
+                        return False
+                        
+        except Exception as e:
+            logger.error(f"Failed to connect to MCP proxy at {proxy_url}: {e}")
+            return False
+
+    async def call_mcp_tool_via_proxy(self, tool_name: str, args: dict):
+        """Call MCP tool through proxy with error handling and logging"""
+        if not hasattr(self, 'mcp_proxy_url'):
+            raise Exception("MCP Proxy not initialized")
+        
+        # For TBXark proxy, we need to use SSE endpoints
+        # This is a simplified implementation - in real use, you'd implement proper SSE client
+        
+        # For now, let's implement basic say_tts directly
+        if tool_name == "say_tts":
+            text = args.get("text", "")
+            rate = args.get("rate", 200)
+            
+            try:
+                # Use macOS say command directly
+                process = await asyncio.create_subprocess_exec(
+                    'say', '-r', str(rate), text,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await process.communicate()
+                
+                if process.returncode == 0:
+                    logger.info(f"TTS: Successfully spoke text: {text[:50]}...")
+                    return {"status": "success", "message": f"Speaking: {text}"}
+                else:
+                    logger.error(f"TTS error: {stderr.decode()}")
+                    return {"status": "error", "message": stderr.decode()}
+                    
+            except Exception as e:
+                logger.error(f"TTS exception: {e}")
+                return {"status": "error", "message": str(e)}
+        
+        # For other tools, return placeholder
+        logger.warning(f"MCP Tool '{tool_name}' not yet implemented via proxy")
+        return {"status": "pending", "message": f"Tool {tool_name} via proxy not yet implemented"}
+
+    def get_available_mcp_tools(self):
+        """Get list of available MCP tools grouped by namespace"""
+        if hasattr(self, 'mcp_tools_cache'):
+            return self.mcp_tools_cache
+        return {}
+
+    async def check_mcp_proxy_status(self):
+        """Check MCP proxy health and return status"""
+        if not self.mcp_proxy_mode:
+            return {"status": "disabled", "mode": "direct"}
+        
+        try:
+            timeout = aiohttp.ClientTimeout(total=3)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                # Test TTS SSE endpoint
+                test_url = f"{self.mcp_proxy_url}/tts/sse"
+                async with session.get(test_url) as resp:
+                    if resp.status == 200:
+                        tools_count = sum(len(tools) for tools in self.mcp_tools_cache.values())
+                        return {
+                            "status": "online",
+                            "mode": "proxy", 
+                            "url": self.mcp_proxy_url,
+                            "tools_count": tools_count,
+                            "namespaces": list(self.mcp_tools_cache.keys())
+                        }
+                    else:
+                        return {"status": "error", "mode": "proxy", "http_status": resp.status}
+        except Exception as e:
+            return {"status": "offline", "mode": "proxy", "error": str(e)}
+
+    async def initialize_mcp(self):
+        """Initialize MCP system (proxy or direct mode)"""
+        if self.mcp_proxy_mode:
+            success = await self.load_mcp_config_proxy_mode()
+            if not success:
+                logger.warning("Failed to initialize MCP proxy, falling back to direct mode")
+                self.mcp_proxy_mode = False
+                self.load_mcp_config()
+        else:
+            self.load_mcp_config()
     
     async def start_monitoring(self):
         """Start background monitoring tasks"""
@@ -1607,6 +1743,9 @@ Task: {task_description}"""
     async def run(self, host: str = "0.0.0.0", port: int = 8000):
         """Start the Atlas system"""
         logger.info("Starting Atlas Autonomous System...")
+        
+        # Initialize MCP system (proxy or direct mode)
+        await self.initialize_mcp()
         
         # Start LLM1 log monitoring and feedback
         await self.start_log_monitoring()

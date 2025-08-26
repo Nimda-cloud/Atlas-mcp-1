@@ -1,0 +1,72 @@
+{
+  "servers": [
+    {
+      "name": "applescript",
+      "type": "process",
+      "command": "npx",
+      "args": [
+        "@peakmojo/applescript-mcp",
+        "--remoteHost", "host.docker.internal",
+        "--remoteUser", "${MACOS_SSH_USER}",
+        "--identityFile", "/keys/macos_ed25519",
+        "--strict"
+      ],
+      "timeout": 30000,
+      "restart": true
+    },
+    {
+      "name": "playwright",
+      "type": "http",
+      "endpoint": "http://mcp-playwright:4005/mcp",
+      "namespace": "browser",
+      "health": {
+        "method": "list_tools",
+        "intervalMs": 15000
+      }
+    },
+    {
+      "name": "automation",
+      "type": "http",
+      "endpoint": "http://mcp-automation:4002/mcp",
+      "namespace": "sys",
+      "optional": true
+    },
+    {
+      "name": "tts",
+      "type": "http",
+      "endpoint": "http://mcp-tts:4004/mcp",
+      "namespace": "tts",
+      "optional": true
+    },
+    {
+      "name": "vnc",
+      "type": "http",
+      "endpoint": "http://mcp-vnc:4020/mcp",
+      "namespace": "vnc",
+      "optional": true
+    }
+  ],
+  "proxy": {
+    "port": 4010,
+    "host": "0.0.0.0",
+    "logLevel": "info",
+    "cacheListToolsMs": 60000,
+    "maxConcurrentCalls": 8,
+    "requestTimeoutMs": 45000
+  },
+  "features": {
+    "auditLog": {
+      "enabled": true,
+      "path": "/logs/mcp-proxy-audit.log"
+    },
+    "namespacing": true,
+    "toolAlias": {
+      "browser.snapshot": "page_snapshot",
+      "browser.evaluate": "js_eval"
+    },
+    "fallback": {
+      "enabled": true,
+      "order": ["applescript", "browser", "vnc"]
+    }
+  }
+}

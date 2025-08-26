@@ -101,13 +101,22 @@ services:
       - .env
 
   mcp-playwright:
-    image: mcr.microsoft.com/playwright/mcp:latest
+    # Використовуємо кастомний Playwright сервер (поки що)
+    build: ./services/mcp_playwright_server
     container_name: atlas-mcp-playwright
-    command: ["--port", "4005", "--host", "0.0.0.0", "--headless", "--browser", "chromium", "--no-sandbox"]
     ports:
       - "4005:4005"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=4005
+      - HEADLESS=true
     restart: unless-stopped
     profiles: ["mcp"]
+    security_opt:
+      - seccomp:unconfined
+    cap_add:
+      - SYS_ADMIN
+    shm_size: "2gb"
     env_file:
       - .env
 

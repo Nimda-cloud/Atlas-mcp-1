@@ -1,0 +1,14 @@
+# Офіційний Microsoft Playwright MCP Server
+FROM mcr.microsoft.com/playwright:v1.40.0-jammy
+
+WORKDIR /app
+
+# Встановлюємо Node.js залежності для MCP
+RUN npm install @modelcontextprotocol/server-playwright playwright
+
+# Створюємо MCP сервер скрипт
+COPY server.js .
+
+EXPOSE 4005
+
+CMD ["node", "server.js"]

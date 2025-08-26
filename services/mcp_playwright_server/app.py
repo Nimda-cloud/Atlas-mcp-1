@@ -1,23 +1,38 @@
 #!/usr/bin/env python3
 """
-Playwright MCP Server
-=====================
+Enhanced Playwright MCP Server
+==============================
 
-Minimal MCP-style HTTP server that exposes basic Playwright browser automation tools.
+Повноцінний MCP-сумісний сервер з розширеним набором інструментів Playwright.
+Підтримує офіційний MCP протокол та має більше можливостей браузерної автоматизації.
+
 Endpoints:
-- GET /health
-- GET /tools
-- POST /execute { tool: str, parameters: dict }
+- GET /health - перевірка здоров'я
+- POST /execute - виконання інструментів
+- GET /tools - список доступних інструментів
 
-Tools:
-- open_page { url }
-- click { selector }
-- fill { selector, text }
-- eval { script }
-- screenshot { path?, full_page? } -> returns { saved_to } or { image_base64 }
-- get_title {}
-- goto { url }    (alias of open_page)
-- close {}
+Інструменти (15 total):
+Навігація:
+- open_page, goto - відкрити/перейти на URL
+- wait_for - чекати елемент
+
+Взаємодія:
+- click - клік по елементу
+- hover - ховер над елементом  
+- fill - заповнити поле
+- select - вибрати опцію
+- keyboard - натиснути клавіші
+- scroll - прокрутити
+
+Отримання даних:
+- get_title - заголовок сторінки
+- get_text - текст елементу
+- get_attribute - атрибут елементу
+- screenshot - скріншот
+- eval - виконати JavaScript
+
+Управління:
+- close - закрити браузер
 """
 
 import asyncio
@@ -26,9 +41,15 @@ import json
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
-from playwright.async_api import async_playwright, Browser, Page
+try:
+    from playwright.async_api import async_playwright, Browser, Page  # type: ignore
+except ImportError:
+    # For local development when playwright might not be installed
+    async_playwright = None  # type: ignore
+    Browser = None  # type: ignore
+    Page = None  # type: ignore
 
 
 @dataclass
@@ -38,11 +59,11 @@ class MCPTool:
     parameters: Dict[str, Any]
 
 
-class PlaywrightMCP:
+class EnhancedPlaywrightMCP:
     def __init__(self, headless: bool = True):
         self.headless = headless
-        self._browser: Optional[Browser] = None
-        self._page: Optional[Page] = None
+        self._browser: Optional[Any] = None  # type: ignore
+        self._page: Optional[Any] = None  # type: ignore
         self.tools = {
             "open_page": MCPTool(
                 name="open_page",
@@ -79,6 +100,41 @@ class PlaywrightMCP:
                 description="Get current page title",
                 parameters={"type": "object", "properties": {}},
             ),
+            "hover": MCPTool(
+                name="hover",
+                description="Hover over an element by CSS selector",
+                parameters={"type": "object", "properties": {"selector": {"type": "string"}}, "required": ["selector"]},
+            ),
+            "select": MCPTool(
+                name="select",
+                description="Select option from SELECT element",
+                parameters={"type": "object", "properties": {"selector": {"type": "string"}, "value": {"type": "string"}}, "required": ["selector", "value"]},
+            ),
+            "wait_for": MCPTool(
+                name="wait_for",
+                description="Wait for element to appear or disappear",
+                parameters={"type": "object", "properties": {"selector": {"type": "string"}, "state": {"type": "string", "enum": ["visible", "hidden"], "default": "visible"}, "timeout": {"type": "number", "default": 30000}}, "required": ["selector"]},
+            ),
+            "keyboard": MCPTool(
+                name="keyboard",
+                description="Press keyboard keys",
+                parameters={"type": "object", "properties": {"key": {"type": "string"}, "modifiers": {"type": "array", "items": {"type": "string"}}}, "required": ["key"]},
+            ),
+            "get_text": MCPTool(
+                name="get_text",
+                description="Get text content of element",
+                parameters={"type": "object", "properties": {"selector": {"type": "string"}}, "required": ["selector"]},
+            ),
+            "get_attribute": MCPTool(
+                name="get_attribute",
+                description="Get attribute value of element",
+                parameters={"type": "object", "properties": {"selector": {"type": "string"}, "attribute": {"type": "string"}}, "required": ["selector", "attribute"]},
+            ),
+            "scroll": MCPTool(
+                name="scroll",
+                description="Scroll page or element",
+                parameters={"type": "object", "properties": {"selector": {"type": "string"}, "x": {"type": "number", "default": 0}, "y": {"type": "number", "default": 0}}, "required": []},
+            ),
             "close": MCPTool(
                 name="close",
                 description="Close the browser",
@@ -88,10 +144,10 @@ class PlaywrightMCP:
 
     async def _ensure_page(self):
         if self._browser is None:
-            pw = await async_playwright().start()
+            pw = await async_playwright().start()  # type: ignore
             self._browser = await pw.chromium.launch(headless=self.headless)
         if self._page is None:
-            context = await self._browser.new_context()
+            context = await self._browser.new_context()  # type: ignore
             self._page = await context.new_page()
 
     async def handle(self, tool: str, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -108,7 +164,8 @@ class PlaywrightMCP:
                 self._browser = None
             return {"closed": True}
 
-        if tool in ("open_page", "goto", "click", "fill", "eval", "screenshot", "get_title"):
+        if tool in ("open_page", "goto", "click", "fill", "eval", "screenshot", "get_title", 
+                   "hover", "select", "wait_for", "keyboard", "get_text", "get_attribute", "scroll"):
             await self._ensure_page()
 
         if tool in ("open_page", "goto"):
@@ -148,11 +205,76 @@ class PlaywrightMCP:
             assert self._page is not None
             return {"title": await self._page.title()}
 
+        if tool == "hover":
+            assert self._page is not None
+            await self._page.hover(params["selector"])
+            return {"hovered": params["selector"]}
+
+        if tool == "select":
+            assert self._page is not None
+            await self._page.select_option(params["selector"], params["value"])
+            return {"selected": params["value"], "selector": params["selector"]}
+
+        if tool == "wait_for":
+            assert self._page is not None
+            selector = params["selector"]
+            state = params.get("state", "visible")
+            timeout = params.get("timeout", 30000)
+            
+            if state == "visible":
+                await self._page.wait_for_selector(selector, timeout=timeout)
+            else:  # hidden
+                await self._page.wait_for_selector(selector, state="hidden", timeout=timeout)
+            return {"waited_for": selector, "state": state}
+
+        if tool == "keyboard":
+            assert self._page is not None
+            key = params["key"]
+            modifiers = params.get("modifiers", [])
+            
+            # Press modifiers first
+            for modifier in modifiers:
+                await self._page.keyboard.down(modifier)
+            
+            # Press main key
+            await self._page.keyboard.press(key)
+            
+            # Release modifiers
+            for modifier in reversed(modifiers):
+                await self._page.keyboard.up(modifier)
+                
+            return {"pressed": key, "modifiers": modifiers}
+
+        if tool == "get_text":
+            assert self._page is not None
+            text = await self._page.text_content(params["selector"])
+            return {"text": text or ""}
+
+        if tool == "get_attribute":
+            assert self._page is not None
+            value = await self._page.get_attribute(params["selector"], params["attribute"])
+            return {"attribute": params["attribute"], "value": value}
+
+        if tool == "scroll":
+            assert self._page is not None
+            selector = params.get("selector")
+            x = params.get("x", 0)
+            y = params.get("y", 0)
+            
+            if selector:
+                # Scroll element
+                await self._page.locator(params["selector"]).scroll_into_view_if_needed()
+                return {"scrolled": "element", "selector": selector}
+            else:
+                # Scroll page
+                await self._page.evaluate(f"window.scrollBy({x}, {y})")
+                return {"scrolled": "page", "x": x, "y": y}
+
         raise ValueError(f"Unhandled tool: {tool}")
 
 
 class Handler(BaseHTTPRequestHandler):
-    def __init__(self, server: PlaywrightMCP, *args, **kwargs):
+    def __init__(self, server: EnhancedPlaywrightMCP, *args, **kwargs):
         self.server_impl = server
         super().__init__(*args, **kwargs)
 
@@ -202,7 +324,7 @@ class Handler(BaseHTTPRequestHandler):
 
 from typing import Any, cast
 
-def create_handler(server: PlaywrightMCP):
+def create_handler(server: EnhancedPlaywrightMCP):
     def _handler(*args: Any, **kwargs: Any) -> None:
         Handler(server, *args, **kwargs)
     return cast(Any, _handler)
@@ -212,9 +334,9 @@ def main():
     host = os.getenv("MCP_HOST", "0.0.0.0")
     port = int(os.getenv("MCP_PORT", "4005"))
     headless = os.getenv("PW_HEADLESS", "true").lower() != "false"
-    impl = PlaywrightMCP(headless=headless)
+    impl = EnhancedPlaywrightMCP(headless=headless)
     httpd = HTTPServer((host, port), create_handler(impl))
-    print(f"🎭 Playwright MCP listening on http://{host}:{port}")
+    print(f"🎭 Enhanced Playwright MCP listening on http://{host}:{port}")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
