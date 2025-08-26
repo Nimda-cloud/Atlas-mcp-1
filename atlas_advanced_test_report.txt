@@ -1,0 +1,64 @@
+
+╔═══════════════════════════════════════════════════════════════╗
+║               ATLAS MCP ADVANCED TEST REPORT                 ║
+╠═══════════════════════════════════════════════════════════════╣
+║ Date: 2025-08-26 21:26:16                                    ║
+║ Total Tests:  37 | Passed:  13 | Failed:  24                    ║
+║ Success Rate:  35.1%                                    ║
+╚═══════════════════════════════════════════════════════════════╝
+
+🎯 KEY FINDINGS:
+
+🔧 SERVICE STATUS:
+   ❌ Service: Task Orchestrator: Failed: Traceback (most recent call last):
+  File "/home/runner/work/Atlas-mcp-1/Atlas-mcp-1/task_orchestrator_http_server.py", line 18, in <module>
+    from fastapi import FastAPI, HTTPException
+ModuleNotFoundError: No module named 'fastapi'
+
+   ❌ Service: MCP Proxy: Exception: [Errno 2] No such file or directory: './mcp-proxy/start-atlas-proxy.sh'
+   ❌ Service: Atlas Core: Failed to bind to port 8000
+
+🇺🇦 UKRAINIAN SUPPORT:
+   ❌ Ukrainian Chat 1: Error: <urlopen error [Errno 111] Connection refused>
+   ❌ Ukrainian Chat 2: Error: <urlopen error [Errno 111] Connection refused>
+   ❌ Ukrainian Chat 3: Error: <urlopen error [Errno 111] Connection refused>
+   ❌ Ukrainian Chat 4: Error: <urlopen error [Errno 111] Connection refused>
+   ❌ Ukrainian TTS: Error: <urlopen error [Errno 111] Connection refused>
+
+🚨 ISSUES TO FIX:
+   ❌ Service: Task Orchestrator: Failed: Traceback (most recent call last):
+  File "/home/runner/work/Atlas-mcp-1/Atlas-mcp-1/task_orchestrator_http_server.py", line 18, in <module>
+    from fastapi import FastAPI, HTTPException
+ModuleNotFoundError: No module named 'fastapi'
+
+   ❌ Service: MCP Proxy: Exception: [Errno 2] No such file or directory: './mcp-proxy/start-atlas-proxy.sh'
+   ❌ Service: Atlas Core: Failed to bind to port 8000
+   ❌ Atlas Status: Failed: <urlopen error [Errno 111] Connection refused>
+   ❌ Ukrainian Chat 1: Error: <urlopen error [Errno 111] Connection refused>
+   ❌ Ukrainian Chat 2: Error: <urlopen error [Errno 111] Connection refused>
+   ❌ Ukrainian Chat 3: Error: <urlopen error [Errno 111] Connection refused>
+   ❌ Ukrainian Chat 4: Error: <urlopen error [Errno 111] Connection refused>
+   ❌ Ukrainian TTS: Error: <urlopen error [Errno 111] Connection refused>
+   ❌ Proxy: /health: Error: <urlopen error [Errno 111] Connection refused>
+   ❌ Proxy: /status: Error: <urlopen error [Errno 111] Connection refused>
+   ❌ Proxy: /tools: Error: <urlopen error [Errno 111] Connection refused>
+   ❌ Proxy: /api/status: Error: <urlopen error [Errno 111] Connection refused>
+   ❌ Proxy: /api/tools: Error: <urlopen error [Errno 111] Connection refused>
+   ❌ Proxy: /: Error: <urlopen error [Errno 111] Connection refused>
+   ❌ MCP Server: Playwright MCP: Not running on port 3001
+   ❌ MCP Server: Atlas Coordinator: Not running on port 3002
+   ❌ MCP Server: MCP Orchestrator: Not running on port 3003
+   ❌ MCP Server: Atlas 2 Visual: Not running on port 3004
+   ❌ MCP Server: Context MCP: Not running on port 3005
+   ❌ MCP Server: macOS Automator: Not running on port 3006
+   ❌ MCP Server: Streaming TTS: Not running on port 3007
+   ❌ MCP Server: Linux Automator: Not running on port 3008
+   ❌ MCP Server: Atlas Controller: Not running on port 3009
+
+🎯 RECOMMENDATIONS:
+   1. Start missing MCP servers on ports 3001-3009
+   2. Check MCP proxy configuration for tool routing
+   3. Verify all dependencies are installed
+   4. Monitor service logs for errors
+   
+📈 SYSTEM STATUS: NEEDS WORK
