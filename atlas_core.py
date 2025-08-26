@@ -512,6 +512,19 @@ class AtlasCore:
         @self.app.get("/metrics")
         async def metrics():
             return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+        @self.app.get("/logs")
+        async def get_logs(limit: int = 100):
+            """Повертає останні логи з внутрішнього буфера (для viewer)."""
+            try:
+                # Захист від надмірних значень
+                limit_safe = max(1, min(limit, 500))
+                async with self.log_buffer_lock:
+                    logs_slice = self.log_buffer[-limit_safe:]
+                return {"logs": logs_slice, "count": len(logs_slice)}
+            except Exception as e:
+                logger.error(f"/logs endpoint error: {e}")
+                raise HTTPException(status_code=500, detail="Failed to read logs")
     
     async def process_user_message(self, message: str) -> str:
         """Process user message through the 3-agent system"""
@@ -908,36 +921,30 @@ Provide ONLY the English translation as a clear, detailed task description that 
         return await self.execute_task_with_task_orchestrator(task_description, task_description)
     
     def add_log_entry(self, level: str, message: str, source: str = "atlas-core"):
-        """Add log entry to buffer for LLM1 analysis with thread safety"""
-        async def _add_log():
-            log_entry = {
-                "timestamp": datetime.now().isoformat(),
-                "level": level,
-                "source": source, 
-                "message": message
-            }
-            
-            async with self.log_buffer_lock:
-                self.log_buffer.append(log_entry)
-                
-                # Keep buffer size manageable
-                if len(self.log_buffer) > self.max_log_buffer_size:
-                    self.log_buffer = self.log_buffer[-self.max_log_buffer_size:]
-        
-        # Schedule async addition
+        """Add log entry (thread/async safe, без вкладеної корутини для Pylance)."""
+        log_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "level": level,
+            "source": source,
+            "message": message
+        }
+
         try:
-            asyncio.create_task(_add_log())
+            loop = asyncio.get_running_loop()
         except RuntimeError:
-            # Fallback for non-async context
-            log_entry = {
-                "timestamp": datetime.now().isoformat(),
-                "level": level,
-                "source": source, 
-                "message": message
-            }
+            # Немає активного loop → синхронно (наприклад під час старту)
             self.log_buffer.append(log_entry)
             if len(self.log_buffer) > self.max_log_buffer_size:
                 self.log_buffer = self.log_buffer[-self.max_log_buffer_size:]
+            return
+
+        async def _append() -> None:
+            async with self.log_buffer_lock:
+                self.log_buffer.append(log_entry)
+                if len(self.log_buffer) > self.max_log_buffer_size:
+                    self.log_buffer = self.log_buffer[-self.max_log_buffer_size:]
+
+        loop.create_task(_append())
     
     async def start_log_monitoring(self):
         """Start LLM1 log monitoring and feedback system"""

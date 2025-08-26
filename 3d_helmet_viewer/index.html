@@ -68,7 +68,7 @@
             overflow-y: auto;
             overflow-x: hidden;
             padding-right: 12px; /* трохи менше, бо скрол схований */
-            scrollbar-width: none; /* Firefox */
+            scrollbar-width: none; /* Firefox only; інші браузери ігнорують без помилок */
             -ms-overflow-style: none; /* IE / старий Edge */
         }
 
@@ -279,6 +279,12 @@
                 this.isListening = false;
                 this.clickCount = 0;
                 this.clickTimer = null;
+                this.singleModeSendTimer = null; // таймер очікування 3s у single режимі
+                this.lastFinalTimestamp = 0;
+                this.TTSBlockTimer = null; // пауза для continuous під час "мовлення"
+                this.TTS_ACTIVE = false;
+                this.SINGLE_INACTIVITY_MS = 3000; // 3s після останнього фінального результату
+                this.MIN_FINAL_CHARS_TO_SEND = 2;
                 
                 this.initializeElements();
                 this.initializeVoiceRecognition();
@@ -297,27 +303,42 @@
                 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
                     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
                     this.recognition = new SpeechRecognition();
+                    // Використовуємо continuous=true, але керуємо автопауза / рестарт вручну
                     this.recognition.continuous = true;
                     this.recognition.interimResults = true;
                     this.recognition.lang = 'uk-UA';
 
                     this.recognition.onresult = (event) => {
-                        let finalTranscript = '';
-                        let interimTranscript = '';
-
+                        let aggregatedFinal = '';
+                        let aggregatedInterim = '';
                         for (let i = event.resultIndex; i < event.results.length; i++) {
-                            if (event.results[i].isFinal) {
-                                finalTranscript += event.results[i][0].transcript;
+                            const res = event.results[i];
+                            if (res.isFinal) {
+                                aggregatedFinal += res[0].transcript;
                             } else {
-                                interimTranscript += event.results[i][0].transcript;
+                                aggregatedInterim += res[0].transcript;
                             }
                         }
+                        // Оновлюємо textarea (фінальний + поточний інтерім)
+                        this.chatInput.value = (aggregatedFinal + aggregatedInterim).trim();
 
-                        this.chatInput.value = finalTranscript + interimTranscript;
-                        
-                        if (finalTranscript && this.voiceMode === 'single') {
-                            this.stopListening();
-                            setTimeout(() => this.sendMessage(), 500);
+                        if (aggregatedFinal) {
+                            this.lastFinalTimestamp = Date.now();
+                            // SINGLE MODE: створюємо / переносимо таймер 3s після останнього фінального фрагмента
+                            if (this.voiceMode === 'single') {
+                                if (this.singleModeSendTimer) {
+                                    clearTimeout(this.singleModeSendTimer);
+                                }
+                                if ((aggregatedFinal.trim().length) >= this.MIN_FINAL_CHARS_TO_SEND) {
+                                    this.singleModeSendTimer = setTimeout(() => {
+                                        // Перевіряємо що минуло 3s без нових фінальних
+                                        if (Date.now() - this.lastFinalTimestamp >= this.SINGLE_INACTIVITY_MS - 50) {
+                                            this.stopListening();
+                                            this.sendMessage();
+                                        }
+                                    }, this.SINGLE_INACTIVITY_MS);
+                                }
+                            }
                         }
                     };
 
@@ -327,11 +348,14 @@
                     };
 
                     this.recognition.onend = () => {
-                        if (this.voiceMode === 'continuous' && this.isListening) {
-                            this.recognition.start();
+                        // Якщо continuous та не активний TTS – перезапускаємо
+                        if (this.voiceMode === 'continuous' && this.isListening && !this.TTS_ACTIVE) {
+                            try { this.recognition.start(); } catch(e) {}
                         } else {
-                            this.isListening = false;
-                            this.updateVoiceButton();
+                            if (!this.TTS_ACTIVE) {
+                                this.isListening = false;
+                                this.updateVoiceButton();
+                            }
                         }
                     };
                 }
@@ -413,7 +437,9 @@
                 
                 this.isListening = false;
                 this.recognition.stop();
-                this.voiceMode = 'off';
+                if (this.voiceMode === 'single') {
+                    this.voiceMode = 'off';
+                }
                 this.updateVoiceButton();
             }
 
@@ -440,6 +466,12 @@
                 const message = this.chatInput.value.trim();
                 if (!message) return;
 
+                // Очистити таймер одиночного режиму, якщо користувач відправив вручну
+                if (this.singleModeSendTimer) {
+                    clearTimeout(this.singleModeSendTimer);
+                    this.singleModeSendTimer = null;
+                }
+
                 this.addMessage(message, 'user');
                 this.chatInput.value = '';
                 this.autoResizeTextarea();
@@ -454,23 +486,23 @@
             }
 
             async sendToAtlas(message) {
-                // Use local proxy for CORS-free communication
+                const baseUrl = (window.ATLAS_API_BASE || 'http://localhost:8000').replace(/\/$/, '');
+                const url = `${baseUrl}/chat`;
                 try {
-                    const response = await fetch('/api/chat', {
+                    const response = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ message })
                     });
-                    
                     if (response.ok) {
                         const data = await response.json();
                         return data.response || data.message || 'Відповідь отримана';
                     } else {
-                        this.logMessage(`[CHAT] HTTP ${response.status}`, 'warning');
+                        this.logMessage(`[CHAT] HTTP ${response.status} (${url})`, 'warning');
                         return 'Помилка сервера';
                     }
                 } catch (error) {
-                    this.logMessage(`[CHAT] Error: ${error.message}`, 'error');
+                    this.logMessage(`[CHAT] Network error: ${error.message}`, 'error');
                     return 'Помилка підключення';
                 }
             }
@@ -492,6 +524,11 @@
                 
                 this.chatMessages.appendChild(messageDiv);
                 this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+
+                // Якщо прийшла відповідь асистента і ми у continuous режимі – пауза щоб не слухати TTS (евристика)
+                if (type === 'assistant' && this.voiceMode === 'continuous') {
+                    this.simulateTTSPause(text);
+                }
             }
 
             logMessage(text, type = 'info') {
@@ -532,23 +569,47 @@
             }
 
             async pollLiveLogs() {
+                const baseUrl = (window.ATLAS_API_BASE || 'http://localhost:8000').replace(/\/$/, '');
+                const url = `${baseUrl}/logs?limit=120`;
                 try {
-                    const response = await fetch('/api/logs');
+                    const response = await fetch(url);
                     if (response.ok) {
                         const data = await response.json();
                         if (data.logs && data.logs.length > 0) {
+                            // Очищаємо контейнер і показуємо останні логи один раз
+                            this.logsContainer.innerHTML = '';
                             data.logs.forEach(log => {
-                                // Показувати чистий лог без додаткового форматування
-                                this.logMessage(log.message);
+                                this.logMessage(`[${log.timestamp}] [${log.level}] ${log.source}: ${log.message}`);
                             });
                         }
+                    } else {
+                        this.logMessage(`[LOGS] HTTP ${response.status}`, 'warning');
                     }
                 } catch (error) {
-                    // Тихо ігнорувати помилки мережі
+                    // Можна логувати кожні N спроб, але не flood
                 }
-                
-                // Повторити через 1 секунду для більш живого відчуття
-                setTimeout(() => this.pollLiveLogs(), 1000);
+                setTimeout(() => this.pollLiveLogs(), 2000);
+            }
+
+            simulateTTSPause(text) {
+                // Евристичний час мовлення: ~120 слів/хв ≈ 2 слова/сек; слово ~5 символів
+                const charCount = text.length;
+                const approxSeconds = Math.min(10, Math.max(2, charCount / 11));
+                this.TTS_ACTIVE = true;
+                // Пауза розпізнавання
+                if (this.isListening) {
+                    try { this.recognition.stop(); } catch(e) {}
+                }
+                // Плануємо відновлення
+                if (this.TTSBlockTimer) clearTimeout(this.TTSBlockTimer);
+                this.TTSBlockTimer = setTimeout(() => {
+                    this.TTS_ACTIVE = false;
+                    if (this.voiceMode === 'continuous') {
+                        this.isListening = true;
+                        try { this.recognition.start(); } catch(e) {}
+                        this.updateVoiceButton();
+                    }
+                }, approxSeconds * 1000);
             }
         }
 
