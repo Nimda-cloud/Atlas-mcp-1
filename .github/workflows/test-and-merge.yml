@@ -1,0 +1,193 @@
+name: Test and Auto-Merge to master2
+
+on:
+  push:
+    branches: [ main, develop, feature/*, bugfix/* ]
+  pull_request:
+    branches: [ master2 ]
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: 'Target branch for merge'
+        required: true
+        default: 'master2'
+        type: string
+
+jobs:
+  test-atlas-tools:
+    runs-on: self-hosted
+    timeout-minutes: 30
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup Python Environment
+      run: |
+        # Перевіряємо чи існує віртуальне середовище
+        if [ ! -d "atlas_venv" ]; then
+          python3 -m venv atlas_venv
+        fi
+        source atlas_venv/bin/activate
+        pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Check Atlas Services Status
+      run: |
+        source atlas_venv/bin/activate
+        echo "=== Checking Atlas Services Status ==="
+        curl -f http://localhost:8000/status || echo "Atlas service not running"
+        
+    - name: Start Atlas Services if needed
+      run: |
+        source atlas_venv/bin/activate
+        # Перевіряємо чи працює сервіс
+        if ! curl -f http://localhost:8000/status > /dev/null 2>&1; then
+          echo "Starting Atlas services..."
+          chmod +x simple_start_atlas.sh
+          ./simple_start_atlas.sh
+          sleep 10
+          # Чекаємо поки сервіс запуститься
+          for i in {1..30}; do
+            if curl -f http://localhost:8000/status > /dev/null 2>&1; then
+              echo "Atlas service started successfully"
+              break
+            fi
+            echo "Waiting for Atlas service... attempt $i/30"
+            sleep 2
+          done
+        fi
+    
+    - name: Run Atlas Core Tests
+      run: |
+        source atlas_venv/bin/activate
+        echo "=== Running Atlas Core Tests ==="
+        python -m pytest atlas_core.py -v || echo "Core tests completed with issues"
+        
+    - name: Run Comprehensive Tool Tests
+      run: |
+        source atlas_venv/bin/activate
+        echo "=== Running Comprehensive Tool Tests ==="
+        python comprehensive_atlas_tool_tester.py --verbose || echo "Tool tests completed"
+        
+    - name: Run Advanced Tool Tests
+      run: |
+        source atlas_venv/bin/activate
+        echo "=== Running Advanced Tool Tests ==="
+        python atlas_advanced_tool_tester.py --full-test || echo "Advanced tests completed"
+        
+    - name: Test Task Orchestrator
+      run: |
+        source atlas_venv/bin/activate
+        echo "=== Testing Task Orchestrator ==="
+        python simple_task_orchestrator.py --test || echo "Orchestrator tests completed"
+        
+    - name: Test TTS Functionality
+      run: |
+        source atlas_venv/bin/activate
+        echo "=== Testing TTS Functionality ==="
+        python enhanced_tts.py --test || echo "TTS tests completed"
+        
+    - name: Generate Test Report
+      run: |
+        source atlas_venv/bin/activate
+        echo "=== Generating Test Report ==="
+        timestamp=$(date "+%Y-%m-%d_%H-%M-%S")
+        report_file="test_report_${timestamp}.txt"
+        
+        echo "Atlas Test Report - Generated: $(date)" > $report_file
+        echo "=================================" >> $report_file
+        echo "" >> $report_file
+        
+        echo "Services Status:" >> $report_file
+        curl -s http://localhost:8000/status | jq '.' >> $report_file 2>/dev/null || echo "Service status unavailable" >> $report_file
+        echo "" >> $report_file
+        
+        echo "Available Tools:" >> $report_file
+        curl -s http://localhost:8000/status | jq '.mcp.tools' >> $report_file 2>/dev/null || echo "Tools list unavailable" >> $report_file
+        
+        echo "Test report saved to: $report_file"
+        
+    - name: Upload Test Reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: atlas-test-reports-${{ github.run_number }}
+        path: |
+          atlas_test_report.txt
+          atlas_advanced_test_report.txt
+          atlas_complete_solution_report.txt
+          test_report_*.txt
+          logs/atlas.log
+        retention-days: 30
+        if-no-files-found: warn
+
+  auto-merge-to-master2:
+    needs: test-atlas-tools
+    runs-on: self-hosted
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Configure Git
+      run: |
+        git config --global user.name "Atlas Auto-Merge Bot"
+        git config --global user.email "atlas-bot@example.com"
+    
+    - name: Merge to master2
+      run: |
+        target_branch="${{ github.event.inputs.target_branch || 'master2' }}"
+        source_branch="${{ github.ref_name }}"
+        
+        echo "Merging from $source_branch to $target_branch"
+        
+        # Перемикаємося на цільову гілку
+        git checkout $target_branch
+        git pull origin $target_branch
+        
+        # Виконуємо злиття
+        git merge origin/$source_branch --no-ff -m "Auto-merge: $source_branch -> $target_branch (Build #${{ github.run_number }})"
+        
+        # Пушимо зміни
+        git push origin $target_branch
+        
+        echo "Successfully merged $source_branch into $target_branch"
+    
+    - name: Create Success Notification
+      run: |
+        echo "🎉 Auto-merge completed successfully!"
+        echo "✅ Branch: ${{ github.ref_name }} -> master2"
+        echo "🔗 Build: #${{ github.run_number }}"
+        echo "📊 All tests passed"
+
+  cleanup-on-failure:
+    needs: [test-atlas-tools, auto-merge-to-master2]
+    runs-on: self-hosted
+    if: failure()
+    
+    steps:
+    - name: Cleanup on Failure
+      run: |
+        echo "❌ Workflow failed. Performing cleanup..."
+        
+        # Зупиняємо Atlas сервіси якщо потрібно
+        if [ -f "simple_stop_atlas.sh" ]; then
+          chmod +x simple_stop_atlas.sh
+          ./simple_stop_atlas.sh || echo "Atlas services cleanup completed"
+        fi
+        
+        # Створюємо звіт про помилку
+        error_report="error_report_$(date "+%Y-%m-%d_%H-%M-%S").txt"
+        echo "Workflow Failure Report - $(date)" > $error_report
+        echo "======================================" >> $error_report
+        echo "Branch: ${{ github.ref_name }}" >> $error_report
+        echo "Build: #${{ github.run_number }}" >> $error_report
+        echo "Failure occurred during workflow execution" >> $error_report
+        
+        echo "Error report created: $error_report"

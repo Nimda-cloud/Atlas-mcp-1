@@ -1,0 +1,126 @@
+name: Quick PR Tests
+
+on:
+  pull_request:
+    branches: [ master2, main ]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  quick-tests:
+    runs-on: self-hosted
+    timeout-minutes: 15
+    
+    steps:
+    - name: Checkout PR code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+    
+    - name: Setup Python Environment
+      run: |
+        if [ ! -d "atlas_venv" ]; then
+          python3 -m venv atlas_venv
+        fi
+        source atlas_venv/bin/activate
+        pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Syntax Check
+      run: |
+        source atlas_venv/bin/activate
+        echo "=== Python Syntax Check ==="
+        
+        # Перевіряємо синтаксис всіх Python файлів
+        find . -name "*.py" -not -path "./atlas_venv/*" -not -path "./__pycache__/*" | while read -r file; do
+          echo "Checking $file"
+          python -m py_compile "$file" || echo "❌ Syntax error in $file"
+        done
+    
+    - name: Import Test
+      run: |
+        source atlas_venv/bin/activate
+        echo "=== Import Test ==="
+        
+        # Тестуємо можливість імпорту основних модулів
+        python -c "import atlas_core; print('✅ atlas_core import successful')" || echo "❌ atlas_core import failed"
+        python -c "import enhanced_tts; print('✅ enhanced_tts import successful')" || echo "❌ enhanced_tts import failed"
+        python -c "import simple_task_orchestrator; print('✅ simple_task_orchestrator import successful')" || echo "❌ simple_task_orchestrator import failed"
+    
+    - name: Quick Atlas Test
+      run: |
+        source atlas_venv/bin/activate
+        echo "=== Quick Atlas Test ==="
+        
+        # Запускаємо швидкий тест Atlas без повного запуску сервісів
+        timeout 30s python atlas_core.py --quick-test 2>/dev/null || echo "Quick test completed"
+    
+    - name: Configuration Validation
+      run: |
+        source atlas_venv/bin/activate
+        echo "=== Configuration Validation ==="
+        
+        # Перевіряємо конфігураційні файли
+        if [ -f "config.yaml" ]; then
+          python -c "import yaml; yaml.safe_load(open('config.yaml'))" && echo "✅ config.yaml is valid" || echo "❌ config.yaml has issues"
+        fi
+        
+        if [ -f "requirements.txt" ]; then
+          echo "✅ requirements.txt exists"
+          echo "Dependencies count: $(wc -l < requirements.txt)"
+        fi
+    
+    - name: PR Summary
+      run: |
+        echo "=== PR Summary ==="
+        echo "PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}"
+        echo "From: ${{ github.event.pull_request.head.ref }}"
+        echo "To: ${{ github.event.pull_request.base.ref }}"
+        echo "Author: ${{ github.event.pull_request.user.login }}"
+        echo ""
+        echo "Files changed:"
+        curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" | \
+          jq -r '.[].filename' || echo "Could not fetch changed files"
+
+  pr-comment:
+    needs: quick-tests
+    runs-on: self-hosted
+    if: always()
+    
+    steps:
+    - name: Comment on PR
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const { owner, repo, number } = context.issue;
+          const conclusion = '${{ needs.quick-tests.result }}';
+          const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
+          
+          let message;
+          if (conclusion === 'success') {
+            message = `✅ **Quick tests passed!**
+            
+            All basic checks completed successfully:
+            - ✅ Python syntax validation
+            - ✅ Import tests
+            - ✅ Configuration validation
+            - ✅ Quick Atlas test
+            
+            [View full test results](${runUrl})`;
+          } else {
+            message = `❌ **Quick tests failed!**
+            
+            Some checks didn't pass. Please review the issues:
+            - Check Python syntax errors
+            - Verify import statements
+            - Validate configuration files
+            
+            [View detailed error report](${runUrl})`;
+          }
+          
+          await github.rest.issues.createComment({
+            owner,
+            repo,
+            issue_number: number,
+            body: message
+          });

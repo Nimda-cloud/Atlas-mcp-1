@@ -1,0 +1,144 @@
+name: Daily Atlas Health Check
+
+on:
+  schedule:
+    # Запускається щодня о 00:00 UTC (08:00 за Києвом)
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  daily-health-check:
+    runs-on: self-hosted
+    timeout-minutes: 20
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Environment
+      run: |
+        if [ ! -d "atlas_venv" ]; then
+          python3 -m venv atlas_venv
+        fi
+        source atlas_venv/bin/activate
+        pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: System Health Check
+      run: |
+        source atlas_venv/bin/activate
+        echo "=== System Health Check ==="
+        echo "Date: $(date)"
+        echo "Hostname: $(hostname)"
+        echo "Uptime: $(uptime)"
+        echo "Memory: $(free -h 2>/dev/null || vm_stat)"
+        echo "Disk: $(df -h /)"
+        echo ""
+    
+    - name: Atlas Services Health
+      run: |
+        source atlas_venv/bin/activate
+        echo "=== Atlas Services Health ==="
+        
+        # Перевіряємо статус сервісів
+        if curl -f http://localhost:8000/status > /dev/null 2>&1; then
+          echo "✅ Atlas service is running"
+          curl -s http://localhost:8000/status | jq '.performance' || echo "Performance data unavailable"
+        else
+          echo "❌ Atlas service is not running"
+          echo "Attempting to start Atlas services..."
+          chmod +x simple_start_atlas.sh
+          ./simple_start_atlas.sh
+          sleep 15
+          
+          if curl -f http://localhost:8000/status > /dev/null 2>&1; then
+            echo "✅ Atlas service started successfully"
+          else
+            echo "❌ Failed to start Atlas service"
+            exit 1
+          fi
+        fi
+    
+    - name: Tool Availability Check
+      run: |
+        source atlas_venv/bin/activate
+        echo "=== Tool Availability Check ==="
+        
+        # Отримуємо список доступних інструментів
+        tools_status=$(curl -s http://localhost:8000/status | jq '.mcp.tools')
+        echo "Available tool categories:"
+        echo "$tools_status" | jq 'keys[]' || echo "Failed to get tools list"
+        
+        # Підраховуємо кількість інструментів у кожній категорії
+        echo ""
+        echo "Tool counts by category:"
+        echo "$tools_status" | jq 'to_entries[] | "\(.key): \(.value | length)"' || echo "Failed to count tools"
+    
+    - name: Performance Metrics
+      run: |
+        source atlas_venv/bin/activate
+        echo "=== Performance Metrics ==="
+        
+        performance=$(curl -s http://localhost:8000/status | jq '.performance')
+        echo "Current performance metrics:"
+        echo "$performance" || echo "Performance metrics unavailable"
+        
+        # Перевіряємо черги завдань
+        queue_size=$(curl -s http://localhost:8000/status | jq '.task_queue_size')
+        echo ""
+        echo "Task queue size: $queue_size"
+        
+        agents_online=$(curl -s http://localhost:8000/status | jq '.agents_online')
+        echo "Agents online: $agents_online"
+    
+    - name: Generate Health Report
+      run: |
+        source atlas_venv/bin/activate
+        timestamp=$(date "+%Y-%m-%d_%H-%M-%S")
+        health_report="health_report_${timestamp}.txt"
+        
+        echo "Atlas Daily Health Report" > $health_report
+        echo "=========================" >> $health_report
+        echo "Generated: $(date)" >> $health_report
+        echo "" >> $health_report
+        
+        echo "System Information:" >> $health_report
+        echo "- Hostname: $(hostname)" >> $health_report
+        echo "- Uptime: $(uptime)" >> $health_report
+        echo "- Date: $(date)" >> $health_report
+        echo "" >> $health_report
+        
+        echo "Atlas Status:" >> $health_report
+        curl -s http://localhost:8000/status >> $health_report || echo "Status unavailable" >> $health_report
+        
+        echo "Health report saved: $health_report"
+    
+    - name: Upload Health Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: atlas-health-report-${{ github.run_number }}
+        path: health_report_*.txt
+        retention-days: 7
+
+  cleanup-logs:
+    needs: daily-health-check
+    runs-on: self-hosted
+    
+    steps:
+    - name: Cleanup Old Logs
+      run: |
+        echo "=== Cleaning up old logs ==="
+        
+        # Очищуємо старі лог файли (старше 7 днів)
+        find logs/ -name "*.log" -mtime +7 -delete 2>/dev/null || echo "No old logs to clean"
+        
+        # Очищуємо старі звіти тестів (старше 14 днів)
+        find . -name "*_report_*.txt" -mtime +14 -delete 2>/dev/null || echo "No old reports to clean"
+        
+        # Показуємо поточний розмір директорії з логами
+        if [ -d "logs" ]; then
+          echo "Current logs directory size:"
+          du -sh logs/
+        fi
+        
+        echo "Cleanup completed"

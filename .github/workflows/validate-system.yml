@@ -1,0 +1,174 @@
+name: Atlas System Validation
+
+on:
+  push:
+    paths:
+      - 'LOGIC.md'
+      - 'FLOWCHARTS.md'
+      - '*.py'
+      - 'config.yaml'
+  workflow_dispatch:
+
+jobs:
+  validate-system:
+    runs-on: self-hosted
+    timeout-minutes: 20
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Environment
+      run: |
+        if [ ! -d "atlas_venv" ]; then
+          python3 -m venv atlas_venv
+        fi
+        source atlas_venv/bin/activate
+        pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Validate System Architecture
+      run: |
+        source atlas_venv/bin/activate
+        echo "=== Валідація архітектури системи ==="
+        
+        # Atlas Core (8000)
+        if curl -f http://localhost:8000/status > /dev/null 2>&1; then
+          echo "✅ Atlas Core (8000) - працює"
+        else 
+          echo "❌ Atlas Core (8000) - недоступний"
+        fi
+        
+        # Task Orchestrator (4006)
+        if curl -f http://localhost:4006/health > /dev/null 2>&1; then
+          echo "✅ Task Orchestrator (4006) - працює"
+        else
+          echo "❌ Task Orchestrator (4006) - недоступний"  
+        fi
+        
+        # MCP Proxy (9090)
+        if curl -f http://localhost:9090/health > /dev/null 2>&1; then
+          echo "✅ MCP Proxy (9090) - працює"
+        else
+          echo "❌ MCP Proxy (9090) - недоступний"
+        fi
+    
+    - name: Count Available Tools
+      run: |
+        source atlas_venv/bin/activate
+        echo "=== Підрахунок інструментів ==="
+        
+        if curl -f http://localhost:8000/status > /dev/null 2>&1; then
+          echo "Отримуємо статус інструментів..."
+          curl -s http://localhost:8000/status | jq '.mcp.tools | to_entries | map(.value | length) | add' 2>/dev/null || echo "Не вдалося підрахувати інструменти"
+          
+          echo ""
+          echo "Інструменти по категоріях:"
+          curl -s http://localhost:8000/status | jq '.mcp.tools | to_entries[] | "\(.key): \(.value | length)"' 2>/dev/null || echo "Детальна статистика недоступна"
+        else
+          echo "Atlas Core недоступний для підрахунку"
+        fi
+    
+    - name: Test TTS Components  
+      run: |
+        source atlas_venv/bin/activate
+        echo "=== Тестування TTS компонентів ==="
+        
+        # Enhanced TTS
+        if python -c "import enhanced_tts" 2>/dev/null; then
+          echo "✅ Enhanced TTS модуль доступний"
+        else
+          echo "❌ Enhanced TTS модуль недоступний"
+        fi
+        
+        # System say
+        if command -v say >/dev/null 2>&1; then
+          echo "✅ macOS system say доступний"
+        else
+          echo "❌ macOS system say недоступний"
+        fi
+        
+        # Pygame
+        if python -c "import pygame" 2>/dev/null; then
+          echo "✅ Pygame доступний"  
+        else
+          echo "❌ Pygame недоступний"
+        fi
+    
+    - name: Validate Configuration
+      run: |
+        source atlas_venv/bin/activate
+        echo "=== Валідація конфігурації ==="
+        
+        # config.yaml
+        if [ -f "config.yaml" ]; then
+          echo "✅ config.yaml існує"
+          python -c "import yaml; yaml.safe_load(open('config.yaml'))" && echo "✅ config.yaml валідний" || echo "❌ config.yaml має помилки"
+        else
+          echo "❌ config.yaml відсутній"
+        fi
+        
+        # requirements.txt
+        if [ -f "requirements.txt" ]; then
+          echo "✅ requirements.txt існує ($(wc -l < requirements.txt) залежностей)"
+        else
+          echo "❌ requirements.txt відсутній"
+        fi
+        
+        # Documentation
+        if [ -f "LOGIC.md" ]; then
+          echo "✅ LOGIC.md існує"
+        else
+          echo "❌ LOGIC.md відсутній"
+        fi
+        
+        if [ -f "FLOWCHARTS.md" ]; then
+          echo "✅ FLOWCHARTS.md існує"
+        else
+          echo "❌ FLOWCHARTS.md відсутній"
+        fi
+    
+    - name: Quick System Test
+      run: |
+        source atlas_venv/bin/activate
+        echo "=== Швидке тестування системи ==="
+        
+        if curl -f http://localhost:8000/status > /dev/null 2>&1; then
+          echo "Відправляємо тестовий запит..."
+          
+          response=$(curl -s -X POST http://localhost:8000/chat \
+            -H "Content-Type: application/json" \
+            -d '{"message": "Тест системи", "voice": "test"}' \
+            --max-time 10 || echo "TIMEOUT")
+          
+          if [ "$response" != "TIMEOUT" ] && [ "$response" != "" ]; then
+            echo "✅ Тестовий запит оброблений"
+          else
+            echo "⚠️ Тестовий запит не оброблений або таймаут"
+          fi
+        else
+          echo "❌ Atlas Core недоступний для тестування"
+        fi
+    
+    - name: Generate Report
+      run: |
+        source atlas_venv/bin/activate
+        timestamp=$(date "+%Y-%m-%d_%H-%M-%S")
+        report_file="validation_report_${timestamp}.txt"
+        
+        echo "Atlas System Validation Report" > $report_file
+        echo "=============================" >> $report_file
+        echo "Generated: $(date)" >> $report_file
+        echo "" >> $report_file
+        
+        echo "System Status:" >> $report_file
+        curl -s http://localhost:8000/status >> $report_file 2>/dev/null || echo "Status unavailable" >> $report_file
+        
+        echo "Report saved: $report_file"
+    
+    - name: Upload Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: validation-report-${{ github.run_number }}
+        path: validation_report_*.txt
+        retention-days: 7

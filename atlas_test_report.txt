@@ -2,20 +2,20 @@
 ╔═══════════════════════════════════════════════════════════════╗
 ║                    ATLAS MCP COMPREHENSIVE TEST REPORT        ║
 ╠═══════════════════════════════════════════════════════════════╣
-║ Date: 2025-08-26 21:29:07                                    ║
-║ Total Tests:  59 | Passed:  54 | Failed:   5                    ║
-║ Success Rate:  91.5%                                    ║
+║ Date: 2025-08-27 00:47:21                                    ║
+║ Total Tests:  90 | Passed:  78 | Failed:  12                    ║
+║ Success Rate:  86.7%                                    ║
 ╚═══════════════════════════════════════════════════════════════╝
 
 📋 SUMMARY BY CATEGORY:
    SYSTEM         :  9/ 9 (100.0%)
    SYNTAX         :  3/ 3 (100.0%)
-   CONNECTIVITY   :  6/ 7 ( 85.7%)
+   CONNECTIVITY   :  5/ 8 ( 62.5%)
    ATLAS_CORE     :  3/ 3 (100.0%)
-   TOOLS          :  6/ 6 (100.0%)
-   MCP_PROXY      :  3/ 5 ( 60.0%)
-   LOGIC          :  2/ 2 (100.0%)
-   MCP_TOOLS      : 20/20 (100.0%)
+   TOOLS          : 12/12 (100.0%)
+   MCP_PROXY      :  0/ 5 (  0.0%)
+   LOGIC          :  0/ 2 (  0.0%)
+   MCP_TOOLS      : 44/44 (100.0%)
    DIAGNOSTICS    :  0/ 2 (  0.0%)
    FIXES          :  2/ 2 (100.0%)
 
@@ -33,29 +33,36 @@
    ✅ SYNTAX      : Syntax: task_orchestrator_http_server.py - Valid Python syntax
    ✅ SYNTAX      : Syntax: enhanced_tts.py        - Valid Python syntax
    ✅ CONNECTIVITY: Port: Atlas Core               - Port 8000 accessible
-   ✅ CONNECTIVITY: Health: Atlas Core             - Service responding
+   ❌ CONNECTIVITY: Health: Atlas Core             - Health endpoint not found (404)
    ✅ CONNECTIVITY: Port: Task Orchestrator        - Port 4006 accessible
    ✅ CONNECTIVITY: Health: Task Orchestrator      - Service responding
    ✅ CONNECTIVITY: Port: MCP Proxy                - Port 9090 accessible
-   ✅ CONNECTIVITY: Health: MCP Proxy              - Service responding
-   ❌ CONNECTIVITY: Port: 3D Helmet Viewer         - Port 8080 not accessible
+   ❌ CONNECTIVITY: Health: MCP Proxy              - Health endpoint not found (404)
+   ✅ CONNECTIVITY: Port: 3D Helmet Viewer         - Port 8080 accessible
+   ❌ CONNECTIVITY: Health: 3D Helmet Viewer       - Health endpoint not found (404)
    ✅ ATLAS_CORE  : Atlas Core Status              - Status endpoint working
    ✅ ATLAS_CORE  : Agents Online                  - 3 agents
    ✅ ATLAS_CORE  : Automation Ready               - True
-   ✅ TOOLS       : MCP Tools Total                - 34 tools available
-   ✅ TOOLS       : Tools: task-orchestrator       - 10 tools (expected: 35)
+   ✅ TOOLS       : MCP Tools Total                - 143 tools available
+   ✅ TOOLS       : Tools: task-orchestrator       - 32 tools (expected: 35)
    ✅ TOOLS       : Tools: tts                     - 6 tools (expected: 6)
-   ✅ TOOLS       : Tools: automation              - 9 tools (expected: 19)
+   ✅ TOOLS       : Tools: automation              - 19 tools (expected: 19)
+   ✅ TOOLS       : Tools: playwright              - 29 tools (expected: 25)
+   ✅ TOOLS       : Tools: applescript             - 32 tools (expected: 25)
    ✅ TOOLS       : Tools: file-manager            - 5 tools (expected: 5)
    ✅ TOOLS       : Tools: network                 - 4 tools (expected: 4)
-   ✅ MCP_PROXY   : Proxy Endpoint: /health        - Working
-   ✅ MCP_PROXY   : Proxy Endpoint: /status        - Working
-   ✅ MCP_PROXY   : Proxy Endpoint: /tools         - Working
+   ✅ TOOLS       : Tools: system-monitor          - 4 tools (expected: 4)
+   ✅ TOOLS       : Tools: calendar                - 4 tools (expected: 4)
+   ✅ TOOLS       : Tools: notifications           - 3 tools (expected: 3)
+   ✅ TOOLS       : Tools: web-fetch               - 5 tools (expected: 5)
+   ❌ MCP_PROXY   : Proxy Endpoint: /health        - Not Found (404)
+   ❌ MCP_PROXY   : Proxy Endpoint: /status        - Not Found (404)
+   ❌ MCP_PROXY   : Proxy Endpoint: /tools         - Not Found (404)
    ❌ MCP_PROXY   : Proxy Endpoint: /              - Not Found (404)
    ❌ MCP_PROXY   : Proxy Endpoint: /api/health    - Not Found (404)
-   ✅ LOGIC       : Chat Logic                     - Chat endpoint responding
-   ✅ LOGIC       : TTS Logic                      - TTS endpoint responding
-   ✅ MCP_TOOLS   : Tool Category: task-orchestrator - 10 tools
+   ❌ LOGIC       : Chat Logic                     - Atlas Core not running
+   ❌ LOGIC       : TTS Logic                      - Atlas Core not running
+   ✅ MCP_TOOLS   : Tool Category: task-orchestrator - 32 tools
    ✅ MCP_TOOLS   : Tool Available: orchestrator_initialize_session - Listed in task-orchestrator
    ✅ MCP_TOOLS   : Tool Available: orchestrator_synthesize_results - Listed in task-orchestrator
    ✅ MCP_TOOLS   : Tool Available: orchestrator_get_status - Listed in task-orchestrator
@@ -63,10 +70,18 @@
    ✅ MCP_TOOLS   : Tool Available: say_tts        - Listed in tts
    ✅ MCP_TOOLS   : Tool Available: stop_tts       - Listed in tts
    ✅ MCP_TOOLS   : Tool Available: set_voice      - Listed in tts
-   ✅ MCP_TOOLS   : Tool Category: automation      - 9 tools
+   ✅ MCP_TOOLS   : Tool Category: automation      - 19 tools
    ✅ MCP_TOOLS   : Tool Available: mouseClick     - Listed in automation
    ✅ MCP_TOOLS   : Tool Available: mouseMove      - Listed in automation
    ✅ MCP_TOOLS   : Tool Available: screenshot     - Listed in automation
+   ✅ MCP_TOOLS   : Tool Category: playwright      - 29 tools
+   ✅ MCP_TOOLS   : Tool Available: createPage     - Listed in playwright
+   ✅ MCP_TOOLS   : Tool Available: activatePage   - Listed in playwright
+   ✅ MCP_TOOLS   : Tool Available: closePage      - Listed in playwright
+   ✅ MCP_TOOLS   : Tool Category: applescript     - 32 tools
+   ✅ MCP_TOOLS   : Tool Available: calendar_add   - Listed in applescript
+   ✅ MCP_TOOLS   : Tool Available: calendar_list  - Listed in applescript
+   ✅ MCP_TOOLS   : Tool Available: clipboard_set_clipboard - Listed in applescript
    ✅ MCP_TOOLS   : Tool Category: file-manager    - 5 tools
    ✅ MCP_TOOLS   : Tool Available: read_file      - Listed in file-manager
    ✅ MCP_TOOLS   : Tool Available: write_file     - Listed in file-manager
@@ -75,15 +90,38 @@
    ✅ MCP_TOOLS   : Tool Available: ping           - Listed in network
    ✅ MCP_TOOLS   : Tool Available: http_request   - Listed in network
    ✅ MCP_TOOLS   : Tool Available: download_file  - Listed in network
+   ✅ MCP_TOOLS   : Tool Category: system-monitor  - 4 tools
+   ✅ MCP_TOOLS   : Tool Available: get_cpu_usage  - Listed in system-monitor
+   ✅ MCP_TOOLS   : Tool Available: get_memory_usage - Listed in system-monitor
+   ✅ MCP_TOOLS   : Tool Available: get_disk_usage - Listed in system-monitor
+   ✅ MCP_TOOLS   : Tool Category: calendar        - 4 tools
+   ✅ MCP_TOOLS   : Tool Available: create_event   - Listed in calendar
+   ✅ MCP_TOOLS   : Tool Available: list_events    - Listed in calendar
+   ✅ MCP_TOOLS   : Tool Available: delete_event   - Listed in calendar
+   ✅ MCP_TOOLS   : Tool Category: notifications   - 3 tools
+   ✅ MCP_TOOLS   : Tool Available: send_notification - Listed in notifications
+   ✅ MCP_TOOLS   : Tool Available: schedule_notification - Listed in notifications
+   ✅ MCP_TOOLS   : Tool Available: clear_notifications - Listed in notifications
+   ✅ MCP_TOOLS   : Tool Category: web-fetch       - 5 tools
+   ✅ MCP_TOOLS   : Tool Available: fetch_url      - Listed in web-fetch
+   ✅ MCP_TOOLS   : Tool Available: fetch_html     - Listed in web-fetch
+   ✅ MCP_TOOLS   : Tool Available: fetch_json     - Listed in web-fetch
    ❌ DIAGNOSTICS : Diagnostic: scripts/atlas_diagnostic.sh - Script not found
    ❌ DIAGNOSTICS : Diagnostic: atlas_diagnostic.sh - Script not found
    ✅ FIXES       : Fix Suggestion: MCP Proxy      - Start MCP Proxy service on port 9090
    ✅ FIXES       : Fix Suggestion: Services       - Use ./start_atlas.sh to start all services
 
 🚨 ISSUES FOUND:
-   ❌ Port: 3D Helmet Viewer: Port 8080 not accessible
+   ❌ Health: Atlas Core: Health endpoint not found (404)
+   ❌ Health: MCP Proxy: Health endpoint not found (404)
+   ❌ Health: 3D Helmet Viewer: Health endpoint not found (404)
+   ❌ Proxy Endpoint: /health: Not Found (404)
+   ❌ Proxy Endpoint: /status: Not Found (404)
+   ❌ Proxy Endpoint: /tools: Not Found (404)
    ❌ Proxy Endpoint: /: Not Found (404)
    ❌ Proxy Endpoint: /api/health: Not Found (404)
+   ❌ Chat Logic: Atlas Core not running
+   ❌ TTS Logic: Atlas Core not running
    ❌ Diagnostic: scripts/atlas_diagnostic.sh: Script not found
    ❌ Diagnostic: atlas_diagnostic.sh: Script not found
 
