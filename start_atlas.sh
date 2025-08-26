@@ -300,7 +300,7 @@ info "   ⚙️  Atlas Core API:    http://localhost:8000 (PID: $ATLAS_PID)"
 if [[ $SHOW_VIEWER -eq 1 ]]; then
     if [[ -n "$VIEWER_PID" && -f "$ATLAS_DIR/3d_helmet_viewer/start_viewer.sh" ]]; then
         info "   🎮 3D Helmet Viewer:  http://localhost:8080 (PID: $VIEWER_PID)"
-        info "      └─ Frontend:      atlas_minimal_frontend.html"
+        info "      └─ Frontend:      index.html"
     else
         warning "   🎮 3D Helmet Viewer:  ❌ Не запустився або скрипт відсутній"
     fi
