@@ -1,9 +1,26 @@
 # Atlas MCP - Autonomous System
 
-## Quick Start (Core + optional Viewer)
+## 🚀 Quick Start
 
+### New Installation (Recommended)
 ```bash
-# Start Atlas Core + Task Orchestrator
+# Clone and deploy Atlas from scratch
+git clone https://github.com/Nimda-cloud/Atlas-mcp-1.git
+cd Atlas-mcp-1
+
+# Complete deployment (installs everything)
+./deploy_atlas.sh
+
+# Start Atlas
+./start_atlas.sh
+```
+
+### Existing Installation
+```bash
+# Update components
+./update_atlas.sh
+
+# Start Atlas Core + MCP Proxy + Task Orchestrator
 ./start_atlas.sh
 
 # Start with 3D viewer (port 8080)
@@ -12,6 +29,23 @@
 # Stop everything
 ./stop_atlas.sh
 ```
+
+## 📚 Documentation
+
+- **[📖 Deployment Guide](DEPLOYMENT_GUIDE.md)** - Complete installation instructions
+- **[📊 MCP Tools Report](MCP_TOOLS_DISCOVERY_REPORT.md)** - Tool discovery analysis
+- **[🎉 Playwright Success Report](PLAYWRIGHT_MCP_SUCCESS_REPORT.md)** - Playwright integration results
+
+## 🎯 Current Status: 60+ Tools Available
+
+| Service | Tools | Status |
+|---------|-------|--------|
+| **Task Orchestrator** | 15 | ✅ Active |
+| **TTS Ukrainian** | 3 | ✅ Active |
+| **Automation** | 8 | ✅ Active |
+| **Playwright (Better)** | 29 | ✅ Active |
+| **Web Fetch** | 5 | ✅ Active |
+| **TOTAL** | **60** | ✅ **120% of target!** |
 
 ### Core API Endpoints
 

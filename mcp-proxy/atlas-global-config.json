@@ -94,6 +94,19 @@
         "panicIfInvalid": false,
         "logEnabled": true
       }
+    },
+    "atlas-applescript-mcp": {
+      "command": "node",
+      "args": [
+        "/Users/dev/Documents/Atlas-mcp/applescript-mcp-server/dist/index.js"
+      ],
+      "env": {
+        "DEBUG": "applescript-mcp:*"
+      },
+      "options": {
+        "panicIfInvalid": false,
+        "logEnabled": true
+      }
     }
   }
 }

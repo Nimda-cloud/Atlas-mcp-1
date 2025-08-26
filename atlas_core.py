@@ -1529,6 +1529,19 @@ Task: {task_description}"""
         if os.getenv("GITHUB_TOKEN"):
             github_tools = ["create_issue", "get_repository", "search_repositories", "create_pull_request", "list_issues", "get_issue", "create_comment"]
             discovered_tools["github-integration"] = github_tools
+        # AppleScript MCP - інструменти macOS автоматизації
+        applescript_tools = [
+            "calendar_add", "calendar_list", "clipboard_set_clipboard", "clipboard_get_clipboard", "clipboard_clear_clipboard",
+            "finder_get_selected_files", "finder_search_files", "finder_quick_look",
+            "notifications_send_notification", "notifications_toggle_do_not_disturb",
+            "system_volume", "system_get_frontmost_app", "system_launch_app", "system_quit_app", "system_toggle_dark_mode",
+            "iterm_paste_clipboard", "iterm_run", "shortcuts_run_shortcut", "shortcuts_list_shortcuts",
+            "mail_create_email", "mail_list_emails", "mail_get_email",
+            "messages_list_chats", "messages_get_messages", "messages_search_messages", "messages_compose_message",
+            "notes_create", "notes_createRawHtml", "notes_list", "notes_get", "notes_search",
+            "pages_create_document"
+        ]
+        discovered_tools["applescript"] = applescript_tools
         
         # Web Fetch - статичні інструменти
         web_fetch_tools = ["fetch_url", "fetch_html", "fetch_json", "fetch_text", "web_search"]
@@ -1564,6 +1577,17 @@ Task: {task_description}"""
                     "getPageSnapshot", "downloadImage", "captureSnapshot"
                 ],
                 "github-integration": ["create_issue", "get_repository", "search_repositories", "create_pull_request", "list_issues", "get_issue", "create_comment"] if os.getenv("GITHUB_TOKEN") else [],
+                "applescript": [
+                    "calendar_add", "calendar_list", "clipboard_set_clipboard", "clipboard_get_clipboard", "clipboard_clear_clipboard",
+                    "finder_get_selected_files", "finder_search_files", "finder_quick_look",
+                    "notifications_send_notification", "notifications_toggle_do_not_disturb",
+                    "system_volume", "system_get_frontmost_app", "system_launch_app", "system_quit_app", "system_toggle_dark_mode",
+                    "iterm_paste_clipboard", "iterm_run", "shortcuts_run_shortcut", "shortcuts_list_shortcuts",
+                    "mail_create_email", "mail_list_emails", "mail_get_email",
+                    "messages_list_chats", "messages_get_messages", "messages_search_messages", "messages_compose_message",
+                    "notes_create", "notes_createRawHtml", "notes_list", "notes_get", "notes_search",
+                    "pages_create_document"
+                ],
                 "web-fetch": ["fetch_url", "fetch_html", "fetch_json", "fetch_text", "web_search"]
             }
         return {}
