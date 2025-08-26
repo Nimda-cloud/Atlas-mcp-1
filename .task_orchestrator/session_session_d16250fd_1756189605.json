@@ -1,0 +1,33 @@
+{
+  "session_id": "session_d16250fd_1756189605",
+  "working_directory": "/home/runner/work/Atlas-mcp-1/Atlas-mcp-1",
+  "created_at": 1756189605.844768,
+  "initialized": true,
+  "capabilities": {
+    "hot_reload": false,
+    "task_orchestration": true,
+    "domain_services": true,
+    "database_persistence": true,
+    "template_system": true
+  },
+  "database_status": "connected",
+  "database_health": {
+    "overall_status": "healthy",
+    "databases": {
+      "operational": {
+        "status": "healthy",
+        "database_type": "operational",
+        "path": "/home/runner/work/Atlas-mcp-1/Atlas-mcp-1/.task_orchestrator/databases/operational/tasks.db",
+        "size_bytes": 4096,
+        "size_mb": 0.0,
+        "journal_mode": "WAL",
+        "synchronous": "NORMAL",
+        "timestamp": "2025-08-26T06:26:45.851166"
+      }
+    },
+    "timestamp": "2025-08-26T06:26:45.851178"
+  },
+  "available_databases": [
+    "SQLite (operational)"
+  ]
+}

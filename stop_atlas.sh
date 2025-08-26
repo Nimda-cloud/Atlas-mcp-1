@@ -21,13 +21,13 @@ echo "🛑 Atlas Stop"
 echo "============="
 
 # Зупиняємо за PID файлами
-if [ -f "/tmp/atlas_mcp.pid" ]; then
-    MCP_PID=$(cat /tmp/atlas_mcp.pid)
-    if kill -0 "$MCP_PID" 2>/dev/null; then
-        kill "$MCP_PID"
-        log "Зупинено MCP Proxy (PID: $MCP_PID)"
+if [ -f "/tmp/atlas_orchestrator.pid" ]; then
+    ORCHESTRATOR_PID=$(cat /tmp/atlas_orchestrator.pid)
+    if kill -0 "$ORCHESTRATOR_PID" 2>/dev/null; then
+        kill "$ORCHESTRATOR_PID"
+        log "Зупинено Task Orchestrator (PID: $ORCHESTRATOR_PID)"
     fi
-    rm -f /tmp/atlas_mcp.pid
+    rm -f /tmp/atlas_orchestrator.pid
 fi
 
 if [ -f "/tmp/atlas_core.pid" ]; then
@@ -50,10 +50,12 @@ fi
 
 # Додаткове очищення
 pkill -f "atlas_core.py" 2>/dev/null || true
+pkill -f "task_orchestrator_http_server.py" 2>/dev/null || true
 pkill -f "mcp-proxy" 2>/dev/null || true
 pkill -f "atlas_minimal_live.py" 2>/dev/null || true
 
 # Очищення логів
 rm -f /tmp/atlas_*.log 2>/dev/null || true
+rm -f /tmp/task_orchestrator.log 2>/dev/null || true
 
 log "🎉 Atlas повністю зупинено"

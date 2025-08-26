@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Atlas Universal Startup Script
-# Запускає MCP Proxy + Atlas Core + Frontend в правильному порядку
+# Запускає Task Orchestrator + Atlas Core + Frontend в правильному порядку
 
 set -e
 
@@ -34,6 +34,7 @@ cleanup() {
     
     # Зупиняємо всі процеси
     pkill -f "atlas_core.py" 2>/dev/null || true
+    pkill -f "task_orchestrator_http_server.py" 2>/dev/null || true
     pkill -f "mcp-proxy" 2>/dev/null || true
     pkill -f "atlas_minimal_live.py" 2>/dev/null || true
     
@@ -50,7 +51,7 @@ trap cleanup SIGINT SIGTERM EXIT
 # Функція перевірки порту
 check_port() {
     local port=$1
-    lsof -i :$port >/dev/null 2>&1
+    lsof -i :$port >/dev/null 2>&1 || netstat -an 2>/dev/null | grep ":$port " >/dev/null 2>&1
 }
 
 # Функція очищення процесів
@@ -58,16 +59,17 @@ clean_processes() {
     info "Очищення старих процесів..."
     
     pkill -f "atlas_core.py" 2>/dev/null || true
+    pkill -f "task_orchestrator_http_server.py" 2>/dev/null || true
     pkill -f "mcp-proxy" 2>/dev/null || true
     pkill -f "atlas_minimal_live.py" 2>/dev/null || true
     
     # Очищення портів
-    if check_port 4010; then
-        lsof -ti:4010 | xargs -r kill -9 2>/dev/null || true
+    if check_port 4006; then
+        lsof -ti:4006 2>/dev/null | xargs -r kill -9 2>/dev/null || true
     fi
     
-    if check_port 8080; then
-        lsof -ti:8080 | xargs -r kill -9 2>/dev/null || true
+    if check_port 8000; then
+        lsof -ti:8000 2>/dev/null | xargs -r kill -9 2>/dev/null || true
     fi
     
     sleep 2
@@ -99,47 +101,55 @@ wait_for_service() {
 echo "🚀 Atlas Universal Startup"
 echo "========================="
 
-# Перевірка директорій
-if [ ! -d "/Users/dev/mcp-stack/proxy" ]; then
-    error "MCP Stack не знайдено в /Users/dev/mcp-stack/"
+# Визначаємо робочу директорію
+ATLAS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+info "Робоча директорія: $ATLAS_DIR"
+
+# Перевірка необхідних файлів
+if [ ! -f "$ATLAS_DIR/atlas_core.py" ]; then
+    error "Atlas Core не знайдено в $ATLAS_DIR"
     exit 1
 fi
 
-if [ ! -f "/Users/dev/Documents/Atlas-mcp/atlas_core.py" ]; then
-    error "Atlas Core не знайдено"
-    exit 1
-fi
-
-if [ ! -f "/Users/dev/Documents/Atlas-mcp/3d_helmet_viewer/atlas_minimal_live.py" ]; then
-    error "Frontend не знайдено"
+if [ ! -f "$ATLAS_DIR/task_orchestrator_http_server.py" ]; then
+    error "Task Orchestrator HTTP Server не знайдено"
     exit 1
 fi
 
 # Очищення
 clean_processes
 
-# 1. Запуск MCP Proxy
-info "Запускаю MCP Proxy..."
-cd /Users/dev/mcp-stack/proxy
-nohup ./mcp-proxy/build/mcp-proxy > /tmp/mcp_proxy.log 2>&1 &
-MCP_PID=$!
-echo $MCP_PID > /tmp/atlas_mcp.pid
-log "MCP Proxy запущено (PID: $MCP_PID)"
+# 1. Запуск Task Orchestrator HTTP Server
+info "Запускаю Task Orchestrator..."
+cd "$ATLAS_DIR"
+export TASK_ORCHESTRATOR_PORT=4006
+export ATLAS_MCP_SERVERS="task-orchestrator"
+export ATLAS_MCP_TASK_ORCHESTRATOR_URL="http://localhost:4006"
 
-# Перевірка MCP Proxy
-sleep 3
-if ! kill -0 $MCP_PID 2>/dev/null; then
-    error "MCP Proxy не запустився"
-    cat /tmp/mcp_proxy.log
+nohup python3 task_orchestrator_http_server.py > /tmp/task_orchestrator.log 2>&1 &
+ORCHESTRATOR_PID=$!
+echo $ORCHESTRATOR_PID > /tmp/atlas_orchestrator.pid
+log "Task Orchestrator запущено (PID: $ORCHESTRATOR_PID)"
+
+# Перевірка Task Orchestrator
+sleep 5
+if ! kill -0 $ORCHESTRATOR_PID 2>/dev/null; then
+    error "Task Orchestrator не запустився"
+    cat /tmp/task_orchestrator.log
     exit 1
 fi
 
 # 2. Запуск Atlas Core
 info "Запускаю Atlas Core..."
-cd /Users/dev/Documents/Atlas-mcp
-export ATLAS_MCP_PROXY_MODE=true
+cd "$ATLAS_DIR"
+export ATLAS_MCP_PROXY_MODE=false  # Use direct MCP mode
 export UKRAINIAN_TTS_ENABLED=true
-source atlas_venv/bin/activate
+
+# Перевіряємо наявність віртуального середовища
+if [ -d "atlas_venv" ]; then
+    source atlas_venv/bin/activate
+fi
+
 nohup python3 atlas_core.py > /tmp/atlas_core.log 2>&1 &
 ATLAS_PID=$!
 echo $ATLAS_PID > /tmp/atlas_core.pid
@@ -153,45 +163,26 @@ if ! kill -0 $ATLAS_PID 2>/dev/null; then
     exit 1
 fi
 
-# 3. Запуск Frontend
-info "Запускаю Frontend..."
-cd /Users/dev/Documents/Atlas-mcp/3d_helmet_viewer
-source ../atlas_venv/bin/activate
-nohup python3 atlas_minimal_live.py > /tmp/atlas_frontend.log 2>&1 &
-FRONTEND_PID=$!
-echo $FRONTEND_PID > /tmp/atlas_frontend.pid
-log "Frontend запущено (PID: $FRONTEND_PID)"
-
-# Перевірка Frontend
-sleep 3
-if ! kill -0 $FRONTEND_PID 2>/dev/null; then
-    error "Frontend не запустився"
-    cat /tmp/atlas_frontend.log
-    exit 1
-fi
-
 # Перевірка сервісів
-wait_for_service "http://localhost:4010" "MCP Proxy" || exit 1
-wait_for_service "http://localhost:8080" "Frontend" || exit 1
+wait_for_service "http://localhost:4006/health" "Task Orchestrator" || exit 1
+wait_for_service "http://localhost:8000/status" "Atlas Core" || exit 1
 
 echo ""
 log "🎉 Atlas повністю запущено!"
 echo ""
 info "📊 Статус сервісів:"
-info "   MCP Proxy:  http://localhost:4010 (PID: $MCP_PID)"
-info "   Atlas Core: Активний (PID: $ATLAS_PID)"
-info "   Frontend:   http://localhost:8080 (PID: $FRONTEND_PID)"
+info "   Task Orchestrator: http://localhost:4006 (PID: $ORCHESTRATOR_PID)"
+info "   Atlas Core:        http://localhost:8000 (PID: $ATLAS_PID)"
 echo ""
-info "🌐 Відкрийте браузер: http://localhost:8080"
-info "🛑 Для зупинки: Ctrl+C"
+info "🌐 Відкрийте браузер: http://localhost:8000"
+info "🛑 Для зупинки: Ctrl+C або ./stop_atlas.sh"
 echo ""
 
 # Система запущена у фоні
 log "🎉 Система працює у фоні"
 log "📊 Для перегляду логів:"
-info "   Atlas Core: tail -f /tmp/atlas_core.log"
-info "   Frontend:   tail -f /tmp/atlas_frontend.log"
-info "   MCP Proxy:  tail -f /tmp/mcp_proxy.log"
+info "   Task Orchestrator: tail -f /tmp/task_orchestrator.log"
+info "   Atlas Core:        tail -f /tmp/atlas_core.log"
 echo ""
 log "⏰ Система буде працювати до зупинки або перезавантаження"
 log "🛑 Для зупинки: ./stop_atlas.sh"
