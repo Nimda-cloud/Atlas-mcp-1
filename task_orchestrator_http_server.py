@@ -3,6 +3,7 @@
 HTTP wrapper for MCP Task Orchestrator
 Provides HTTP API endpoints for the task orchestrator tools
 Integrates with Ollama for LLM functionality using gpt-oss:latest model
+Enhanced with intelligent MCP tools registry integration
 """
 
 import asyncio
@@ -130,128 +131,134 @@ async def initialize_orchestrator():
             logger.error(f"Failed to initialize task orchestrator: {e}")
             raise
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize the task orchestrator on startup"""
-    await initialize_orchestrator()
-
-@app.get("/")
-async def root():
-    """Root endpoint"""
-    return {"message": "Task Orchestrator HTTP Server", "status": "running"}
-
-@app.get("/health")
-async def health():
-    """Health check endpoint"""
-    return {"status": "healthy", "orchestrator_initialized": orchestrator_initialized}
-
-@app.get("/tools")
-async def list_tools():
-    """List available tools"""
+async def get_mcp_tools_registry() -> Dict[str, Any]:
+    """Отримати registry MCP інструментів з Atlas Core"""
     try:
-        await initialize_orchestrator()
-        tools = get_all_tools()
-        return {"tools": [{"name": tool.name, "description": tool.description} for tool in tools]}
-    except Exception as e:
-        logger.error(f"Error listing tools: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/call_tool")
-async def call_tool(request: Dict[str, Any]):
-    """Call a tool with parameters"""
-    try:
-        await initialize_orchestrator()
-        
-        tool_name = request.get("tool_name")
-        parameters = request.get("parameters", {})
-        
-        if not tool_name:
-            raise HTTPException(status_code=400, detail="tool_name is required")
-        
-        logger.info(f"Calling tool: {tool_name} with parameters: {parameters}")
-        
-        # For certain tools that need LLM assistance, we need to provide that capability
-        if tool_name == "orchestrator_plan_task":
-            return await handle_plan_task_with_llm(parameters)
-        elif tool_name == "orchestrator_execute_task":
-            return await handle_execute_task_with_llm(parameters)
-        
-        # Call the tool through the MCP router
-        result = await route_tool_call(tool_name, parameters)
-        
-        # Convert MCP result to JSON-serializable format
-        if result:
-            # Extract text content from MCP response
-            response_data = []
-            for item in result:
-                if isinstance(item, dict) and 'text' in item:
-                    response_data.append(item['text'])
-                elif hasattr(item, 'text') and not isinstance(item, dict):
-                    response_data.append(item.text)
-                else:
-                    response_data.append(str(item))
-            
-            return {
-                "success": True,
-                "result": response_data,
-                "tool_name": tool_name
-            }
-        else:
-            return {
-                "success": True,
-                "result": ["Tool executed successfully"],
-                "tool_name": tool_name
-            }
-    
-    except Exception as e:
-        logger.error(f"Error calling tool {tool_name}: {e}")
+        # Спробуємо отримати tools registry з Atlas через HTTP API
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+            async with session.get("http://localhost:8080/tools") as response:
+                if response.status == 200:
+                    data = await response.json()
+                    if data.get("tools"):
+                        logger.info(f"Retrieved tools registry from Atlas: {len(data['tools'])} services")
+                        return data["tools"]
+                        
+        # Fallback: використовуємо статичний registry
+        logger.warning("Could not retrieve tools registry from Atlas, using fallback")
         return {
-            "success": False,
-            "error": str(e),
-            "tool_name": tool_name
+            "task-orchestrator": ["orchestrator_plan_task", "orchestrator_execute_task", "orchestrator_get_status"],
+            "automation": ["system_launch_app", "system_quit_app", "mouseClick", "type", "key"],
+            "tts": ["say_tts", "stop_tts"],
+            "playwright": ["browserNavigate", "browserClick", "browserType", "browserScreenshot"],
+            "applescript": ["run_applescript", "system_get_frontmost_app", "notifications_send_notification"]
         }
+    except Exception as e:
+        logger.error(f"Error getting tools registry: {e}")
+        return {}
+
+async def validate_execution_plan(plan: Dict[str, Any], tools_registry: Dict[str, Any]) -> Dict[str, Any]:
+    """Валідуємо план виконання на відповідність registry інструментів"""
+    validation_result = {
+        "valid": True,
+        "warnings": [],
+        "errors": [],
+        "tool_coverage": 0
+    }
+    
+    try:
+        subtasks = plan.get("subtasks", [])
+        valid_tools = []
+        
+        # Створюємо плоский список всіх доступних інструментів
+        all_available_tools = []
+        for service_tools in tools_registry.values():
+            all_available_tools.extend(service_tools)
+        
+        for subtask in subtasks:
+            tool_name = subtask.get("tool_name", "")
+            tool_service = subtask.get("tool_service", "")
+            
+            # Перевіряємо існування інструменту
+            if tool_name in all_available_tools:
+                valid_tools.append(tool_name)
+            else:
+                validation_result["errors"].append(f"Tool '{tool_name}' not found in registry")
+                validation_result["valid"] = False
+            
+            # Перевіряємо відповідність сервісу
+            if tool_service in tools_registry:
+                if tool_name not in tools_registry[tool_service]:
+                    validation_result["warnings"].append(f"Tool '{tool_name}' not in service '{tool_service}'")
+            else:
+                validation_result["warnings"].append(f"Service '{tool_service}' not found in registry")
+        
+        # Розраховуємо покриття
+        if subtasks:
+            validation_result["tool_coverage"] = len(valid_tools) / len(subtasks)
+        
+        logger.info(f"Plan validation: {len(valid_tools)}/{len(subtasks)} tools valid, "
+                   f"{len(validation_result['errors'])} errors, {len(validation_result['warnings'])} warnings")
+        
+    except Exception as e:
+        validation_result["valid"] = False
+        validation_result["errors"].append(f"Validation error: {str(e)}")
+    
+    return validation_result
 
 async def handle_plan_task_with_llm(parameters: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle task planning with LLM assistance"""
+    """Handle task planning with intelligent LLM assistance using dynamic tools registry"""
     try:
         task_description = parameters.get("task_description", "")
         context = parameters.get("context", "")
         
-        # Create a planning prompt for the LLM
-        planning_prompt = f"""You are a task orchestrator. Break down this task into manageable subtasks.
+        # Отримуємо актуальний registry інструментів
+        tools_registry = await get_mcp_tools_registry()
+        
+        # Формуємо детальний список можливостей
+        capabilities_text = "Available MCP Tools by Category:\n"
+        for service, tools in tools_registry.items():
+            capabilities_text += f"\n{service.upper()}:\n"
+            for tool in tools:
+                capabilities_text += f"  - {tool}\n"
+        
+        # Інтелектуальний планувальний prompt з конкретними інструментами
+        planning_prompt = f"""You are an intelligent task orchestrator with access to real MCP tools. 
 
-Task: {task_description}
-Context: {context}
+TASK: {task_description}
+CONTEXT: {context}
 
-Available capabilities:
-- macOS automation (mouse, keyboard, screenshots)
-- AppleScript execution
-- Browser automation
-- Text-to-speech
-- File operations
+{capabilities_text}
 
-Create a detailed plan with 3-5 subtasks. For each subtask, specify:
-1. Title (brief description)
-2. Type (automation, applescript, browser, tts, or file)
-3. Complexity (low, medium, high)
-4. Dependencies (which other subtasks must complete first)
+INSTRUCTIONS:
+1. Break down the task into 3-7 concrete subtasks
+2. For each subtask, specify the EXACT tool name from the registry above
+3. Include tool parameters where possible
+4. Consider dependencies between subtasks
+5. Prioritize efficiency and reliability
 
-Respond in JSON format:
+RESPONSE FORMAT (JSON only):
 {{
   "plan": {{
     "title": "Main task title",
+    "estimated_duration": "5-10 minutes",
+    "complexity": "medium",
     "subtasks": [
       {{
         "id": "subtask_1",
-        "title": "Subtask description",
-        "type": "automation",
-        "complexity": "medium",
-        "dependencies": [],
-        "details": "Specific steps to accomplish this subtask"
+        "title": "Specific action description",
+        "tool_name": "exact_tool_name_from_registry",
+        "tool_service": "service_category",
+        "parameters": {{"param1": "value1"}},
+        "complexity": "low|medium|high",
+        "dependencies": ["subtask_id_if_any"],
+        "timeout": 30,
+        "retry_policy": "once|multiple|none"
       }}
     ]
   }}
-}}"""
+}}
+
+Respond with ONLY the JSON, no other text."""
 
         # Get LLM response
         llm_response = await llm_client.generate_response(planning_prompt)
@@ -266,41 +273,43 @@ Respond in JSON format:
                 json_text = llm_response[json_start:json_end]
                 plan_data = json.loads(json_text)
                 
-                # Now use the orchestrator to create the task
+                # Валідуємо план
+                validation_result = await validate_execution_plan(plan_data.get("plan", {}), tools_registry)
+                
+                # Створюємо задачу через orchestrator
                 result = await route_tool_call("orchestrator_plan_task", {
                     "task_description": task_description,
                     "context": context
                 })
                 
-                # Combine LLM planning with orchestrator result
+                # Комбінуємо результати
                 return {
                     "success": True,
                     "task_id": f"task_{uuid.uuid4().hex[:8]}",
                     "task_data": plan_data.get("plan", {}),
-                    "llm_plan": plan_data,
+                    "intelligent_plan": plan_data,
+                    "validation": validation_result,
+                    "tools_used": len(tools_registry),
                     "orchestrator_result": result,
                     "tool_name": "orchestrator_plan_task"
                 }
             else:
-                # Fallback to basic orchestrator
-                result = await route_tool_call("orchestrator_plan_task", parameters)
-                return {
-                    "success": True,
-                    "result": result,
-                    "tool_name": "orchestrator_plan_task"
-                }
+                raise ValueError("No valid JSON found in LLM response")
                 
-        except json.JSONDecodeError:
-            logger.warning("Could not parse LLM response as JSON, falling back to basic orchestrator")
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Could not parse LLM response as JSON: {e}")
+            # Fallback: базовий orchestrator
             result = await route_tool_call("orchestrator_plan_task", parameters)
             return {
                 "success": True,
                 "result": result,
+                "fallback": True,
+                "error": "LLM parsing failed",
                 "tool_name": "orchestrator_plan_task"
             }
             
     except Exception as e:
-        logger.error(f"Error in LLM-assisted planning: {e}")
+        logger.error(f"Error in intelligent LLM planning: {e}")
         return {
             "success": False,
             "error": str(e),
@@ -308,28 +317,31 @@ Respond in JSON format:
         }
 
 async def handle_execute_task_with_llm(parameters: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle task execution with LLM assistance"""
+    """Handle task execution with intelligent LLM assistance"""
     try:
         task_id = parameters.get("task_id", "")
         specialist_context = parameters.get("specialist_context", "")
+        
+        # Отримуємо актуальний registry інструментів
+        tools_registry = await get_mcp_tools_registry()
         
         # Create execution prompt for the LLM
         execution_prompt = f"""You are executing a task with ID: {task_id}
 
 Context: {specialist_context}
 
-Available tools for execution:
-- automation: mouseClick, mouseMove, screenshot, type, keyControl, systemCommand
-- applescript: run_applescript
-- browser: navigate, click, type, screenshot
-- tts: text-to-speech functions
+Available Tools:
+{chr(10).join([f"{service}: {', '.join(tools)}" for service, tools in tools_registry.items()])}
 
-Determine the specific actions needed and respond with implementation details.
-Focus on practical, executable steps for macOS automation.
+Execute the next step and report results in JSON format:
+{{
+  "action": "tool_name_to_call",
+  "parameters": {{"param": "value"}},
+  "reasoning": "Why this action",
+  "expected_outcome": "What should happen"
+}}"""
 
-Provide specific implementation details for the task."""
-
-        # Get LLM guidance
+        # Get LLM response
         llm_response = await llm_client.generate_response(execution_prompt)
         
         # Use orchestrator to execute
@@ -344,62 +356,73 @@ Provide specific implementation details for the task."""
         }
         
     except Exception as e:
-        logger.error(f"Error in LLM-assisted execution: {e}")
+        logger.error(f"Error in intelligent LLM execution: {e}")
         return {
             "success": False,
             "error": str(e),
             "tool_name": "orchestrator_execute_task"
         }
 
-@app.post("/orchestrate")
-async def orchestrate_task(request: Dict[str, Any]):
-    """High-level orchestration endpoint"""
+@app.on_event("startup")
+async def startup_event():
+    """Initialize the task orchestrator on startup"""
+    await initialize_orchestrator()
+
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {"message": "Intelligent Task Orchestrator HTTP Server", "status": "running"}
+
+@app.get("/health")
+async def health():
+    """Health check endpoint"""
+    return {"status": "healthy", "orchestrator_initialized": orchestrator_initialized}
+
+@app.get("/tools")
+async def list_tools():
+    """List available tools"""
+    if not ORCHESTRATOR_AVAILABLE:
+        return {"error": "Task orchestrator not available"}
+    
     try:
-        await initialize_orchestrator()
+        tools = get_all_tools()
+        tools_data = []
+        for tool in tools:
+            tools_data.append({
+                "name": tool.name,
+                "description": tool.description,
+                "input_schema": tool.inputSchema
+            })
+        return {"tools": tools_data}
+    except Exception as e:
+        logger.error(f"Error listing tools: {e}")
+        return {"error": str(e)}
+
+@app.post("/call_tool")
+async def call_tool(request: dict):
+    """Call a specific tool with enhanced intelligence"""
+    try:
+        tool_name = request.get("name", "")
+        parameters = request.get("parameters", {})
         
-        task_description = request.get("task_description")
-        if not task_description:
-            raise HTTPException(status_code=400, detail="task_description is required")
+        logger.info(f"🔧 Intelligent tool call: {tool_name} with params: {parameters}")
         
-        # Initialize session
-        init_result = await route_tool_call("orchestrator_initialize_session", {
-            "working_directory": request.get("working_directory", str(ATLAS_WORKING_DIR))
-        })
+        # Enhanced routing with intelligence
+        if tool_name == "orchestrator_plan_task":
+            result = await handle_plan_task_with_llm(parameters)
+        elif tool_name == "orchestrator_execute_task":
+            result = await handle_execute_task_with_llm(parameters)
+        else:
+            # Standard routing for other tools
+            result = await route_tool_call(tool_name, parameters)
         
-        # Plan task with LLM assistance
-        plan_result = await handle_plan_task_with_llm({
-            "task_description": task_description,
-            "context": request.get("context", "")
-        })
-        
-        return {
-            "success": True,
-            "initialization": init_result,
-            "plan": plan_result
-        }
+        logger.info(f"🎯 Tool call result: {result}")
+        return result
         
     except Exception as e:
-        logger.error(f"Error orchestrating task: {e}")
-        return {
-            "success": False,
-            "error": str(e)
-        }
-
-def main():
-    """Main entry point"""
-    port = int(os.environ.get("TASK_ORCHESTRATOR_PORT", "4006"))
-    host = os.environ.get("TASK_ORCHESTRATOR_HOST", "0.0.0.0")
-    
-    logger.info(f"Starting Task Orchestrator HTTP Server on {host}:{port}")
-    logger.info(f"Using Ollama at {OLLAMA_BASE_URL} with model {OLLAMA_MODEL}")
-    
-    uvicorn.run(
-        app,
-        host=host,
-        port=port,
-        log_level="info"
-    )
+        logger.error(f"Error calling tool {tool_name}: {e}")
+        return {"error": str(e)}
 
 if __name__ == "__main__":
-    import uuid  # Add missing import
-    main()
+    port = int(os.environ.get("PORT", 4006))
+    uvicorn.run(app, host="0.0.0.0", port=4006)

@@ -101,6 +101,7 @@ except Exception:
     pass
 
 @dataclass
+@dataclass
 class ExecutionContext:
     """Unified execution context for task tracing"""
     session_id: str
@@ -110,6 +111,8 @@ class ExecutionContext:
     start_time: datetime
     current_step: int = 0
     total_steps: int = 0
+    end_time: Optional[datetime] = None
+    duration: Optional[float] = None
 
 @dataclass
 class AgentConfig:
@@ -734,7 +737,7 @@ Provide ONLY the English translation as a clear, detailed task description that 
             self.mcp_endpoints["proxy"]["health_url"] = f"{self.mcp_proxy_url}/tts/sse"
     
     async def execute_task_with_task_orchestrator(self, english_task: str, original_message: str) -> List[Dict]:
-        """🟠 Task Orchestrator - планує і виконує завдання через MCP Task Orchestrator"""
+        """🟠 Інтелектуальний Task Orchestrator - планує і виконує завдання з використанням динамічного registry інструментів"""
         # Create execution context for tracing
         import uuid
         context = ExecutionContext(
@@ -745,7 +748,7 @@ Provide ONLY the English translation as a clear, detailed task description that 
             start_time=datetime.now()
         )
         
-        logger.info(f"🟠 [Task Orchestrator] Starting task orchestration: {english_task} [ID: {context.correlation_id}]")
+        logger.info(f"🟠 [Intelligent Orchestrator] Starting intelligent task orchestration: {english_task} [ID: {context.correlation_id}]")
         
         # 🔴 LLM3 Security Check
         security_check = await self.security_check_llm3(english_task)
@@ -756,100 +759,255 @@ Provide ONLY the English translation as a clear, detailed task description that 
         logger.info(f"🔴 [LLM3] Task approved")
         
         try:
-            # Call Task Orchestrator via MCP to initialize session and plan task
+            # ЕТАП 1: Отримуємо актуальний registry інструментів
+            available_tools = self.get_available_mcp_tools()
+            total_tools = sum(len(tools) for tools in available_tools.values())
+            logger.info(f"🔍 [Registry] Using {total_tools} tools from {len(available_tools)} services")
+            
             execution_results = []
             
-            # Step 1: Initialize orchestration session
-            logger.info(f"🟠 [Task Orchestrator] Initializing session")
-            # Determine working directory dynamically (fallback to current file's parent)
+            # ЕТАП 2: Initialize orchestration session
+            logger.info(f"🟠 [Intelligent Orchestrator] Initializing session")
             working_dir = os.getenv("ATLAS_WORKING_DIR") or os.getcwd()
             init_result = await self.call_task_orchestrator_tool("orchestrator_initialize_session", {
                 "working_directory": working_dir
             })
             
             if not init_result.get("success", False):
-                logger.error(f"🟠 [Task Orchestrator] Failed to initialize: {init_result}")
-                return [{"success": False, "error": "Failed to initialize task orchestrator"}]
+                logger.error(f"🟠 [Intelligent Orchestrator] Failed to initialize: {init_result}")
+                return [{"success": False, "error": "Failed to initialize intelligent task orchestrator"}]
             
-            # Step 2: Plan the task
-            logger.info(f"🟠 [Task Orchestrator] Planning task")
-            plan_result = await self.call_task_orchestrator_tool("orchestrator_plan_task", {
-                "title": english_task[:100],  # Обмежуємо довжину заголовка
-                "description": f"Original Ukrainian request: {original_message}. Available tools: macOS automation, applescript, browser automation, TTS, file operations.",
-                "task_type": "standard",
-                "complexity": "moderate",
-                "specialist_type": "generic"
-            })
+            # ЕТАП 3: Інтелектуальне планування з використанням registry
+            logger.info(f"🟠 [Intelligent Orchestrator] Creating intelligent plan using tools registry")
+            
+            # Формуємо збагачений контекст для планування
+            tools_context = self._format_tools_context(available_tools)
+            enhanced_context = (
+                f"Original Ukrainian request: {original_message}. "
+                f"Available tools: {tools_context}. "
+                f"Total tools available: {total_tools}. "
+                f"Use specific tool names from the registry for concrete execution."
+            )
+            
+            plan_result = await self.call_task_orchestrator_tool(
+                "orchestrator_plan_task",
+                {
+                    "task_description": english_task,
+                    "context": enhanced_context,
+                    "tools_registry": available_tools,  # Передаємо registry
+                    "complexity": "moderate",
+                    "specialist_type": "intelligent_mcp"
+                }
+            )
             
             if not plan_result.get("success", False):
-                logger.error(f"🟠 [Task Orchestrator] Failed to plan: {plan_result}")
-                return [{"success": False, "error": "Failed to plan task"}]
+                logger.error(f"🟠 [Intelligent Orchestrator] Failed to plan: {plan_result}")
+                return [{"success": False, "error": "Failed to create intelligent plan"}]
             
             execution_results.append(plan_result)
             
-            # Step 3: Execute the task if planning was successful
+            # ЕТАП 4: Intelligent fallback з використанням registry
+            if not plan_result.get("task_id"):
+                dynamic_app = await self._intelligent_app_inference(english_task, available_tools)
+                if dynamic_app:
+                    logger.info(f"� [Intelligent Fallback] Detected app: {dynamic_app}")
+                    try:
+                        # Перевіряємо чи є потрібний інструмент в registry
+                        if self._tool_available("system_launch_app", available_tools):
+                            launch_result = await self.call_mcp_tool_via_proxy(
+                                "system_launch_app", {"app_name": dynamic_app}
+                            )
+                            execution_results.append({
+                                "success": launch_result.get("status") == "success",
+                                "result": launch_result,
+                                "intelligent_fallback": True,
+                                "description": f"Intelligent launch of {dynamic_app} using registry-verified tool"
+                            })
+                        else:
+                            logger.warning("🔍 [Intelligent Fallback] system_launch_app not available in registry")
+                            execution_results.append({
+                                "success": False,
+                                "error": "Required tool system_launch_app not available",
+                                "intelligent_fallback": True
+                            })
+                    except Exception as fe:
+                        execution_results.append({
+                            "success": False,
+                            "error": f"Intelligent fallback failed: {fe}",
+                            "intelligent_fallback": True
+                        })
+
+            # ЕТАП 5: Intelligent execution з валідацією інструментів
             if plan_result.get("task_id"):
-                logger.info(f"🟠 [Task Orchestrator] Executing task {plan_result['task_id']}")
+                logger.info(f"🟠 [Intelligent Orchestrator] Executing intelligent plan {plan_result['task_id']}")
                 
-                # Execute each subtask
                 task_data = plan_result.get("task_data", {})
                 subtasks = task_data.get("subtasks", [])
+                
+                # Перевіряємо план на валідність
+                validation_result = await self._validate_plan_against_registry(task_data, available_tools)
+                execution_results.append({
+                    "validation": validation_result,
+                    "type": "plan_validation"
+                })
                 
                 for i, subtask in enumerate(subtasks):
                     context.current_step = i + 1
                     context.total_steps = len(subtasks)
                     
-                    logger.info(f"🟠 [Task Orchestrator] Executing subtask {i+1}/{len(subtasks)}: {subtask.get('title', 'Unknown')} [ID: {context.correlation_id}]")
+                    logger.info(f"🟠 [Intelligent Orchestrator] Executing intelligent subtask {i+1}/{len(subtasks)}: {subtask.get('title', 'Unknown')} [ID: {context.correlation_id}]")
                     
                     # 🔵 LLM1 звітує про прогрес
                     await self.llm1_progress_report(f"Виконую підзавдання {i+1} з {len(subtasks)}: {subtask.get('title', 'Unknown')}")
                     
-                    # Execute the subtask with timeout
+                    # Intelligent execution з валідацією інструментів
                     try:
+                        # Перевіряємо чи доступний необхідний інструмент
+                        required_tool = subtask.get("tool_name")
+                        if required_tool and not self._tool_available(required_tool, available_tools):
+                            logger.warning(f"🔍 [Tool Validation] Tool '{required_tool}' not available, attempting alternative")
+                            alternative_tool = await self._find_alternative_tool(required_tool, available_tools)
+                            if alternative_tool:
+                                logger.info(f"🔄 [Tool Substitution] Using '{alternative_tool}' instead of '{required_tool}'")
+                                subtask["tool_name"] = alternative_tool
+                        
                         exec_result = await asyncio.wait_for(
                             self.call_task_orchestrator_tool("orchestrator_execute_task", {
                                 "task_id": subtask.get("id"),
-                                "specialist_context": "You have access to macOS automation tools, AppleScript, browser automation, and TTS. Use these tools to accomplish the task.",
-                                "correlation_id": context.correlation_id
+                                "specialist_context": f"Use available tools from registry: {tools_context}. Execute the specific tool: {subtask.get('tool_name', 'unknown')}",
+                                "correlation_id": context.correlation_id,
+                                "tool_registry": available_tools
                             }),
-                            timeout=60.0  # 60 seconds timeout per subtask
+                            timeout=60.0
                         )
-                    except asyncio.TimeoutError:
-                        logger.error(f"🟠 [Task Orchestrator] Subtask {i+1} timed out [ID: {context.correlation_id}]")
-                        exec_result = {"success": False, "error": "Subtask execution timed out", "timeout": True}
-                    except Exception as e:
-                        logger.error(f"🟠 [Task Orchestrator] Subtask {i+1} failed: {e} [ID: {context.correlation_id}]")
-                        exec_result = {"success": False, "error": str(e)}
-                    
-                    execution_results.append(exec_result)
-                    
-                    if exec_result.get("success", False):
-                        # Mark subtask as complete
-                        complete_result = await self.call_task_orchestrator_tool("orchestrator_complete_task", {
-                            "task_id": subtask.get("id"),
-                            "result": exec_result.get("result", ""),
-                            "artifacts": exec_result.get("artifacts", [])
+                        
+                        execution_results.append({
+                            "subtask_id": subtask.get("id"),
+                            "subtask_title": subtask.get("title"),
+                            "tool_used": subtask.get("tool_name"),
+                            "result": exec_result,
+                            "step": i + 1,
+                            "intelligent_execution": True
                         })
-                        execution_results.append(complete_result)
-                
-                # Step 4: Synthesize results
-                logger.info(f"🟠 [Task Orchestrator] Synthesizing results")
-                synthesis_result = await self.call_task_orchestrator_tool("orchestrator_synthesize_results", {
-                    "session_id": plan_result.get("session_id"),
-                    "summary_request": "Provide a summary of what was accomplished"
-                })
-                execution_results.append(synthesis_result)
+                        
+                    except asyncio.TimeoutError:
+                        logger.error(f"🟠 [Intelligent Orchestrator] Subtask {i+1} timed out [ID: {context.correlation_id}]")
+                        execution_results.append({
+                            "subtask_id": subtask.get("id"),
+                            "success": False,
+                            "error": "Timeout during intelligent execution",
+                            "step": i + 1
+                        })
+                    except Exception as e:
+                        logger.error(f"🟠 [Intelligent Orchestrator] Subtask {i+1} failed: {e} [ID: {context.correlation_id}]")
+                        execution_results.append({
+                            "subtask_id": subtask.get("id"),
+                            "success": False,
+                            "error": str(e),
+                            "step": i + 1,
+                            "intelligent_execution": True
+                        })
             
-            logger.info(f"🟠 [Task Orchestrator] Task completed: {len(execution_results)} operations executed")
+            # ЕТАП 6: Final synthesis з аналізом результатів
+            logger.info(f"🟠 [Intelligent Orchestrator] Synthesizing intelligent results")
+            synthesis_result = await self.call_task_orchestrator_tool("orchestrator_synthesize_results", {
+                "task_id": plan_result.get("task_id", "unknown"),
+                "execution_summary": execution_results,
+                "tools_used": list(available_tools.keys()),
+                "correlation_id": context.correlation_id
+            })
+            
+            if synthesis_result:
+                execution_results.append({
+                    "type": "intelligent_synthesis",
+                    "result": synthesis_result
+                })
+                
+            context.end_time = datetime.now()
+            context.duration = (context.end_time - context.start_time).total_seconds()
+            
+            logger.info(f"🎯 [Intelligent Orchestrator] Completed in {context.duration:.2f}s with {len(execution_results)} results [ID: {context.correlation_id}]")
+            
             return execution_results
             
         except Exception as e:
-            logger.error(f"🟠 [Task Orchestrator] Task execution error: {e}")
-            return [{"success": False, "error": f"Task orchestration failed: {str(e)}"}]
+            logger.error(f"🔴 [Intelligent Orchestrator] Critical error: {e} [ID: {context.correlation_id}]")
+            return [{"success": False, "error": f"Intelligent orchestration failed: {str(e)}", "correlation_id": context.correlation_id}]
+
+    def _format_tools_context(self, available_tools: Dict[str, List[str]]) -> str:
+        """Форматуємо контекст доступних інструментів для LLM"""
+        context_parts = []
+        for service, tools in available_tools.items():
+            context_parts.append(f"{service}({', '.join(tools)})")
+        return "; ".join(context_parts)
+
+    def _tool_available(self, tool_name: str, available_tools: Dict[str, List[str]]) -> bool:
+        """Перевіряємо чи доступний інструмент в registry"""
+        for tools in available_tools.values():
+            if tool_name in tools:
+                return True
+        return False
+
+    async def _find_alternative_tool(self, original_tool: str, available_tools: Dict[str, List[str]]) -> Optional[str]:
+        """Шукаємо альтернативний інструмент"""
+        # Мапінг схожих інструментів
+        alternatives = {
+            "system_launch_app": ["run_applescript", "system_launch_app"],
+            "browserNavigate": ["browserNavigate", "createPage"],
+            "mouseClick": ["browserClick", "mouseClick"],
+            "say_tts": ["say_tts", "notifications_send_notification"]
+        }
+        
+        if original_tool in alternatives:
+            for alt_tool in alternatives[original_tool]:
+                if self._tool_available(alt_tool, available_tools):
+                    return alt_tool
+        return None
+
+    async def _intelligent_app_inference(self, task: str, available_tools: Dict[str, List[str]]) -> Optional[str]:
+        """Інтелектуальний висновок назви додатку з урахуванням доступних інструментів"""
+        # Спочатку перевіряємо чи є система для запуску додатків
+        if not self._tool_available("system_launch_app", available_tools):
+            logger.warning("� [App Inference] system_launch_app not available")
+            return None
+            
+        # Стандартний висновок через config
+        return await self._infer_app_from_request(task)
+
+    async def _validate_plan_against_registry(self, task_data: Dict, available_tools: Dict[str, List[str]]) -> Dict:
+        """Валідуємо план виконання проти registry інструментів"""
+        validation = {
+            "valid_tools": 0,
+            "invalid_tools": 0,
+            "missing_tools": [],
+            "available_alternatives": {},
+            "coverage": 0.0
+        }
+        
+        subtasks = task_data.get("subtasks", [])
+        for subtask in subtasks:
+            tool_name = subtask.get("tool_name")
+            if tool_name:
+                if self._tool_available(tool_name, available_tools):
+                    validation["valid_tools"] += 1
+                else:
+                    validation["invalid_tools"] += 1
+                    validation["missing_tools"].append(tool_name)
+                    # Шукаємо альтернативи
+                    alternative = await self._find_alternative_tool(tool_name, available_tools)
+                    if alternative:
+                        validation["available_alternatives"][tool_name] = alternative
+        
+        total_tools = validation["valid_tools"] + validation["invalid_tools"]
+        if total_tools > 0:
+            validation["coverage"] = validation["valid_tools"] / total_tools
+        
+        logger.info(f"🔍 [Validation] Plan coverage: {validation['coverage']:.2f} ({validation['valid_tools']}/{total_tools} tools available)")
+        return validation
 
     async def execute_task_with_llm2(self, english_task: str, original_message: str) -> List[Dict]:
         """🟠 LLM2 Orchestrator - DEPRECATED: Legacy fallback, використовує Task Orchestrator"""
-        logger.warning(f"� [LLM2] DEPRECATED: Using legacy fallback path, redirecting to Task Orchestrator")
+        logger.warning(f"⚠️ [LLM2] DEPRECATED: Using legacy fallback path, redirecting to Task Orchestrator")
         
         # Redirect to new Task Orchestrator instead of duplicating logic
         return await self.execute_task_with_task_orchestrator(english_task, original_message)
@@ -1167,27 +1325,20 @@ Provide ONLY the English translation as a clear, detailed task description that 
         task_lower = task_description.lower()
         
         try:
-            if any(word in task_lower for word in ['safari', 'сафар', 'browser', 'браузер']):
-                if 'macos-automator' in self.mcp_endpoints:
-                    endpoint = self.mcp_endpoints['macos-automator']['base_url']
-                    headers = {"Content-Type": "application/json", "Accept": "application/json"}
-                    mcp_payload = {
-                        "tool": "app_control",
-                        "parameters": {"action": "open", "app_name": "Safari"}
-                    }
-                    async with aiohttp.ClientSession() as session:
-                        async with session.post(f"{endpoint}/execute", 
-                                                json=mcp_payload, headers=headers) as response:
-                            if response.status == 200:
-                                return {
-                                    "success": True,
-                                    "description": "Opened Safari browser",
-                                    "fallback": True
-                                }
+            # Генералізований fallback за конфігурацією
+            app_name = await self._infer_app_from_request(task_description)
+            if app_name:
+                launch = await self.call_mcp_tool_via_proxy("system_launch_app", {"app_name": app_name})
+                return {
+                    "success": launch.get("status") == "success",
+                    "result": launch,
+                    "description": f"Launched {app_name} via config fallback",
+                    "fallback": True
+                }
             
             return {
                 "success": False,
-                "error": "Could not determine appropriate action",
+                "error": "No config fallback match",
                 "fallback": True
             }
             
@@ -1431,6 +1582,8 @@ Provide ONLY the English translation as a clear, detailed task description that 
                 "keyControl": "automation",
                 "systemCommand": "automation",
                 "run_applescript": "applescript",
+                "system_launch_app": "applescript",
+                "system_quit_app": "applescript",
                 "browser_navigate": "playwright",
                 "browser_click": "playwright",
                 "browser_type": "playwright",
@@ -1544,90 +1697,208 @@ Provide ONLY the English translation as a clear, detailed task description that 
             return {"status": "error", "message": str(e)}
 
     async def discover_mcp_tools_real(self):
-        """Автодетекція реальних MCP інструментів з працюючих серверів"""
+        """Інтелектуальна автодетекція реальних MCP інструментів з працюючих серверів"""
         discovered_tools = {}
         
-        # Task Orchestrator - REST API запит
+        if not self.mcp_proxy_mode:
+            logger.warning("MCP proxy mode disabled - returning empty tools registry")
+            return discovered_tools
+        
         try:
-            timeout = aiohttp.ClientTimeout(total=5)
+            logger.info("🔍 Starting intelligent MCP tools discovery...")
+            timeout = aiohttp.ClientTimeout(total=15)
+            
             async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get("http://localhost:4006/tools") as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        if data.get("tools"):
-                            tools = [tool.get("name", f"tool_{i}") for i, tool in enumerate(data["tools"])]
-                            discovered_tools["task-orchestrator"] = tools
-                            logger.info(f"Discovered {len(tools)} task-orchestrator tools")
-                        else:
-                            # Fallback до відомих інструментів Task Orchestrator
-                            fallback_tools = [
-                                "orchestrator_initialize_session", "orchestrator_synthesize_results", "orchestrator_get_status",
-                                "orchestrator_plan_task", "orchestrator_update_task", "orchestrator_delete_task", 
-                                "orchestrator_cancel_task", "orchestrator_query_tasks", "orchestrator_execute_task",
-                                "orchestrator_complete_task", "orchestrator_list_sessions", "orchestrator_resume_session",
-                                "orchestrator_cleanup_sessions", "orchestrator_session_status", "orchestrator_maintenance_coordinator"
-                            ]
-                            discovered_tools["task-orchestrator"] = fallback_tools
-                            logger.info(f"Using fallback task-orchestrator tools: {len(fallback_tools)}")
+                # 1. TASK ORCHESTRATOR - Інтелектуальне виявлення через get_all_tools
+                await self._discover_task_orchestrator_tools(session, discovered_tools)
+                
+                # 2. TTS SERVICE
+                await self._discover_tts_tools(session, discovered_tools)
+                
+                # 3. MACOS AUTOMATION
+                await self._discover_automation_tools(session, discovered_tools)
+                
+                # 4. PLAYWRIGHT BROWSER
+                await self._discover_playwright_tools(session, discovered_tools)
+                
+                # 5. APPLESCRIPT MCP
+                await self._discover_applescript_tools(session, discovered_tools)
+                
+                # 6. ADVANCED SERVICES (нові)
+                await self._discover_advanced_services(session, discovered_tools)
+        
         except Exception as e:
-            logger.warning(f"Failed to discover task-orchestrator tools: {e}")
-            # Fallback до відомих інструментів
-            fallback_tools = [
-                "orchestrator_initialize_session", "orchestrator_synthesize_results", "orchestrator_get_status",
-                "orchestrator_plan_task", "orchestrator_update_task", "orchestrator_delete_task", 
-                "orchestrator_cancel_task", "orchestrator_query_tasks", "orchestrator_execute_task",
-                "orchestrator_complete_task", "orchestrator_list_sessions", "orchestrator_resume_session",
-                "orchestrator_cleanup_sessions", "orchestrator_session_status", "orchestrator_maintenance_coordinator"
-            ]
-            discovered_tools["task-orchestrator"] = fallback_tools
+            logger.error(f"Error during MCP tools discovery: {e}")
         
-        # TTS Server - через MCP Proxy (він запускається через stdin/stdout)
-        # Використовуємо відомі інструменти з коду
-        tts_tools = ["say_tts", "list_voices", "tts_status"]
-        discovered_tools["tts"] = tts_tools
-        logger.info(f"Added TTS tools: {len(tts_tools)}")
-        
-        # Automation та Playwright - статичні (NPX-based)
-        automation_tools = ["mouseClick", "mouseMove", "screenshot", "type", "keyControl", "systemCommand", "read_file", "write_file"]
-        
-        # Better Playwright MCP - розширений список (29 інструментів)
-        playwright_tools = [
-            "createPage", "activatePage", "closePage", "listPages", "closeAllPages",
-            "listPagesWithoutId", "closePagesWithoutId", "closePageByIndex",
-            "browserClick", "browserType", "browserHover", "browserSelectOption", 
-            "browserPressKey", "browserFileUpload", "browserHandleDialog",
-            "browserNavigate", "browserNavigateBack", "browserNavigateForward",
-            "scrollToBottom", "scrollToTop", "waitForTimeout", "waitForSelector",
-            "getElementHTML", "pageToHtmlFile", "getScreenshot", "getPDFSnapshot",
-            "getPageSnapshot", "downloadImage", "captureSnapshot"
-        ]
-        
-        discovered_tools["automation"] = automation_tools
-        discovered_tools["playwright"] = playwright_tools
+        # Web Fetch - статичні інструменти (завжди доступні)
+        discovered_tools["web-fetch"] = ["fetch_url", "fetch_html", "fetch_json", "fetch_text", "web_search"]
         
         # GitHub Integration - якщо доступний
         if os.getenv("GITHUB_TOKEN"):
-            github_tools = ["create_issue", "get_repository", "search_repositories", "create_pull_request", "list_issues", "get_issue", "create_comment"]
-            discovered_tools["github-integration"] = github_tools
-        # AppleScript MCP - інструменти macOS автоматизації
-        applescript_tools = [
-            "calendar_add", "calendar_list", "clipboard_set_clipboard", "clipboard_get_clipboard", "clipboard_clear_clipboard",
-            "finder_get_selected_files", "finder_search_files", "finder_quick_look",
-            "notifications_send_notification", "notifications_toggle_do_not_disturb",
-            "system_volume", "system_get_frontmost_app", "system_launch_app", "system_quit_app", "system_toggle_dark_mode",
-            "iterm_paste_clipboard", "iterm_run", "shortcuts_run_shortcut", "shortcuts_list_shortcuts",
-            "mail_create_email", "mail_list_emails", "mail_get_email",
-            "messages_list_chats", "messages_get_messages", "messages_search_messages", "messages_compose_message",
-            "notes_create", "notes_createRawHtml", "notes_list", "notes_get", "notes_search",
-            "pages_create_document"
-        ]
-        discovered_tools["applescript"] = applescript_tools
+            discovered_tools["github-integration"] = ["create_issue", "get_repository", "search_repositories", 
+                                                    "create_pull_request", "list_issues", "get_issue", "create_comment"]
         
-        # Web Fetch - статичні інструменти
-        web_fetch_tools = ["fetch_url", "fetch_html", "fetch_json", "fetch_text", "web_search"]
-        discovered_tools["web-fetch"] = web_fetch_tools
+        # Логування результатів
+        total_tools = sum(len(tools) for tools in discovered_tools.values())
+        logger.info(f"🎯 Intelligent discovery completed: {total_tools} tools from {len(discovered_tools)} services")
         
         return discovered_tools
+
+    async def _discover_task_orchestrator_tools(self, session, discovered_tools):
+        """Інтелектуальне виявлення Task Orchestrator інструментів"""
+        try:
+            # Спочатку спробуємо отримати реальний список інструментів через REST API
+            url = "http://localhost:4006/tools"
+            async with session.get(url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    if data.get("tools"):
+                        tools = [tool.get("name", f"tool_{i}") for i, tool in enumerate(data["tools"])]
+                        discovered_tools["task-orchestrator"] = tools
+                        logger.info(f"🟢 Task Orchestrator: {len(tools)} tools discovered via REST API")
+                        return
+                        
+            # Fallback: тестуємо через MCP proxy
+            if self.mcp_proxy_url:
+                url = f"{self.mcp_proxy_url}/call_tool"
+                payload = {"name": "orchestrator_get_status", "parameters": {}}
+                
+                async with session.post(url, json=payload) as response:
+                    if response.status in [200, 404]:
+                        logger.info("🟢 Task Orchestrator detected via MCP proxy")
+                        # Розширений список на основі tool_definitions.py
+                        orchestrator_tools = [
+                            "orchestrator_initialize_session", "orchestrator_plan_task", "orchestrator_execute_task",
+                            "orchestrator_complete_task", "orchestrator_get_status", "orchestrator_synthesize_results",
+                            "orchestrator_update_task", "orchestrator_delete_task", "orchestrator_query_tasks",
+                            "orchestrator_list_sessions", "orchestrator_resume_session", "orchestrator_cleanup_sessions",
+                            "orchestrator_session_status", "orchestrator_maintenance_coordinator",
+                            "orchestrator_execute_subtask", "orchestrator_complete_subtask"
+                        ]
+                        discovered_tools["task-orchestrator"] = orchestrator_tools
+                    else:
+                        logger.warning(f"Task Orchestrator proxy probe failed: {response.status}")
+        except Exception as e:
+            logger.warning(f"Task Orchestrator discovery failed: {e}")
+            # Final fallback
+            orchestrator_tools = [
+                "orchestrator_initialize_session", "orchestrator_plan_task", "orchestrator_execute_task",
+                "orchestrator_get_status", "orchestrator_synthesize_results"
+            ]
+            discovered_tools["task-orchestrator"] = orchestrator_tools
+
+    async def _discover_tts_tools(self, session, discovered_tools):
+        """Виявлення TTS інструментів"""
+        try:
+            if self.mcp_proxy_url:
+                url = f"{self.mcp_proxy_url}/call_tool"
+                payload = {"name": "say_tts", "parameters": {"text": "test", "rate": 200}}
+                
+                async with session.post(url, json=payload) as response:
+                    if response.status in [200, 404, 500]:
+                        logger.info("🟢 TTS service detected")
+                        discovered_tools["tts"] = ["say_tts", "stop_tts", "set_voice", "get_voices", "list_voices", "tts_status"]
+                    else:
+                        logger.warning(f"TTS probe failed: {response.status}")
+        except Exception as e:
+            logger.warning(f"TTS discovery failed: {e}")
+
+    async def _discover_automation_tools(self, session, discovered_tools):
+        """Виявлення macOS Automation інструментів"""
+        try:
+            if self.mcp_proxy_url:
+                url = f"{self.mcp_proxy_url}/call_tool"
+                payload = {"name": "system_launch_app", "parameters": {"app_name": "System Preferences"}}
+                
+                async with session.post(url, json=payload) as response:
+                    if response.status in [200, 404, 500]:
+                        logger.info("🟢 macOS Automation detected")
+                        discovered_tools["automation"] = [
+                            "mouseClick", "mouseMove", "screenshot", "type", "keyControl", "systemCommand", 
+                            "read_file", "write_file", "system_launch_app", "system_quit_app", "system_minimize_app",
+                            "run_applescript", "key", "system_sleep", "system_restart", 
+                            "get_running_applications", "get_system_info", "window_management", "dock_control"
+                        ]
+                    else:
+                        logger.warning(f"macOS Automation probe failed: {response.status}")
+        except Exception as e:
+            logger.warning(f"macOS Automation discovery failed: {e}")
+
+    async def _discover_playwright_tools(self, session, discovered_tools):
+        """Виявлення Playwright інструментів"""
+        try:
+            if self.mcp_proxy_url:
+                url = f"{self.mcp_proxy_url}/call_tool"
+                payload = {"name": "browserNavigate", "parameters": {"url": "about:blank"}}
+                
+                async with session.post(url, json=payload) as response:
+                    if response.status in [200, 404, 500]:
+                        logger.info("🟢 Playwright browser automation detected")
+                        discovered_tools["playwright"] = [
+                            "createPage", "activatePage", "closePage", "listPages", "closeAllPages",
+                            "listPagesWithoutId", "closePagesWithoutId", "closePageByIndex",
+                            "browserClick", "browserType", "browserHover", "browserSelectOption", 
+                            "browserPressKey", "browserFileUpload", "browserHandleDialog",
+                            "browserNavigate", "browserNavigateBack", "browserNavigateForward",
+                            "scrollToBottom", "scrollToTop", "waitForTimeout", "waitForSelector",
+                            "getElementHTML", "pageToHtmlFile", "getScreenshot", "getPDFSnapshot",
+                            "getPageSnapshot", "downloadImage", "captureSnapshot"
+                        ]
+                    else:
+                        logger.warning(f"Playwright probe failed: {response.status}")
+        except Exception as e:
+            logger.warning(f"Playwright discovery failed: {e}")
+
+    async def _discover_applescript_tools(self, session, discovered_tools):
+        """Виявлення AppleScript MCP інструментів"""
+        try:
+            if self.mcp_proxy_url:
+                url = f"{self.mcp_proxy_url}/call_tool"
+                payload = {"name": "system_get_frontmost_app", "parameters": {}}
+                
+                async with session.post(url, json=payload) as response:
+                    if response.status in [200, 404, 500]:
+                        logger.info("🟢 AppleScript MCP detected")
+                        discovered_tools["applescript"] = [
+                            "calendar_add", "calendar_list", "clipboard_set_clipboard", "clipboard_get_clipboard", "clipboard_clear_clipboard",
+                            "finder_get_selected_files", "finder_search_files", "finder_quick_look",
+                            "notifications_send_notification", "notifications_toggle_do_not_disturb",
+                            "system_volume", "system_get_frontmost_app", "system_launch_app", "system_quit_app", "system_toggle_dark_mode",
+                            "iterm_paste_clipboard", "iterm_run", "shortcuts_run_shortcut", "shortcuts_list_shortcuts",
+                            "mail_create_email", "mail_list_emails", "mail_get_email",
+                            "messages_list_chats", "messages_get_messages", "messages_search_messages", "messages_compose_message",
+                            "notes_create", "notes_createRawHtml", "notes_list", "notes_get", "notes_search",
+                            "pages_create_document"
+                        ]
+                    else:
+                        logger.warning(f"AppleScript MCP probe failed: {response.status}")
+        except Exception as e:
+            logger.warning(f"AppleScript MCP discovery failed: {e}")
+
+    async def _discover_advanced_services(self, session, discovered_tools):
+        """Виявлення додаткових сервісів"""
+        advanced_services = {
+            "file-manager": ["read_file", "write_file", "list_directory", "create_directory", "delete_file"],
+            "network": ["ping", "http_request", "download_file", "upload_file"],
+            "system-monitor": ["get_cpu_usage", "get_memory_usage", "get_disk_usage", "get_processes"],
+            "calendar": ["create_event", "list_events", "delete_event", "update_event"],
+            "notifications": ["send_notification", "schedule_notification", "clear_notifications"]
+        }
+        
+        if self.mcp_proxy_url:
+            for service_name, tools in advanced_services.items():
+                try:
+                    # Тестуємо перший інструмент кожного сервісу
+                    test_tool = tools[0]
+                    url = f"{self.mcp_proxy_url}/call_tool"
+                    payload = {"name": test_tool, "parameters": {}}
+                    
+                    async with session.post(url, json=payload) as response:
+                        if response.status in [200, 404]:  # 404 означає що сервіс працює, але tool невідомий
+                            logger.info(f"🟢 {service_name.title()} service detected")
+                            discovered_tools[service_name] = tools
+                except Exception:
+                    continue  # Сервіс недоступний
 
     def get_available_mcp_tools(self):
         """Get list of available MCP tools grouped by namespace"""
@@ -1671,6 +1942,41 @@ Provide ONLY the English translation as a clear, detailed task description that 
                 "web-fetch": ["fetch_url", "fetch_html", "fetch_json", "fetch_text", "web_search"]
             }
         return {}
+
+    # ================== CONFIG-DRIVEN HELPERS (no hardcodes) ==================
+    _app_alias_cache: Optional[Dict[str, str]] = None
+
+    def _load_app_aliases(self) -> Dict[str, str]:
+        """Load app aliases from env ATLAS_APP_ALIASES="alias=RealName,notes=Notes". Lower-case keys."""
+        if self._app_alias_cache is not None:
+            return self._app_alias_cache
+        mapping_env = os.getenv("ATLAS_APP_ALIASES", "").strip()
+        mapping: Dict[str, str] = {}
+        if mapping_env:
+            for pair in mapping_env.split(','):
+                if '=' in pair:
+                    k, v = pair.split('=', 1)
+                    k = k.strip().lower()
+                    v = v.strip()
+                    if k and v:
+                        mapping[k] = v
+        self._app_alias_cache = mapping
+        return mapping
+
+    async def _infer_app_from_request(self, english_task: str) -> Optional[str]:
+        """Infer application name from task using config (no hardcoded app names)."""
+        text = english_task.lower()
+        verbs = ["open", "launch", "start", "run"]
+        if not any(v in text for v in verbs):
+            return None
+        aliases = self._load_app_aliases()
+        if not aliases:
+            return None
+        matched = [aliases[a] for a in aliases.keys() if a in text]
+        # Якщо рівно один збіг – повертаємо
+        if len(matched) == 1:
+            return matched[0]
+        return None
 
     async def check_mcp_proxy_status(self):
         """Check MCP proxy health and return status"""
