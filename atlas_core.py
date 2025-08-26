@@ -396,14 +396,17 @@ class AtlasCore:
                 REQUEST_LATENCY.labels(method, path).observe(asyncio.get_event_loop().time() - start)
                 raise
         
-        @self.app.get("/", response_class=HTMLResponse)
+        @self.app.get("/")
         async def dashboard():
-            return """
-            <!DOCTYPE html>
-            <html>
-           
-            </html>
-            """
+            return {
+                "status": "Atlas Autonomous System",
+                "version": "1.0.0",
+                "timestamp": datetime.now().isoformat(),
+                "mode": "proxy" if self.mcp_proxy_mode else "direct",
+                "proxy_url": self.mcp_proxy_url if self.mcp_proxy_mode else None,
+                "agents": list(self.agents.keys()),
+                "endpoints": ["/chat", "/action", "/tts", "/status", "/metrics"]
+            }
         
         @self.app.post("/chat")
         async def chat(request: dict):
