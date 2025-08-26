@@ -1,18 +1,27 @@
 #!/bin/bash
 
 # Atlas Universal Startup Script
-# Запускає Task Orchestrator + Atlas Core (UI вилучено, опціонально можна підняти окремий viewer)
+# Запускає Task Orchestrator + Atlas Core + MCP Proxy (за замовчуванням)
+# UI вилучено, опціонально можна підняти окремий viewer
 
 set -euo pipefail
 
 SHOW_VIEWER=0
+# За замовчуванням увімкнений MCP Proxy режим
+export ATLAS_MCP_PROXY_MODE="${ATLAS_MCP_PROXY_MODE:-true}"
 
 for arg in "$@"; do
     case "$arg" in
         --viewer) SHOW_VIEWER=1 ; shift ;;
+        --proxy) export ATLAS_MCP_PROXY_MODE=true ; shift ;;
+        --no-proxy) export ATLAS_MCP_PROXY_MODE=false ; shift ;;
         --help|-h)
-            echo "Usage: $0 [--viewer]"
-            echo "  --viewer   також стартує 3d_helmet_viewer/start_viewer.sh (порт 8080) якщо існує"
+            echo "Usage: $0 [--viewer] [--proxy] [--no-proxy]"
+            echo "  --viewer     також стартує 3d_helmet_viewer/start_viewer.sh (порт 8080) якщо існує"
+            echo "  --proxy      увімкнути MCP Proxy режим (за замовчуванням)"
+            echo "  --no-proxy   вимкнути MCP Proxy, запуск в direct mode"
+            echo ""
+            echo "За замовчуванням Atlas запускається з MCP Proxy на порту 9090"
             exit 0
             ;;
     esac
@@ -48,11 +57,13 @@ cleanup() {
     # Зупиняємо всі процеси
     pkill -f "atlas_core.py" 2>/dev/null || true
     pkill -f "task_orchestrator_http_server.py" 2>/dev/null || true
+    pkill -f "atlas-mcp-proxy" 2>/dev/null || true
     pkill -f "mcp-proxy" 2>/dev/null || true
     pkill -f "atlas_minimal_live.py" 2>/dev/null || true
     
     # Очищуємо PID файли
     rm -f /tmp/atlas_*.pid 2>/dev/null || true
+    rm -f /tmp/mcp_proxy.pid 2>/dev/null || true
     
     log "Atlas зупинено"
     exit 0
@@ -117,6 +128,13 @@ echo "========================="
 # Визначаємо робочу директорію
 ATLAS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 info "Робоча директорія: $ATLAS_DIR"
+
+# Інформація про режим
+if [[ "${ATLAS_MCP_PROXY_MODE}" == "true" ]]; then
+    info "🔗 Режим: MCP Proxy (порт 9090) + Direct Services"
+else
+    info "🔄 Режим: Direct Services Only"
+fi
 
 # Перевірка необхідних файлів
 if [ ! -f "$ATLAS_DIR/atlas_core.py" ]; then
@@ -219,19 +237,38 @@ echo ""
 log "🎉 Atlas повністю запущено!"
 echo ""
 info "📊 Статус сервісів:"
-if [[ -n "$MCP_PROXY_PID" ]]; then
-    info "   MCP Proxy: http://localhost:9090 (PID: $MCP_PROXY_PID)"
+
+# MCP Proxy інформація
+if [[ "${ATLAS_MCP_PROXY_MODE}" == "true" ]]; then
+    if [[ -n "$MCP_PROXY_PID" ]]; then
+        info "   🔗 MCP Proxy:         http://localhost:9090 (PID: $MCP_PROXY_PID)"
+        info "      └─ Aggregates:     TTS, Task Orchestrator, Automation, Core API"
+    else
+        warn "   🔗 MCP Proxy:         ❌ Не запустився (fallback to direct mode)"
+    fi
+else
+    info "   🔄 MCP Proxy:         Вимкнено (direct mode)"
 fi
-info "   Task Orchestrator: http://localhost:4006 (PID: $ORCHESTRATOR_PID)"
-info "   Atlas Core API:    http://localhost:8000 (PID: $ATLAS_PID)"
+
+# Direct services
+info "   📋 Task Orchestrator: http://localhost:4006 (PID: $ORCHESTRATOR_PID)"
+info "   ⚙️  Atlas Core API:    http://localhost:8000 (PID: $ATLAS_PID)"
+
+# Viewer
 if [[ $SHOW_VIEWER -eq 1 ]]; then
     if [[ -f "$ATLAS_DIR/3d_helmet_viewer/start_viewer.sh" ]]; then
-        info "   Viewer:            http://localhost:8080 (автозапуск)"
+        info "   🎮 Viewer:            http://localhost:8080 (автозапуск)"
     else
-        warning "   Viewer (--viewer) запитано, але скрипт 3d_helmet_viewer/start_viewer.sh не знайдено"
+        warning "   🎮 Viewer:            ❌ Скрипт start_viewer.sh не знайдено"
     fi
 fi
+
 echo ""
+if [[ "${ATLAS_MCP_PROXY_MODE}" == "true" ]]; then
+    info "💡 Для вимкнення MCP Proxy: ./start_atlas.sh --no-proxy"
+else
+    info "💡 Для увімкнення MCP Proxy: ./start_atlas.sh --proxy"
+fi
 info "🌐 Перевірка стану: http://localhost:8000/status (root / -> короткий JSON, /health -> швидкий)"
 info "🛑 Для зупинки: Ctrl+C або ./stop_atlas.sh"
 echo ""
