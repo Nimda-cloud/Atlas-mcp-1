@@ -297,16 +297,20 @@ class AtlasMinimalHandler(SimpleHTTPRequestHandler):
             if self.live_streamer:
                 self.live_streamer._add_log(f"[CHAT] User: {message[:30]}...")
             
-            # Спробувати MCP proxy
-            response = self.send_to_mcp_proxy(message)
+            # Спочатку пробуємо Atlas Core (пріоритет)
+            response = self.send_to_atlas_core(message)
             if response:
                 if self.live_streamer:
-                    self.live_streamer._add_log(f"[CHAT] MCP response: {response[:30]}...")
+                    self.live_streamer._add_log(f"[CHAT] Atlas response: {response[:30]}...")
+                
+                # Автоматичне TTS для відповідей Atlas
+                self.send_tts_to_atlas(response)
+                
                 self.send_json_response({"response": response})
                 return
             
-            # Fallback на Atlas Core
-            response = self.send_to_atlas_core(message)
+            # Fallback на MCP proxy 
+            response = self.send_to_mcp_proxy(message)
             if response:
                 if self.live_streamer:
                     self.live_streamer._add_log(f"[CHAT] Atlas response: {response[:30]}...")

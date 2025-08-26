@@ -26,11 +26,12 @@ import os
 import subprocess
 import sys
 import time
+import re
+import platform
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-import platform
 
 # Third-party imports (will be installed via requirements.txt)
 try:
@@ -1086,58 +1087,78 @@ class AtlasCore:
             return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
     
     async def process_user_message(self, message: str) -> str:
-        """Process user message through the agent system"""
-        logger.info(f"ENTERING process_user_message with message: {repr(message)}")
+        """Process user message through the 3-agent system"""
+        logger.info(f"🔵 [LLM1] Received user message: {repr(message)}")
+        
         try:
-            # LLM1 processes the user interface and provides a brief response
-            context = """Ти називаєшся Атлас. Ти розмовляєш ТІЛЬКИ українською мовою. 
-НІКОЛИ не використовуй російську мову. НІКОЛИ не додавай англійські переклади в дужках.
-НІКОЛИ не починай відповідь з "Atlas Interface:" або будь-якого іншого префіксу.
-Відповідай КОРОТКО і природно українською мовою. Максимум 1-2 речення для підтвердження."""
+            # 🔵 PHASE 1: LLM1 - Interface Agent (Ukrainian communication)
+            llm1_context = """Ти - LLM1 (Interface Agent) системи Atlas. 
+Твоя роль: спілкуватися з користувачем ТІЛЬКИ українською мовою і звітувати про стан.
+
+ПРАВИЛА:
+- Розмовляй ТІЛЬКИ українською мовою  
+- НІКОЛИ не використовуй російську або англійську
+- Відповідай КОРОТКО (1-2 речення)
+- Якщо користувач просить щось ВИКОНАТИ - скажи що передаєш завдання до системи
+- Постійно звітуй про прогрес виконання"""
+
+            # LLM1 дає початкову відповідь користувачу
+            initial_response = await self.agents["interface"].generate_response(message, llm1_context)
+            cleaned_response = self._clean_response(initial_response)
             
-            interface_response = await self.agents["interface"].generate_response(message, context)
+            # 🔵 LLM1 звітує про початок
+            logger.info(f"🔵 [LLM1] Initial response: {cleaned_response}")
             
-            # Debug: log the raw response
-            logger.info(f"Raw interface_response: {repr(interface_response)}")
+            # Перевірка чи потрібно виконання задач
+            action_keywords = ['open', 'close', 'run', 'execute', 'launch', 'start', 'stop', 
+                             'відкрий', 'закрий', 'запусти', 'виконай', 'розгорни', 'запуск', 'стоп']
             
-            # Remove English translations in parentheses and clean up response
-            cleaned_response = self._clean_response(interface_response)
+            needs_execution = any(keyword in message.lower() for keyword in action_keywords)
             
-            # LLM2 orchestrates the task if needed
-            if any(keyword in message.lower() for keyword in ['open', 'close', 'run', 'execute', 'automate', 'відкрий', 'закрий', 'запусти', 'виконай', 'розгорни', 'фільм']):
-                # Execute the planned action via LLM2
-                execution_results = await self.execute_orchestrated_task(message)
+            if needs_execution:
+                # 🔵 LLM1 звітує про передачу завдання
+                progress_report = f"{cleaned_response}\n🔄 Передаю завдання до системи виконання..."
+                logger.info(f"🔵 [LLM1] Transferring task to LLM2")
                 
-                # Generate concise status report
-                results_summary = ""
-                if execution_results:
-                    successful_steps = [r for r in execution_results if r.get("success", True)]
-                    failed_steps = [r for r in execution_results if not r.get("success", True)]
-                    
-                    if successful_steps:
-                        results_summary += f"\n✅ Успішно виконано {len(successful_steps)} кроків:"
-                        for result in successful_steps[:3]:  # Show first 3 successful results
-                            if "description" in result:
-                                results_summary += f"\n  • {result.get('description', 'Завдання виконано')}"
-                    
-                    if failed_steps:
-                        results_summary += f"\n❌ Помилки у {len(failed_steps)} кроках:"
-                        for result in failed_steps[:2]:  # Show first 2 errors
-                            results_summary += f"\n  • {result.get('error', 'Невідома помилка')}"
+                # 🟡 PHASE 2: LLM1 транслює завдання для LLM2 англійською
+                translation_prompt = f"""Translate this Ukrainian user request to detailed English task description for LLM2 Orchestrator:
+
+User request (Ukrainian): "{message}"
+
+Provide ONLY the English translation as a clear, detailed task description that LLM2 can understand and execute using MCP tools."""
+
+                english_task = await self.agents["interface"].generate_response(translation_prompt, "Translate to English for LLM2. Return ONLY the English task description.")
+                english_task = english_task.strip().replace("English task description:", "").strip()
                 
-                return f"{cleaned_response}{results_summary}"
+                logger.info(f"🔵 [LLM1] Translated task for LLM2: {english_task}")
+                
+                # 🟠 PHASE 3: LLM2 - Orchestrator (планування і виконання)
+                execution_results = await self.execute_task_with_llm2(english_task, message)
+                
+                # 🔵 PHASE 4: LLM1 звітує про результати
+                final_report = await self.generate_final_report_llm1(cleaned_response, execution_results)
+                
+                # Озвучуємо фінальний звіт
+                try:
+                    await self.call_mcp_tool_via_proxy("say_tts", {"text": final_report})
+                except Exception as e:
+                    logger.warning(f"TTS failed: {e}")
+                
+                return final_report
             
-            # Озвучити відповідь українською TTS
-            try:
-                await self.call_mcp_tool_via_proxy("say_tts", {"text": cleaned_response})
-            except Exception as e:
-                logger.warning(f"TTS failed: {e}")
-            
-            return cleaned_response
-            
+            else:
+                # Простий діалог без виконання дій
+                try:
+                    await self.call_mcp_tool_via_proxy("say_tts", {"text": cleaned_response})
+                except Exception as e:
+                    logger.warning(f"TTS failed: {e}")
+                
+                return cleaned_response
+                
         except Exception as e:
-            logger.error(f"Error processing message: {e}")
-            return f"Помилка при обробці вашого запиту: {str(e)}"
+            logger.error(f"🔴 [LLM1] Error processing message: {e}")
+            error_msg = f"Вибачте, сталася помилка при обробці запиту: {str(e)}"
+            return error_msg
     
     def _clean_response(self, response: str) -> str:
         """Clean response from English translations and system prefixes"""
@@ -1160,6 +1181,132 @@ class AtlasCore:
         cleaned = re.sub(r'^\s*\n+', '', cleaned)
         
         return cleaned
+    
+    async def execute_task_with_llm2(self, english_task: str, original_message: str) -> List[Dict]:
+        """🟠 LLM2 Orchestrator - планує і виконує завдання з MCP tools"""
+        logger.info(f"🟠 [LLM2] Starting task orchestration: {english_task}")
+        
+        # 🔴 LLM3 Security Check
+        security_check = await self.security_check_llm3(english_task)
+        if not security_check["approved"]:
+            logger.warning(f"🔴 [LLM3] Task rejected: {security_check['reason']}")
+            return [{"success": False, "error": f"Відхилено з міркувань безпеки: {security_check['reason']}"}]
+        
+        logger.info(f"🔴 [LLM3] Task approved")
+        
+        try:
+            # LLM2 створює план виконання
+            llm2_context = f"""You are LLM2 (Orchestrator Agent) in the Atlas system.
+Your role: Plan and execute tasks using available MCP tools through proxy.
+
+AVAILABLE MCP TOOLS (via proxy at {self.mcp_proxy_url}):
+- tts: say_tts, elevenlabs_tts, google_tts, openai_tts
+- automation: mouseClick, mouseMove, screenshot, type, keyControl, systemCommand
+- applescript: run_applescript  
+- automator: run_workflow
+- playwright: browser_navigate, browser_click, browser_type, browser_screenshot
+- vnc: vnc_screenshot, vnc_control
+
+TASK: {english_task}
+
+Create a detailed step-by-step execution plan. Return ONLY valid JSON format:
+{{
+  "steps": [
+    {{"service": "automation", "tool": "mouseClick", "params": {{"x": 100, "y": 200}}}},
+    {{"service": "applescript", "tool": "run_applescript", "params": {{"script": "tell application \\"Safari\\" to activate"}}}}
+  ]
+}}
+
+Focus on the most direct approach to accomplish the task."""
+
+            plan_response = await self.agents["orchestrator"].generate_response(english_task, llm2_context)
+            logger.info(f"🟠 [LLM2] Raw plan: {plan_response}")
+            
+            # Парсинг JSON плану
+            execution_results = []
+            try:
+                # Знаходимо JSON в відповіді
+                json_start = plan_response.find('{')
+                json_end = plan_response.rfind('}') + 1
+                
+                if json_start >= 0 and json_end > json_start:
+                    json_text = plan_response[json_start:json_end]
+                    plan = json.loads(json_text)
+                    
+                    logger.info(f"🟠 [LLM2] Parsed plan: {len(plan.get('steps', []))} steps")
+                    
+                    # Виконання кожного кроку
+                    for i, step in enumerate(plan.get("steps", [])):
+                        logger.info(f"🟠 [LLM2] Executing step {i+1}: {step}")
+                        
+                        # 🔵 LLM1 звітує про прогрес
+                        await self.llm1_progress_report(f"Виконую крок {i+1} з {len(plan['steps'])}")
+                        
+                        # Виконання через MCP Proxy
+                        step_result = await self.execute_mcp_step_via_proxy(step, i+1)
+                        execution_results.append(step_result)
+                        
+                        # Якщо крок провалився, LLM2 може спробувати альтернативу
+                        if not step_result.get("success", False) and i < len(plan["steps"]) - 1:
+                            logger.info(f"🟠 [LLM2] Step {i+1} failed, attempting recovery")
+                            recovery_result = await self.llm2_error_recovery(step, step_result["error"])
+                            if recovery_result:
+                                execution_results.append(recovery_result)
+                    
+                else:
+                    # Fallback якщо JSON не знайдено
+                    logger.warning("🟠 [LLM2] No JSON found, using fallback execution")
+                    fallback_result = await self.execute_simple_task(english_task)
+                    execution_results.append(fallback_result)
+                    
+            except json.JSONDecodeError as e:
+                logger.error(f"🟠 [LLM2] JSON parse error: {e}")
+                fallback_result = await self.execute_simple_task(english_task) 
+                execution_results.append(fallback_result)
+                
+            logger.info(f"🟠 [LLM2] Task completed: {len(execution_results)} steps executed")
+            return execution_results
+            
+        except Exception as e:
+            logger.error(f"🟠 [LLM2] Task execution error: {e}")
+            return [{"success": False, "error": str(e)}]
+    
+    async def generate_final_report_llm1(self, initial_response: str, execution_results: List[Dict]) -> str:
+        """🔵 LLM1 генерує фінальний звіт українською"""
+        logger.info(f"🔵 [LLM1] Generating final report")
+        
+        # Підрахунок результатів
+        successful_steps = [r for r in execution_results if r.get("success", False)]
+        failed_steps = [r for r in execution_results if not r.get("success", False)]
+        
+        # Формування контексту для LLM1
+        results_context = f"""Результати виконання:
+Успішно: {len(successful_steps)} кроків
+Помилки: {len(failed_steps)} кроків
+
+Деталі успішних кроків:
+{json.dumps(successful_steps[:3], indent=2, ensure_ascii=False)}
+
+Деталі помилок:
+{json.dumps(failed_steps[:2], indent=2, ensure_ascii=False)}"""
+
+        llm1_final_context = f"""Ти - LLM1 (Interface Agent). Створи ФІНАЛЬНИЙ ЗВІТ українською мовою.
+
+Початкова відповідь: "{initial_response}"
+
+{results_context}
+
+Створи короткий і зрозумілий звіт для користувача українською мовою про те, що було виконано."""
+
+        final_response = await self.agents["interface"].generate_response(
+            "Створи фінальний звіт про виконання завдання",
+            llm1_final_context
+        )
+        
+        cleaned_final = self._clean_response(final_response)
+        logger.info(f"🔵 [LLM1] Final report: {cleaned_final}")
+        
+        return cleaned_final
     
     async def execute_action(self, action: str) -> str:
         """Execute predefined actions"""
@@ -1650,17 +1797,16 @@ Task: {task_description}"""
         proxy_url = self.mcp_proxy_url
         
         try:
-            timeout = aiohttp.ClientTimeout(total=10)
+            timeout = aiohttp.ClientTimeout(total=5)
             async with aiohttp.ClientSession(timeout=timeout) as session:
-                # Test TTS endpoint specifically (since we know it works)
-                test_url = f"{proxy_url}/tts/sse"
+                # Test if proxy is responding at all (any response is good)
+                test_url = f"{proxy_url}/"
                 async with session.get(test_url) as resp:
-                    if resp.status == 200:
-                        # Extract session from SSE endpoint response
-                        content = await resp.text()
-                        logger.info(f"MCP Proxy SSE response: {content[:200]}...")
+                    # Accept any response (404, 200, 405, etc.) as proof that proxy is running
+                    if resp.status in [200, 404, 405, 500]:
+                        logger.info(f"MCP Proxy is responsive at {proxy_url} (HTTP {resp.status})")
                         
-                        # For now, we'll mark proxy as connected
+                        # Configure MCP tools cache for proxy mode
                         self.mcp_tools_cache = {
                             "tts": ["say_tts", "elevenlabs_tts", "google_tts", "openai_tts"],
                             "automation": ["mouseClick", "mouseMove", "screenshot", "type", "keyControl"],
@@ -1670,11 +1816,12 @@ Task: {task_description}"""
                             "vnc": ["vnc_screenshot", "vnc_control"]
                         }
                         
-                        logger.info(f"MCP Proxy: Connected to {proxy_url}")
-                        logger.info(f"Available namespaces: {list(self.mcp_tools_cache.keys())}")
+                        logger.info(f"✅ MCP Proxy: Connected to {proxy_url}")
+                        logger.info(f"🔧 Available namespaces: {list(self.mcp_tools_cache.keys())}")
+                        logger.info(f"📦 Total tools: {sum(len(tools) for tools in self.mcp_tools_cache.values())}")
                         return True
                     else:
-                        logger.error(f"MCP Proxy returned HTTP {resp.status}")
+                        logger.error(f"MCP Proxy returned unexpected HTTP {resp.status}")
                         return False
                         
         except Exception as e:
@@ -1830,6 +1977,204 @@ Task: {task_description}"""
             await server.serve()
         finally:
             monitoring_task.cancel()
+    
+    # ======= ДОПОМІЖНІ МЕТОДИ ДЛЯ НОВОЇ АРХІТЕКТУРИ =======
+    
+    async def security_check_llm3(self, task: str) -> Dict[str, Any]:
+        """🔴 LLM3 - перевірка безпеки завдання"""
+        logger.info(f"🔴 [LLM3] Security check for: {task}")
+        
+        try:
+            llm3_context = """You are LLM3 (Monitor Agent) - security and safety monitor.
+Analyze the task for potential security risks. 
+
+REJECT if task involves:
+- System damage or deletion
+- Unauthorized access
+- Malicious activities
+- Privacy violations
+- Network attacks
+
+APPROVE safe automation tasks like:
+- Opening applications
+- File management
+- Web browsing
+- System information
+
+Return JSON: {"approved": true/false, "reason": "explanation"}"""
+
+            response = await self.agents["monitor"].generate_response(task, llm3_context)
+            
+            # Спроба парсингу JSON
+            try:
+                json_start = response.find('{')
+                json_end = response.rfind('}') + 1
+                if json_start >= 0 and json_end > json_start:
+                    result = json.loads(response[json_start:json_end])
+                    return result
+            except:
+                pass
+            
+            # Fallback: аналіз за ключовими словами
+            dangerous_keywords = ['delete', 'remove', 'format', 'erase', 'destroy', 'hack', 'crack']
+            is_dangerous = any(word in task.lower() for word in dangerous_keywords)
+            
+            return {
+                "approved": not is_dangerous,
+                "reason": "Blocked dangerous keywords" if is_dangerous else "Task approved"
+            }
+            
+        except Exception as e:
+            logger.error(f"🔴 [LLM3] Security check error: {e}")
+            return {"approved": False, "reason": f"Security check failed: {str(e)}"}
+    
+    async def llm1_progress_report(self, progress: str):
+        """🔵 LLM1 звітує про прогрес"""
+        logger.info(f"🔵 [LLM1] Progress: {progress}")
+        # Тут можна додати відправку прогресу до frontend через websockets
+    
+    async def execute_mcp_step_via_proxy(self, step: Dict, step_number: int) -> Dict[str, Any]:
+        """Виконання кроку через MCP Proxy"""
+        logger.info(f"🔧 [PROXY] Step {step_number}: {step}")
+        
+        try:
+            service = step.get("service", "")
+            tool = step.get("tool", "")
+            params = step.get("params", {})
+            
+            # Спеціальна обробка для різних типів інструментів
+            if service == "applescript" and tool == "run_applescript":
+                # AppleScript через MCP Proxy
+                script = params.get("script", "")
+                if "safari" in script.lower():
+                    # Прямий виклик AppleScript для Safari
+                    result = await self.macos_automation.execute_applescript(script)
+                    return {
+                        "success": True,
+                        "description": f"Executed AppleScript: {script[:50]}...",
+                        "result": result
+                    }
+            
+            elif service == "automation" and tool == "systemCommand":
+                # Команди системи
+                command = params.get("command", "")
+                if command:
+                    # Виконання через subprocess
+                    process = await asyncio.create_subprocess_shell(
+                        command,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout, stderr = await process.communicate()
+                    
+                    return {
+                        "success": process.returncode == 0,
+                        "description": f"Executed command: {command}",
+                        "result": stdout.decode() if stdout else stderr.decode()
+                    }
+            
+            # Загальний виклик через HTTP до MCP Proxy
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                url = f"{self.mcp_proxy_url}/{service}/{tool}"
+                async with session.post(url, json=params) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        return {
+                            "success": True,
+                            "description": f"Executed {service}/{tool}",
+                            "result": result
+                        }
+                    else:
+                        error_text = await response.text()
+                        return {
+                            "success": False,
+                            "error": f"HTTP {response.status}: {error_text}"
+                        }
+                        
+        except Exception as e:
+            logger.error(f"🔧 [PROXY] Step {step_number} error: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    async def llm2_error_recovery(self, failed_step: Dict, error: str) -> Optional[Dict]:
+        """🟠 LLM2 намагається відновитися після помилки"""
+        logger.info(f"🟠 [LLM2] Attempting error recovery for: {failed_step}")
+        
+        try:
+            recovery_prompt = f"""The step failed: {failed_step}
+Error: {error}
+
+Suggest an alternative approach or simpler method to achieve the same goal.
+Return JSON with alternative step format or null if no recovery possible."""
+
+            recovery_response = await self.agents["orchestrator"].generate_response(
+                f"Recover from error: {error}",
+                recovery_prompt
+            )
+            
+            # Парсинг альтернативного кроку
+            try:
+                json_start = recovery_response.find('{')
+                json_end = recovery_response.rfind('}') + 1
+                if json_start >= 0 and json_end > json_start:
+                    alternative_step = json.loads(recovery_response[json_start:json_end])
+                    return await self.execute_mcp_step_via_proxy(alternative_step, 0)
+            except:
+                pass
+                
+            return None
+            
+        except Exception as e:
+            logger.error(f"🟠 [LLM2] Recovery error: {e}")
+            return None
+    
+    async def execute_simple_task(self, task: str) -> Dict[str, Any]:
+        """Простий fallback для виконання основних завдань"""
+        logger.info(f"🔄 [FALLBACK] Executing simple task: {task}")
+        
+        task_lower = task.lower()
+        
+        try:
+            # Safari
+            if any(word in task_lower for word in ['safari', 'browser', 'web']):
+                success = await self.macos_automation.manage_applications("open", "Safari")
+                return {
+                    "success": success,
+                    "description": "Opened Safari browser" if success else "Failed to open Safari"
+                }
+            
+            # Finder
+            elif any(word in task_lower for word in ['finder', 'files', 'folder']):
+                success = await self.macos_automation.manage_applications("open", "Finder")
+                return {
+                    "success": success,
+                    "description": "Opened Finder" if success else "Failed to open Finder"
+                }
+            
+            # System Info
+            elif any(word in task_lower for word in ['info', 'system', 'status']):
+                info = await self.macos_automation.get_system_info()
+                return {
+                    "success": True,
+                    "description": "Retrieved system information",
+                    "result": info
+                }
+            
+            else:
+                return {
+                    "success": False,
+                    "error": "Task not recognized by fallback system"
+                }
+                
+        except Exception as e:
+            logger.error(f"🔄 [FALLBACK] Error: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
 
 def main():
     """Main entry point"""
