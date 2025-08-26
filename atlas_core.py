@@ -1132,8 +1132,8 @@ Provide ONLY the English translation as a clear, detailed task description that 
                 
                 logger.info(f"🔵 [LLM1] Translated task for LLM2: {english_task}")
                 
-                # 🟠 PHASE 3: LLM2 - Orchestrator (планування і виконання)
-                execution_results = await self.execute_task_with_llm2(english_task, message)
+                # 🟠 PHASE 3: Task Orchestrator - Планування і виконання через MCP Task Orchestrator
+                execution_results = await self.execute_task_with_task_orchestrator(english_task, message)
                 
                 # 🔵 PHASE 4: LLM1 звітує про результати
                 final_report = await self.generate_final_report_llm1(cleaned_response, execution_results)
@@ -1182,8 +1182,93 @@ Provide ONLY the English translation as a clear, detailed task description that 
         
         return cleaned
     
+    async def execute_task_with_task_orchestrator(self, english_task: str, original_message: str) -> List[Dict]:
+        """🟠 Task Orchestrator - планує і виконує завдання через MCP Task Orchestrator"""
+        logger.info(f"🟠 [Task Orchestrator] Starting task orchestration: {english_task}")
+        
+        # 🔴 LLM3 Security Check
+        security_check = await self.security_check_llm3(english_task)
+        if not security_check["approved"]:
+            logger.warning(f"🔴 [LLM3] Task rejected: {security_check['reason']}")
+            return [{"success": False, "error": f"Відхилено з міркувань безпеки: {security_check['reason']}"}]
+        
+        logger.info(f"🔴 [LLM3] Task approved")
+        
+        try:
+            # Call Task Orchestrator via MCP to initialize session and plan task
+            execution_results = []
+            
+            # Step 1: Initialize orchestration session
+            logger.info(f"🟠 [Task Orchestrator] Initializing session")
+            init_result = await self.call_task_orchestrator_tool("orchestrator_initialize_session", {
+                "working_directory": "/home/runner/work/Atlas-mcp-1/Atlas-mcp-1"
+            })
+            
+            if not init_result.get("success", False):
+                logger.error(f"🟠 [Task Orchestrator] Failed to initialize: {init_result}")
+                return [{"success": False, "error": "Failed to initialize task orchestrator"}]
+            
+            # Step 2: Plan the task
+            logger.info(f"🟠 [Task Orchestrator] Planning task")
+            plan_result = await self.call_task_orchestrator_tool("orchestrator_plan_task", {
+                "task_description": english_task,
+                "context": f"Original Ukrainian request: {original_message}. Available tools: macOS automation, applescript, browser automation, TTS, file operations."
+            })
+            
+            if not plan_result.get("success", False):
+                logger.error(f"🟠 [Task Orchestrator] Failed to plan: {plan_result}")
+                return [{"success": False, "error": "Failed to plan task"}]
+            
+            execution_results.append(plan_result)
+            
+            # Step 3: Execute the task if planning was successful
+            if plan_result.get("task_id"):
+                logger.info(f"🟠 [Task Orchestrator] Executing task {plan_result['task_id']}")
+                
+                # Execute each subtask
+                task_data = plan_result.get("task_data", {})
+                subtasks = task_data.get("subtasks", [])
+                
+                for i, subtask in enumerate(subtasks):
+                    logger.info(f"🟠 [Task Orchestrator] Executing subtask {i+1}/{len(subtasks)}: {subtask.get('title', 'Unknown')}")
+                    
+                    # 🔵 LLM1 звітує про прогрес
+                    await self.llm1_progress_report(f"Виконую підзавдання {i+1} з {len(subtasks)}: {subtask.get('title', 'Unknown')}")
+                    
+                    # Execute the subtask
+                    exec_result = await self.call_task_orchestrator_tool("orchestrator_execute_task", {
+                        "task_id": subtask.get("id"),
+                        "specialist_context": "You have access to macOS automation tools, AppleScript, browser automation, and TTS. Use these tools to accomplish the task."
+                    })
+                    
+                    execution_results.append(exec_result)
+                    
+                    if exec_result.get("success", False):
+                        # Mark subtask as complete
+                        complete_result = await self.call_task_orchestrator_tool("orchestrator_complete_task", {
+                            "task_id": subtask.get("id"),
+                            "result": exec_result.get("result", ""),
+                            "artifacts": exec_result.get("artifacts", [])
+                        })
+                        execution_results.append(complete_result)
+                
+                # Step 4: Synthesize results
+                logger.info(f"🟠 [Task Orchestrator] Synthesizing results")
+                synthesis_result = await self.call_task_orchestrator_tool("orchestrator_synthesize_results", {
+                    "session_id": plan_result.get("session_id"),
+                    "summary_request": "Provide a summary of what was accomplished"
+                })
+                execution_results.append(synthesis_result)
+            
+            logger.info(f"🟠 [Task Orchestrator] Task completed: {len(execution_results)} operations executed")
+            return execution_results
+            
+        except Exception as e:
+            logger.error(f"🟠 [Task Orchestrator] Task execution error: {e}")
+            return [{"success": False, "error": f"Task orchestration failed: {str(e)}"}]
+
     async def execute_task_with_llm2(self, english_task: str, original_message: str) -> List[Dict]:
-        """🟠 LLM2 Orchestrator - планує і виконує завдання з MCP tools"""
+        """🟠 LLM2 Orchestrator - планує і виконує завдання з MCP tools (Legacy, replaced by task orchestrator)"""
         logger.info(f"🟠 [LLM2] Starting task orchestration: {english_task}")
         
         # 🔴 LLM3 Security Check
@@ -1752,6 +1837,8 @@ Task: {task_description}"""
                     base = "http://mcp-tts:4004"
                 elif name == "playwright":
                     base = "http://mcp-playwright:4005/mcp"
+                elif name in ("task-orchestrator", "task_orchestrator", "orchestrator"):
+                    base = "http://localhost:4006"
                 else:
                     # Unknown - skip
                     continue
@@ -2033,6 +2120,43 @@ Return JSON: {"approved": true/false, "reason": "explanation"}"""
         logger.info(f"🔵 [LLM1] Progress: {progress}")
         # Тут можна додати відправку прогресу до frontend через websockets
     
+    async def call_task_orchestrator_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """Call a tool on the task orchestrator MCP server"""
+        try:
+            # Check if task orchestrator is configured
+            if "task-orchestrator" not in self.mcp_endpoints and "orchestrator" not in self.mcp_endpoints:
+                logger.error("Task orchestrator not configured in MCP endpoints")
+                return {"success": False, "error": "Task orchestrator not available"}
+            
+            # Get the endpoint
+            endpoint_name = "task-orchestrator" if "task-orchestrator" in self.mcp_endpoints else "orchestrator"
+            endpoint = self.mcp_endpoints[endpoint_name]["base_url"]
+            
+            # Prepare the request
+            url = f"{endpoint}/call_tool"
+            payload = {
+                "tool_name": tool_name,
+                "parameters": parameters
+            }
+            
+            logger.info(f"🟠 [Task Orchestrator] Calling {tool_name} at {url}")
+            
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(url, json=payload) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        logger.info(f"🟠 [Task Orchestrator] Tool {tool_name} success: {result}")
+                        return {"success": True, **result}
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"🟠 [Task Orchestrator] Tool {tool_name} failed: {response.status} {error_text}")
+                        return {"success": False, "error": f"HTTP {response.status}: {error_text}"}
+                        
+        except Exception as e:
+            logger.error(f"🟠 [Task Orchestrator] Tool {tool_name} exception: {e}")
+            return {"success": False, "error": str(e)}
+
     async def execute_mcp_step_via_proxy(self, step: Dict, step_number: int) -> Dict[str, Any]:
         """Виконання кроку через MCP Proxy"""
         logger.info(f"🔧 [PROXY] Step {step_number}: {step}")
