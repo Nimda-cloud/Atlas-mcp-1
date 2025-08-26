@@ -101,6 +101,17 @@ except Exception:
     pass
 
 @dataclass
+class ExecutionContext:
+    """Unified execution context for task tracing"""
+    session_id: str
+    correlation_id: str
+    user_message: str
+    english_task: str
+    start_time: datetime
+    current_step: int = 0
+    total_steps: int = 0
+
+@dataclass
 class AgentConfig:
     """Configuration for LLM agents"""
     name: str
@@ -285,6 +296,7 @@ class AtlasCore:
         self.monitoring_enabled = True
         self.log_buffer = []
         self.max_log_buffer_size = 100
+        self.log_buffer_lock = asyncio.Lock()  # Thread safety for log buffer
         
         self.setup_agents()
         self.setup_web_interface()
@@ -600,7 +612,17 @@ Provide ONLY the English translation as a clear, detailed task description that 
     
     async def execute_task_with_task_orchestrator(self, english_task: str, original_message: str) -> List[Dict]:
         """🟠 Task Orchestrator - планує і виконує завдання через MCP Task Orchestrator"""
-        logger.info(f"🟠 [Task Orchestrator] Starting task orchestration: {english_task}")
+        # Create execution context for tracing
+        import uuid
+        context = ExecutionContext(
+            session_id=str(uuid.uuid4()),
+            correlation_id=str(uuid.uuid4())[:8],
+            user_message=original_message,
+            english_task=english_task,
+            start_time=datetime.now()
+        )
+        
+        logger.info(f"🟠 [Task Orchestrator] Starting task orchestration: {english_task} [ID: {context.correlation_id}]")
         
         # 🔴 LLM3 Security Check
         security_check = await self.security_check_llm3(english_task)
@@ -629,8 +651,11 @@ Provide ONLY the English translation as a clear, detailed task description that 
             # Step 2: Plan the task
             logger.info(f"🟠 [Task Orchestrator] Planning task")
             plan_result = await self.call_task_orchestrator_tool("orchestrator_plan_task", {
-                "task_description": english_task,
-                "context": f"Original Ukrainian request: {original_message}. Available tools: macOS automation, applescript, browser automation, TTS, file operations."
+                "title": english_task[:100],  # Обмежуємо довжину заголовка
+                "description": f"Original Ukrainian request: {original_message}. Available tools: macOS automation, applescript, browser automation, TTS, file operations.",
+                "task_type": "standard",
+                "complexity": "moderate",
+                "specialist_type": "generic"
             })
             
             if not plan_result.get("success", False):
@@ -648,16 +673,30 @@ Provide ONLY the English translation as a clear, detailed task description that 
                 subtasks = task_data.get("subtasks", [])
                 
                 for i, subtask in enumerate(subtasks):
-                    logger.info(f"🟠 [Task Orchestrator] Executing subtask {i+1}/{len(subtasks)}: {subtask.get('title', 'Unknown')}")
+                    context.current_step = i + 1
+                    context.total_steps = len(subtasks)
+                    
+                    logger.info(f"🟠 [Task Orchestrator] Executing subtask {i+1}/{len(subtasks)}: {subtask.get('title', 'Unknown')} [ID: {context.correlation_id}]")
                     
                     # 🔵 LLM1 звітує про прогрес
                     await self.llm1_progress_report(f"Виконую підзавдання {i+1} з {len(subtasks)}: {subtask.get('title', 'Unknown')}")
                     
-                    # Execute the subtask
-                    exec_result = await self.call_task_orchestrator_tool("orchestrator_execute_task", {
-                        "task_id": subtask.get("id"),
-                        "specialist_context": "You have access to macOS automation tools, AppleScript, browser automation, and TTS. Use these tools to accomplish the task."
-                    })
+                    # Execute the subtask with timeout
+                    try:
+                        exec_result = await asyncio.wait_for(
+                            self.call_task_orchestrator_tool("orchestrator_execute_task", {
+                                "task_id": subtask.get("id"),
+                                "specialist_context": "You have access to macOS automation tools, AppleScript, browser automation, and TTS. Use these tools to accomplish the task.",
+                                "correlation_id": context.correlation_id
+                            }),
+                            timeout=60.0  # 60 seconds timeout per subtask
+                        )
+                    except asyncio.TimeoutError:
+                        logger.error(f"🟠 [Task Orchestrator] Subtask {i+1} timed out [ID: {context.correlation_id}]")
+                        exec_result = {"success": False, "error": "Subtask execution timed out", "timeout": True}
+                    except Exception as e:
+                        logger.error(f"🟠 [Task Orchestrator] Subtask {i+1} failed: {e} [ID: {context.correlation_id}]")
+                        exec_result = {"success": False, "error": str(e)}
                     
                     execution_results.append(exec_result)
                     
@@ -686,93 +725,11 @@ Provide ONLY the English translation as a clear, detailed task description that 
             return [{"success": False, "error": f"Task orchestration failed: {str(e)}"}]
 
     async def execute_task_with_llm2(self, english_task: str, original_message: str) -> List[Dict]:
-        """🟠 LLM2 Orchestrator - планує і виконує завдання з MCP tools (Legacy, replaced by task orchestrator)"""
-        logger.info(f"🟠 [LLM2] Starting task orchestration: {english_task}")
+        """🟠 LLM2 Orchestrator - DEPRECATED: Legacy fallback, використовує Task Orchestrator"""
+        logger.warning(f"� [LLM2] DEPRECATED: Using legacy fallback path, redirecting to Task Orchestrator")
         
-        # 🔴 LLM3 Security Check
-        security_check = await self.security_check_llm3(english_task)
-        if not security_check["approved"]:
-            logger.warning(f"🔴 [LLM3] Task rejected: {security_check['reason']}")
-            return [{"success": False, "error": f"Відхилено з міркувань безпеки: {security_check['reason']}"}]
-        
-        logger.info(f"🔴 [LLM3] Task approved")
-        
-        try:
-            # LLM2 створює план виконання
-            llm2_context = f"""You are LLM2 (Orchestrator Agent) in the Atlas system.
-Your role: Plan and execute tasks using available MCP tools through proxy.
-
-AVAILABLE MCP TOOLS (via proxy at {self.mcp_proxy_url}):
-- tts: say_tts, elevenlabs_tts, google_tts, openai_tts
-- automation: mouseClick, mouseMove, screenshot, type, keyControl, systemCommand
-- applescript: run_applescript  
-- automator: run_workflow
-- playwright: browser_navigate, browser_click, browser_type, browser_screenshot
-- vnc: vnc_screenshot, vnc_control
-
-TASK: {english_task}
-
-Create a detailed step-by-step execution plan. Return ONLY valid JSON format:
-{{
-  "steps": [
-    {{"service": "automation", "tool": "mouseClick", "params": {{"x": 100, "y": 200}}}},
-    {{"service": "applescript", "tool": "run_applescript", "params": {{"script": "tell application \\"Safari\\" to activate"}}}}
-  ]
-}}
-
-Focus on the most direct approach to accomplish the task."""
-
-            plan_response = await self.agents["orchestrator"].generate_response(english_task, llm2_context)
-            logger.info(f"🟠 [LLM2] Raw plan: {plan_response}")
-            
-            # Парсинг JSON плану
-            execution_results = []
-            try:
-                # Знаходимо JSON в відповіді
-                json_start = plan_response.find('{')
-                json_end = plan_response.rfind('}') + 1
-                
-                if json_start >= 0 and json_end > json_start:
-                    json_text = plan_response[json_start:json_end]
-                    plan = json.loads(json_text)
-                    
-                    logger.info(f"🟠 [LLM2] Parsed plan: {len(plan.get('steps', []))} steps")
-                    
-                    # Виконання кожного кроку
-                    for i, step in enumerate(plan.get("steps", [])):
-                        logger.info(f"🟠 [LLM2] Executing step {i+1}: {step}")
-                        
-                        # 🔵 LLM1 звітує про прогрес
-                        await self.llm1_progress_report(f"Виконую крок {i+1} з {len(plan['steps'])}")
-                        
-                        # Виконання через MCP Proxy
-                        step_result = await self.execute_mcp_step_via_proxy(step, i+1)
-                        execution_results.append(step_result)
-                        
-                        # Якщо крок провалився, LLM2 може спробувати альтернативу
-                        if not step_result.get("success", False) and i < len(plan["steps"]) - 1:
-                            logger.info(f"🟠 [LLM2] Step {i+1} failed, attempting recovery")
-                            recovery_result = await self.llm2_error_recovery(step, step_result["error"])
-                            if recovery_result:
-                                execution_results.append(recovery_result)
-                    
-                else:
-                    # Fallback якщо JSON не знайдено
-                    logger.warning("🟠 [LLM2] No JSON found, using fallback execution")
-                    fallback_result = await self.execute_simple_task(english_task)
-                    execution_results.append(fallback_result)
-                    
-            except json.JSONDecodeError as e:
-                logger.error(f"🟠 [LLM2] JSON parse error: {e}")
-                fallback_result = await self.execute_simple_task(english_task) 
-                execution_results.append(fallback_result)
-                
-            logger.info(f"🟠 [LLM2] Task completed: {len(execution_results)} steps executed")
-            return execution_results
-            
-        except Exception as e:
-            logger.error(f"🟠 [LLM2] Task execution error: {e}")
-            return [{"success": False, "error": str(e)}]
+        # Redirect to new Task Orchestrator instead of duplicating logic
+        return await self.execute_task_with_task_orchestrator(english_task, original_message)
     
     async def generate_final_report_llm1(self, initial_response: str, execution_results: List[Dict]) -> str:
         """🔵 LLM1 генерує фінальний звіт українською"""
@@ -834,97 +791,43 @@ Focus on the most direct approach to accomplish the task."""
             return f"Error executing action: {str(e)}"
     
     async def execute_orchestrated_task(self, task_description: str):
-        """Execute tasks orchestrated by LLM2 using gpt-oss:latest model"""
-        logger.info(f"LLM2 orchestrating task: {task_description}")
+        """DEPRECATED: Execute tasks orchestrated by LLM2 - redirects to Task Orchestrator"""
+        logger.warning(f"DEPRECATED: execute_orchestrated_task called, redirecting to Task Orchestrator")
         
-        # Add to log buffer for LLM1 monitoring
-        self.add_log_entry("INFO", f"Starting task orchestration: {task_description}", "atlas-orchestrator")
-        
-        try:
-            # Use LLM2 to create detailed execution plan
-            orchestration_prompt = f"""You are LLM2, a task orchestrator. Create a detailed execution plan for: "{task_description}"
-            
-Return a JSON plan with steps using available MCP tools. Each step should have:
-- service: "macos-automator" | "automation" | "tts" | "playwright"  
-- tool: specific tool name from the service
-- params: parameters for the tool
-
-Available MCP tools:
-- macos-automator: app_control, applescript, shortcuts, window_control
-- automation: read_file, write_file, execute_command, http_request, system_info
-- playwright: open_page, goto, click, fill, eval, screenshot, get_title, close
-- tts: speak
-
-Example format:
-{{"steps": [
-  {{"service": "macos-automator", "tool": "app_control", "params": {{"action": "open", "app_name": "Safari"}}}},
-  {{"service": "playwright", "tool": "open_page", "params": {{"url": "https://example.com"}}}}
-]}}
-
-Task: {task_description}"""
-
-            # Get execution plan from LLM2
-            execution_plan_text = await self.agents["orchestrator"].generate_response(
-                orchestration_prompt, 
-                "You are LLM2. Return ONLY valid JSON execution plan."
-            )
-            
-            logger.info(f"LLM2 execution plan: {execution_plan_text}")
-            
-            # Parse and execute the plan
-            execution_results = []
-            try:
-                # Extract JSON from response
-                json_start = execution_plan_text.find('{')
-                json_end = execution_plan_text.rfind('}') + 1
-                
-                if json_start >= 0 and json_end > json_start:
-                    json_text = execution_plan_text[json_start:json_end]
-                    execution_plan = json.loads(json_text)
-                    
-                    logger.info(f"Parsed execution plan: {execution_plan}")
-                    
-                    # Add to log buffer for LLM1 monitoring
-                    steps_count = len(execution_plan.get("steps", []))
-                    self.add_log_entry("INFO", f"LLM2 created execution plan with {steps_count} steps", "atlas-orchestrator")
-                    
-                    # Execute each step in the plan
-                    for i, step in enumerate(execution_plan.get("steps", [])):
-                        step_result = await self.execute_mcp_step(step, i+1)
-                        execution_results.append(step_result)
-                        
-                else:
-                    logger.warning("Could not extract JSON from LLM2 response, attempting direct execution")
-                    # Fallback: try to execute based on keywords
-                    fallback_result = await self.execute_fallback_task(task_description)
-                    execution_results.append(fallback_result)
-                    
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse LLM2 execution plan: {e}")
-                # Fallback execution
-                fallback_result = await self.execute_fallback_task(task_description)
-                execution_results.append(fallback_result)
-            
-            return execution_results
-            
-        except Exception as e:
-            logger.error(f"Error in task orchestration: {e}")
-            return [{"success": False, "error": str(e)}]
+        # Convert to new Task Orchestrator format
+        return await self.execute_task_with_task_orchestrator(task_description, task_description)
     
     def add_log_entry(self, level: str, message: str, source: str = "atlas-core"):
-        """Add log entry to buffer for LLM1 analysis"""
-        log_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "level": level,
-            "source": source, 
-            "message": message
-        }
+        """Add log entry to buffer for LLM1 analysis with thread safety"""
+        async def _add_log():
+            log_entry = {
+                "timestamp": datetime.now().isoformat(),
+                "level": level,
+                "source": source, 
+                "message": message
+            }
+            
+            async with self.log_buffer_lock:
+                self.log_buffer.append(log_entry)
+                
+                # Keep buffer size manageable
+                if len(self.log_buffer) > self.max_log_buffer_size:
+                    self.log_buffer = self.log_buffer[-self.max_log_buffer_size:]
         
-        self.log_buffer.append(log_entry)
-        
-        # Keep buffer size manageable
-        if len(self.log_buffer) > self.max_log_buffer_size:
-            self.log_buffer = self.log_buffer[-self.max_log_buffer_size:]
+        # Schedule async addition
+        try:
+            asyncio.create_task(_add_log())
+        except RuntimeError:
+            # Fallback for non-async context
+            log_entry = {
+                "timestamp": datetime.now().isoformat(),
+                "level": level,
+                "source": source, 
+                "message": message
+            }
+            self.log_buffer.append(log_entry)
+            if len(self.log_buffer) > self.max_log_buffer_size:
+                self.log_buffer = self.log_buffer[-self.max_log_buffer_size:]
     
     async def start_log_monitoring(self):
         """Start LLM1 log monitoring and feedback system"""
@@ -1388,80 +1291,141 @@ Task: {task_description}"""
             logger.error(f"Помилка ініціалізації MCP proxy: {e}")
             return False
 
-    async def call_mcp_tool_via_proxy(self, tool_name: str, args: dict):
+    async def call_mcp_tool_via_proxy(self, tool_name: str, args: dict, _internal_call: bool = False):
         """Call MCP tool through proxy with error handling and logging"""
         if not hasattr(self, 'mcp_proxy_url'):
             raise Exception("MCP Proxy not initialized")
         
         # Use direct Ukrainian TTS for TTS calls
         if tool_name == "say_tts":
-            text = args.get("text", "")
-            voice = args.get("voice", "mykyta") 
-            rate = args.get("rate", 200)  # Default rate 
-            
-            try:
-                # Спробувати прямий виклик українського TTS
-                logger.info(f"🎙️ Using Ukrainian TTS for: {text[:50]}...")
-                
-                # Перевірка наявності необхідних модулів
-                if not UKRAINIAN_TTS_AVAILABLE:
-                    logger.warning("Ukrainian TTS not available, falling back to system TTS")
-                    await self.call_mcp_tool_via_proxy("say_tts", {"text": text, "rate": rate})
-                    return {"success": True, "message": "Used fallback TTS"}
-                
-                if not PYGAME_AVAILABLE:
-                    logger.warning("Pygame not available, falling back to system TTS")
-                    await self.call_mcp_tool_via_proxy("say_tts", {"text": text, "rate": rate})
-                    return {"success": True, "message": "Used fallback TTS"}
-                
-                # Import локально з перевіркою
-                import tempfile
-                
-                # Ініціалізація TTS
-                tts = TTS(device='cpu')  # type: ignore
-                
-                # Генерація аудіо
-                temp_path = tempfile.mktemp(suffix='.wav')
-                with open(temp_path, 'wb') as output_file:
-                    tts.tts(text, voice, "dictionary", output_file)  # type: ignore
-                
-                # Відтворення через pygame
-                pygame.mixer.init()  # type: ignore
-                pygame.mixer.music.load(temp_path)  # type: ignore
-                pygame.mixer.music.play()  # type: ignore
-                
-                # Чекаємо закінчення
-                while pygame.mixer.music.get_busy():  # type: ignore
-                    await asyncio.sleep(0.1)
-                
-                # Очищення
-                import os
-                os.unlink(temp_path)
-                
-                logger.info(f"✅ Ukrainian TTS completed for: {text[:50]}...")
-                return {"status": "success", "message": f"Ukrainian TTS: {text}"}
-                
-            except Exception as e:
-                logger.warning(f"⚠️ Ukrainian TTS failed: {e}, falling back to macOS say")
-                
-                # Fallback на macOS say
-                process = await asyncio.create_subprocess_exec(
-                    'say', '-r', str(args.get("rate", 200)), text,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-                stdout, stderr = await process.communicate()
-                
-                if process.returncode == 0:
-                    logger.info(f"Fallback TTS: Successfully spoke text: {text[:50]}...")
-                    return {"status": "success", "message": f"Fallback TTS: {text}"}
-                else:
-                    logger.error(f"All TTS methods failed: {stderr.decode()}")
-                    return {"status": "error", "message": stderr.decode()}
+            return await self._handle_tts_direct(args, _internal_call)
         
-        # For other tools, return placeholder
-        logger.warning(f"MCP Tool '{tool_name}' not yet implemented via proxy")
-        return {"status": "pending", "message": f"Tool {tool_name} via proxy not yet implemented"}
+        # Handle other MCP tools via proxy
+        return await self._execute_proxy_tool(tool_name, args)
+
+    async def _execute_proxy_tool(self, tool_name: str, args: dict) -> dict:
+        """Execute non-TTS tools via MCP proxy"""
+        try:
+            # Determine service and route based on tool
+            service_map = {
+                "mouseClick": "automation",
+                "mouseMove": "automation", 
+                "screenshot": "automation",
+                "type": "automation",
+                "keyControl": "automation",
+                "systemCommand": "automation",
+                "run_applescript": "applescript",
+                "browser_navigate": "playwright",
+                "browser_click": "playwright",
+                "browser_type": "playwright",
+                "browser_screenshot": "playwright"
+            }
+            
+            service = service_map.get(tool_name, "automation")  # Default to automation
+            
+            # Build proxy URL
+            url = f"{self.mcp_proxy_url.rstrip('/')}/{service}/{tool_name}"
+            
+            logger.info(f"🔧 [PROXY] Calling {service}/{tool_name} via {url}")
+            
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(url, json=args) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        logger.info(f"✅ [PROXY] {tool_name} completed successfully")
+                        return {
+                            "status": "success",
+                            "result": result,
+                            "tool": tool_name,
+                            "service": service
+                        }
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"❌ [PROXY] {tool_name} failed: HTTP {response.status}")
+                        return {
+                            "status": "error", 
+                            "error": f"HTTP {response.status}: {error_text}",
+                            "tool": tool_name,
+                            "service": service
+                        }
+        except Exception as e:
+            logger.error(f"❌ [PROXY] {tool_name} exception: {e}")
+            return {
+                "status": "error",
+                "error": str(e),
+                "tool": tool_name
+            }
+
+    async def _handle_tts_direct(self, args: dict, _internal_call: bool = False):
+        """Handle TTS with proper fallback chain to prevent recursion"""
+        text = args.get("text", "")
+        voice = args.get("voice", "mykyta") 
+        rate = args.get("rate", 200)  # Default rate 
+        
+        try:
+            # Спробувати прямий виклик українського TTS
+            logger.info(f"🎙️ Using Ukrainian TTS for: {text[:50]}...")
+            
+            # Перевірка наявності необхідних модулів
+            if not UKRAINIAN_TTS_AVAILABLE:
+                logger.warning("Ukrainian TTS not available, falling back to system TTS")
+                return await self._fallback_to_system_tts(text, rate)
+            
+            if not PYGAME_AVAILABLE:
+                logger.warning("Pygame not available, falling back to system TTS")
+                return await self._fallback_to_system_tts(text, rate)
+            
+            # Import локально з перевіркою
+            import tempfile
+            
+            # Ініціалізація TTS
+            tts = TTS(device='cpu')  # type: ignore
+            
+            # Генерація аудіо
+            temp_path = tempfile.mktemp(suffix='.wav')
+            with open(temp_path, 'wb') as output_file:
+                tts.tts(text, voice, "dictionary", output_file)  # type: ignore
+            
+            # Відтворення через pygame
+            pygame.mixer.init()  # type: ignore
+            pygame.mixer.music.load(temp_path)  # type: ignore
+            pygame.mixer.music.play()  # type: ignore
+            
+            # Чекаємо закінчення
+            while pygame.mixer.music.get_busy():  # type: ignore
+                await asyncio.sleep(0.1)
+            
+            # Очищення
+            import os
+            os.unlink(temp_path)
+            
+            logger.info(f"✅ Ukrainian TTS completed for: {text[:50]}...")
+            return {"status": "success", "message": f"Ukrainian TTS: {text}"}
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Ukrainian TTS failed: {e}, falling back to macOS say")
+            return await self._fallback_to_system_tts(text, rate)
+
+    async def _fallback_to_system_tts(self, text: str, rate: int) -> dict:
+        """Fallback to macOS system TTS without recursion"""
+        try:
+            process = await asyncio.create_subprocess_exec(
+                'say', '-r', str(rate), text,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode == 0:
+                logger.info(f"Fallback TTS: Successfully spoke text: {text[:50]}...")
+                return {"status": "success", "message": f"Fallback TTS: {text}"}
+            else:
+                logger.error(f"All TTS methods failed: {stderr.decode()}")
+                return {"status": "error", "message": stderr.decode()}
+        except Exception as e:
+            logger.error(f"System TTS fallback failed: {e}")
+            return {"status": "error", "message": str(e)}
 
     async def discover_mcp_tools_real(self):
         """Автодетекція реальних MCP інструментів з працюючих серверів"""
@@ -1698,52 +1662,101 @@ Task: {task_description}"""
     # ======= ДОПОМІЖНІ МЕТОДИ ДЛЯ НОВОЇ АРХІТЕКТУРИ =======
     
     async def security_check_llm3(self, task: str) -> Dict[str, Any]:
-        """🔴 LLM3 - перевірка безпеки завдання"""
+        """🔴 LLM3 - покращена перевірка безпеки завдання"""
         logger.info(f"🔴 [LLM3] Security check for: {task}")
         
         try:
-            llm3_context = """You are LLM3 (Monitor Agent) - security and safety monitor.
-Analyze the task for potential security risks. 
+            # Whitelist дозволених операцій
+            safe_operations = [
+                "open application", "close application", "get system info", "take screenshot",
+                "browse website", "search web", "read file", "write text", "speak text",
+                "відкрити додаток", "закрити додаток", "інформація системи", "скріншот",
+                "відкрити сайт", "пошук", "читати файл", "написати текст", "озвучити"
+            ]
+            
+            # Небезпечні операції (deny-by-default)
+            dangerous_operations = [
+                "delete", "remove", "format", "erase", "destroy", "hack", "crack", "password",
+                "sudo", "admin", "root", "system32", "registry", "kernel", "exploit",
+                "видалити", "знищити", "форматувати", "зламати", "пароль", "адмін"
+            ]
+            
+            # Нормалізація тексту (захист від prompt injection)
+            normalized_task = task.lower().strip()
+            normalized_task = ''.join(c for c in normalized_task if c.isalnum() or c.isspace())
+            
+            # Перевірка на небезпечні операції
+            is_dangerous = any(danger in normalized_task for danger in dangerous_operations)
+            
+            if is_dangerous:
+                return {
+                    "approved": False,
+                    "reason": "Task contains potentially dangerous operations",
+                    "security_level": "HIGH_RISK"
+                }
+            
+            # Перевірка на дозволені операції
+            is_safe = any(safe_op in normalized_task for safe_op in safe_operations)
+            
+            # LLM3 контекст з обмеженнями
+            llm3_context = f"""You are LLM3 (Security Monitor). Analyze ONLY the safety of this task.
+
+TASK TO ANALYZE: "{normalized_task}"
+
+Return ONLY JSON: {{"approved": true/false, "reason": "brief explanation"}}
+
+APPROVE if task is:
+- Opening/closing applications
+- Getting system information  
+- Web browsing
+- File reading (not system files)
+- TTS/speech
 
 REJECT if task involves:
-- System damage or deletion
-- Unauthorized access
-- Malicious activities
-- Privacy violations
+- File deletion/modification of system files
 - Network attacks
+- Privilege escalation
+- Accessing credentials"""
 
-APPROVE safe automation tasks like:
-- Opening applications
-- File management
-- Web browsing
-- System information
-
-Return JSON: {"approved": true/false, "reason": "explanation"}"""
-
-            response = await self.agents["monitor"].generate_response(task, llm3_context)
+            response = await self.agents["monitor"].generate_response(normalized_task, llm3_context)
             
-            # Спроба парсингу JSON
+            # Спроба парсингу JSON з захистом
             try:
                 json_start = response.find('{')
                 json_end = response.rfind('}') + 1
                 if json_start >= 0 and json_end > json_start:
-                    result = json.loads(response[json_start:json_end])
-                    return result
-            except:
+                    llm_result = json.loads(response[json_start:json_end])
+                    
+                    # Комбінація LLM та whitelist результатів
+                    final_approved = llm_result.get("approved", False) and (is_safe or not is_dangerous)
+                    
+                    return {
+                        "approved": final_approved,
+                        "reason": llm_result.get("reason", "LLM analysis"),
+                        "security_level": "LOW_RISK" if final_approved else "MEDIUM_RISK",
+                        "whitelist_match": is_safe,
+                        "blacklist_match": is_dangerous
+                    }
+            except json.JSONDecodeError:
                 pass
             
-            # Fallback: аналіз за ключовими словами
-            dangerous_keywords = ['delete', 'remove', 'format', 'erase', 'destroy', 'hack', 'crack']
-            is_dangerous = any(word in task.lower() for word in dangerous_keywords)
-            
+            # Fallback: консервативний підхід
+            fallback_approved = is_safe and not is_dangerous
             return {
-                "approved": not is_dangerous,
-                "reason": "Blocked dangerous keywords" if is_dangerous else "Task approved"
+                "approved": fallback_approved,
+                "reason": "Fallback analysis - whitelist based approval" if fallback_approved else "Denied by security policy",
+                "security_level": "MEDIUM_RISK",
+                "whitelist_match": is_safe,
+                "blacklist_match": is_dangerous
             }
             
         except Exception as e:
             logger.error(f"🔴 [LLM3] Security check error: {e}")
-            return {"approved": False, "reason": f"Security check failed: {str(e)}"}
+            return {
+                "approved": False, 
+                "reason": f"Security check failed: {str(e)}",
+                "security_level": "ERROR"
+            }
     
     async def llm1_progress_report(self, progress: str):
         """🔵 LLM1 звітує про прогрес"""
@@ -1787,148 +1800,9 @@ Return JSON: {"approved": true/false, "reason": "explanation"}"""
             logger.error(f"🟠 [Task Orchestrator] Tool {tool_name} exception: {e}")
             return {"success": False, "error": str(e)}
 
-    async def execute_mcp_step_via_proxy(self, step: Dict, step_number: int) -> Dict[str, Any]:
-        """Виконання кроку через MCP Proxy"""
-        logger.info(f"🔧 [PROXY] Step {step_number}: {step}")
-        
-        try:
-            service = step.get("service", "")
-            tool = step.get("tool", "")
-            params = step.get("params", {})
-            
-            # Спеціальна обробка для різних типів інструментів
-            if service == "applescript" and tool == "run_applescript":
-                # AppleScript через MCP Proxy
-                script = params.get("script", "")
-                if "safari" in script.lower():
-                    # Прямий виклик AppleScript для Safari
-                    result = await self.macos_automation.execute_applescript(script)
-                    return {
-                        "success": True,
-                        "description": f"Executed AppleScript: {script[:50]}...",
-                        "result": result
-                    }
-            
-            elif service == "automation" and tool == "systemCommand":
-                # Команди системи
-                command = params.get("command", "")
-                if command:
-                    # Виконання через subprocess
-                    process = await asyncio.create_subprocess_shell(
-                        command,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE
-                    )
-                    stdout, stderr = await process.communicate()
-                    
-                    return {
-                        "success": process.returncode == 0,
-                        "description": f"Executed command: {command}",
-                        "result": stdout.decode() if stdout else stderr.decode()
-                    }
-            
-            # Загальний виклик через HTTP до MCP Proxy
-            timeout = aiohttp.ClientTimeout(total=10)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                url = f"{self.mcp_proxy_url}/{service}/{tool}"
-                async with session.post(url, json=params) as response:
-                    if response.status == 200:
-                        result = await response.json()
-                        return {
-                            "success": True,
-                            "description": f"Executed {service}/{tool}",
-                            "result": result
-                        }
-                    else:
-                        error_text = await response.text()
-                        return {
-                            "success": False,
-                            "error": f"HTTP {response.status}: {error_text}"
-                        }
-                        
-        except Exception as e:
-            logger.error(f"🔧 [PROXY] Step {step_number} error: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-    
-    async def llm2_error_recovery(self, failed_step: Dict, error: str) -> Optional[Dict]:
-        """🟠 LLM2 намагається відновитися після помилки"""
-        logger.info(f"🟠 [LLM2] Attempting error recovery for: {failed_step}")
-        
-        try:
-            recovery_prompt = f"""The step failed: {failed_step}
-Error: {error}
-
-Suggest an alternative approach or simpler method to achieve the same goal.
-Return JSON with alternative step format or null if no recovery possible."""
-
-            recovery_response = await self.agents["orchestrator"].generate_response(
-                f"Recover from error: {error}",
-                recovery_prompt
-            )
-            
-            # Парсинг альтернативного кроку
-            try:
-                json_start = recovery_response.find('{')
-                json_end = recovery_response.rfind('}') + 1
-                if json_start >= 0 and json_end > json_start:
-                    alternative_step = json.loads(recovery_response[json_start:json_end])
-                    return await self.execute_mcp_step_via_proxy(alternative_step, 0)
-            except:
-                pass
-                
-            return None
-            
-        except Exception as e:
-            logger.error(f"🟠 [LLM2] Recovery error: {e}")
-            return None
-    
-    async def execute_simple_task(self, task: str) -> Dict[str, Any]:
-        """Простий fallback для виконання основних завдань"""
-        logger.info(f"🔄 [FALLBACK] Executing simple task: {task}")
-        
-        task_lower = task.lower()
-        
-        try:
-            # Safari
-            if any(word in task_lower for word in ['safari', 'browser', 'web']):
-                success = await self.macos_automation.manage_applications("open", "Safari")
-                return {
-                    "success": success,
-                    "description": "Opened Safari browser" if success else "Failed to open Safari"
-                }
-            
-            # Finder
-            elif any(word in task_lower for word in ['finder', 'files', 'folder']):
-                success = await self.macos_automation.manage_applications("open", "Finder")
-                return {
-                    "success": success,
-                    "description": "Opened Finder" if success else "Failed to open Finder"
-                }
-            
-            # System Info
-            elif any(word in task_lower for word in ['info', 'system', 'status']):
-                info = await self.macos_automation.get_system_info()
-                return {
-                    "success": True,
-                    "description": "Retrieved system information",
-                    "result": info
-                }
-            
-            else:
-                return {
-                    "success": False,
-                    "error": "Task not recognized by fallback system"
-                }
-                
-        except Exception as e:
-            logger.error(f"🔄 [FALLBACK] Error: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
+    # ======= DEPRECATED METHODS REMOVED TO ELIMINATE CODE DUPLICATION =======
+    # execute_mcp_step_via_proxy, llm2_error_recovery, execute_simple_task 
+    # - functionality integrated into Task Orchestrator or no longer needed
 
 def main():
     """Main entry point"""
