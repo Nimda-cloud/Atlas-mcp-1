@@ -220,7 +220,7 @@ class LLMAgent:
                 return f"Error: LLM client not initialized for {self.config.name}"
             full_prompt = f"{context}\n\nКористувач: {prompt}\nВідповідь:" if context else prompt
 
-            response = self.client.generate(
+            response = await self.client.generate(
                 model=self.config.model,
                 prompt=full_prompt,
                 options={
@@ -1200,8 +1200,10 @@ Provide ONLY the English translation as a clear, detailed task description that 
             
             # Step 1: Initialize orchestration session
             logger.info(f"🟠 [Task Orchestrator] Initializing session")
+            # Determine working directory dynamically (fallback to current file's parent)
+            working_dir = os.getenv("ATLAS_WORKING_DIR") or os.getcwd()
             init_result = await self.call_task_orchestrator_tool("orchestrator_initialize_session", {
-                "working_directory": "/home/runner/work/Atlas-mcp-1/Atlas-mcp-1"
+                "working_directory": working_dir
             })
             
             if not init_result.get("success", False):
@@ -1924,28 +1926,35 @@ Task: {task_description}"""
         if tool_name == "say_tts":
             text = args.get("text", "")
             voice = args.get("voice", "mykyta") 
+            rate = args.get("rate", 200)  # Default rate 
             
             try:
                 # Спробувати прямий виклик українського TTS
                 logger.info(f"🎙️ Using Ukrainian TTS for: {text[:50]}...")
                 
-                # Import українського TTS локально
+                # Import українського TTS локально з fallback
                 import tempfile
-                from ukrainian_tts.tts import TTS
-                import pygame
-                
-                # Ініціалізація TTS
-                tts = TTS(device='cpu')
-                
-                # Генерація аудіо
-                temp_path = tempfile.mktemp(suffix='.wav')
-                with open(temp_path, 'wb') as output_file:
-                    tts.tts(text, voice, "dictionary", output_file)
-                
-                # Відтворення через pygame
-                pygame.mixer.init()
-                pygame.mixer.music.load(temp_path)
-                pygame.mixer.music.play()
+                try:
+                    from ukrainian_tts.tts import TTS
+                    import pygame
+                    
+                    # Ініціалізація TTS
+                    tts = TTS(device='cpu')
+                    
+                    # Генерація аудіо
+                    temp_path = tempfile.mktemp(suffix='.wav')
+                    with open(temp_path, 'wb') as output_file:
+                        tts.tts(text, voice, "dictionary", output_file)
+                    
+                    # Відтворення через pygame
+                    pygame.mixer.init()
+                    pygame.mixer.music.load(temp_path)
+                    pygame.mixer.music.play()
+                except ImportError as import_err:
+                    logger.warning(f"Ukrainian TTS modules not available: {import_err}")
+                    # Fallback to system say
+                    await self.call_mcp_tool_via_proxy("say_tts", {"text": text, "rate": rate})
+                    return {"success": True, "message": "Used fallback TTS"}
                 
                 # Чекаємо закінчення
                 while pygame.mixer.music.get_busy():
@@ -2313,8 +2322,9 @@ def main():
         if api_base and not str(api_base).startswith("http"):
             api_base = f"http://{api_base}"
         client = ollama.Client(host=str(api_base))
-        models = client.list()
-        print(f"✅ Ollama available with {len(models.get('models', []))} models")
+        models_response = client.list()
+        models_count = len(models_response.get('models', [])) if isinstance(models_response, dict) else 0
+        print(f"✅ Ollama available with {models_count} models")
     except Exception as e:
         print(f"❌ Ollama not available: {e}")
         print("Please install Ollama and ensure it's running: https://ollama.ai")

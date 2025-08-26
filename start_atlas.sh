@@ -122,11 +122,21 @@ clean_processes
 # 1. Запуск Task Orchestrator HTTP Server
 info "Запускаю Task Orchestrator..."
 cd "$ATLAS_DIR"
+
+# Перевіряємо наявність віртуального середовища
+if [ -d "atlas_venv" ]; then
+    source atlas_venv/bin/activate
+    PYTHON_CMD="$ATLAS_DIR/atlas_venv/bin/python3"
+else
+    PYTHON_CMD="python3"
+fi
+
 export TASK_ORCHESTRATOR_PORT=4006
 export ATLAS_MCP_SERVERS="task-orchestrator"
 export ATLAS_MCP_TASK_ORCHESTRATOR_URL="http://localhost:4006"
+export ATLAS_WORKING_DIR="$ATLAS_DIR"
 
-nohup python3 task_orchestrator_http_server.py > /tmp/task_orchestrator.log 2>&1 &
+nohup $PYTHON_CMD task_orchestrator_http_server.py > /tmp/task_orchestrator.log 2>&1 &
 ORCHESTRATOR_PID=$!
 echo $ORCHESTRATOR_PID > /tmp/atlas_orchestrator.pid
 log "Task Orchestrator запущено (PID: $ORCHESTRATOR_PID)"
@@ -145,12 +155,7 @@ cd "$ATLAS_DIR"
 export ATLAS_MCP_PROXY_MODE=false  # Use direct MCP mode
 export UKRAINIAN_TTS_ENABLED=true
 
-# Перевіряємо наявність віртуального середовища
-if [ -d "atlas_venv" ]; then
-    source atlas_venv/bin/activate
-fi
-
-nohup python3 atlas_core.py > /tmp/atlas_core.log 2>&1 &
+nohup $PYTHON_CMD atlas_core.py > /tmp/atlas_core.log 2>&1 &
 ATLAS_PID=$!
 echo $ATLAS_PID > /tmp/atlas_core.pid
 log "Atlas Core запущено (PID: $ATLAS_PID)"

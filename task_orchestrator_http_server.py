@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import sys
+import uuid
 from typing import Dict, Any, List
 from pathlib import Path
 
@@ -18,16 +19,44 @@ from fastapi.responses import JSONResponse
 import uvicorn
 import aiohttp
 
-# Add task orchestrator to path
-sys.path.append(str(Path(__file__).parent / "mcp-task-orchestrator"))
+# Determine project root (directory of this file)
+PROJECT_ROOT = Path(__file__).parent.resolve()
 
-# Import task orchestrator components
-from mcp_task_orchestrator.infrastructure.mcp.tool_definitions import get_all_tools
-from mcp_task_orchestrator.infrastructure.mcp.tool_router import route_tool_call
-from mcp_task_orchestrator.infrastructure.mcp.handlers.core_handlers import (
-    setup_logging,
-    enable_dependency_injection
-)
+# Allow override via env if needed
+ATLAS_WORKING_DIR = Path(os.getenv("ATLAS_WORKING_DIR", str(PROJECT_ROOT)))
+
+# Add task orchestrator to path (local vendored directory)
+vendored_path = PROJECT_ROOT / "mcp-task-orchestrator"
+if vendored_path.exists():
+    sys.path.insert(0, str(vendored_path))
+
+# Import task orchestrator components with fallback
+try:
+    from mcp_task_orchestrator.infrastructure.mcp.tool_definitions import get_all_tools
+    from mcp_task_orchestrator.infrastructure.mcp.tool_router import route_tool_call
+    from mcp_task_orchestrator.infrastructure.mcp.handlers.core_handlers import (
+        setup_logging,
+        enable_dependency_injection
+    )
+    ORCHESTRATOR_AVAILABLE = True
+except ImportError as e:
+    logger = logging.getLogger(__name__)
+    logger.error(f"Task orchestrator imports failed: {e}")
+    logger.warning("Running in minimal mode without orchestrator functionality")
+    ORCHESTRATOR_AVAILABLE = False
+    
+    # Fallback implementations
+    def get_all_tools():
+        return []
+    
+    async def route_tool_call(tool_name: str, parameters: dict):
+        return [{"error": "Task orchestrator not available"}]
+    
+    def setup_logging():
+        return logging.getLogger(__name__)
+    
+    async def enable_dependency_injection():
+        pass
 
 # Configure logging
 logger = setup_logging()
@@ -89,7 +118,8 @@ async def initialize_orchestrator():
     if not orchestrator_initialized:
         try:
             # Set environment variables for orchestrator configuration
-            os.environ.setdefault("MCP_TASK_ORCHESTRATOR_WORKING_DIR", "/home/runner/work/Atlas-mcp-1/Atlas-mcp-1")
+            # Use dynamic working directory instead of CI path
+            os.environ.setdefault("MCP_TASK_ORCHESTRATOR_WORKING_DIR", str(ATLAS_WORKING_DIR))
             os.environ.setdefault("MCP_TASK_ORCHESTRATOR_USE_DI", "true")
             
             # Enable dependency injection
@@ -156,6 +186,8 @@ async def call_tool(request: Dict[str, Any]):
             for item in result:
                 if hasattr(item, 'text'):
                     response_data.append(item.text)
+                elif isinstance(item, dict) and 'text' in item:
+                    response_data.append(item['text'])
                 else:
                     response_data.append(str(item))
             
@@ -331,7 +363,7 @@ async def orchestrate_task(request: Dict[str, Any]):
         
         # Initialize session
         init_result = await route_tool_call("orchestrator_initialize_session", {
-            "working_directory": request.get("working_directory", "/home/runner/work/Atlas-mcp-1/Atlas-mcp-1")
+            "working_directory": request.get("working_directory", str(ATLAS_WORKING_DIR))
         })
         
         # Plan task with LLM assistance
