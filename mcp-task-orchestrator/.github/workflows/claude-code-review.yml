@@ -1,0 +1,151 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - "mcp_task_orchestrator/**/*.py"
+      - "tests/**/*.py"
+      - "tools/**/*.py"
+      - "scripts/**/*.py"
+      - "docs/**/*.md"
+      - "*.md"
+      - "pyproject.toml"
+      - "setup.py"
+
+jobs:
+  claude-review:
+    # Run for all PRs but provide more detailed reviews for first-time contributors
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better context
+
+      - name: Run Enhanced Claude Code Review for MCP Task Orchestrator
+        id: claude-review
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          # Use Claude Sonnet 4 for comprehensive reviews
+          model: "claude-sonnet-4-20250514"
+          
+          # MCP Task Orchestrator specific review prompt
+          direct_prompt: |
+            # MCP Task Orchestrator Code Review
+            
+            You are reviewing a pull request for the **MCP Task Orchestrator** - a sophisticated task management system for LLM agents built with Clean Architecture and Domain-Driven Design principles.
+            
+            ## Review Focus Areas:
+            
+            ### 🏗️ Architecture Compliance
+            - **Clean Architecture**: Verify proper layer separation (Domain → Application → Infrastructure → Presentation)
+            - **Dependency Injection**: Check ServiceContainer usage and proper dependency management
+            - **Domain-Driven Design**: Validate entity models and business logic placement
+            
+            ### 🔒 Security Requirements (CRITICAL)
+            - **Input Validation**: All Pydantic models must use `extra='forbid'`
+            - **Path Traversal Prevention**: File operations must be secured
+            - **XSS Prevention**: Text outputs must be sanitized
+            - **API Authentication**: Check for proper authentication/authorization
+            - **Error Sanitization**: Ensure no information disclosure in error messages
+            
+            ### 🔧 MCP Protocol Compliance
+            - **JSON-RPC Error Codes**: Use proper codes (-32602, -32601, -32603)
+            - **Stdout Violations**: Logging must use stderr in MCP mode
+            - **Resource Cleanup**: Database connections must use context managers
+            - **Tool Naming**: Follow MCP naming conventions
+            
+            ### 📏 Code Quality Standards
+            - **File Size**: Flag files over 500 lines (recommend 300-400)
+            - **Function Size**: Functions should be under 50 lines
+            - **Class Size**: Classes should be under 100 lines
+            - **Code Style**: Must use ruff (not black/flake8)
+            - **Type Hints**: All functions must have proper type annotations
+            
+            ### 🧪 Testing Requirements
+            - **Test Coverage**: Aim for 85%+ coverage
+            - **Security Tests**: Security-related changes must include security tests
+            - **Integration Tests**: MCP and database changes need integration tests
+            - **Test Structure**: Tests should be organized by feature/component
+            
+            ### 🔍 Multi-Stage Validation
+            - Check if changes require validation pipeline execution
+            - Verify compatibility with the 5-stage validation system
+            - Ensure changes don't break existing validation stages
+            
+            ### 📚 Documentation Standards
+            - **Markdown Quality**: Proper heading hierarchy (H1 → H2 → H3)
+            - **Code Blocks**: Must specify language for syntax highlighting
+            - **CLAUDE.md Updates**: Check if project instructions need updates
+            - **API Documentation**: New features must be documented
+            
+            ### 🚀 Performance & Scalability
+            - **Database Operations**: Use connection pooling patterns
+            - **Async/Await**: Prefer async patterns for I/O operations  
+            - **Resource Management**: Check for memory leaks and resource cleanup
+            - **Caching**: Verify appropriate use of caching mechanisms
+            
+            ## Review Guidelines:
+            
+            **For All Contributors:**
+            - Be constructive and specific in feedback
+            - Reference line numbers and provide code suggestions
+            - Check for adherence to project's CLAUDE.md guidelines
+            - Verify integration with existing validation pipeline
+            
+            **For First-Time Contributors (${{ github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR' && 'true' || 'false' }}):**
+            ${{ github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR' && '- Provide detailed explanations for suggestions
+            - Include links to relevant documentation
+            - Be encouraging while maintaining code quality standards
+            - Explain the reasoning behind architectural decisions' || '- Focus on maintaining established patterns and standards
+            - Ensure compatibility with existing codebase
+            - Check for potential breaking changes' }}
+            
+            ## Special Checks:
+            - 🛡️ **Security-First**: Flag any potential security vulnerabilities
+            - 🏗️ **Architecture**: Ensure changes align with Clean Architecture principles  
+            - 📋 **Task Orchestrator**: Verify proper use of the orchestrator itself in development
+            - 🔧 **Tool Integration**: Check MCP tool implementations for protocol compliance
+            - 📊 **Validation Pipeline**: Consider impact on the multi-stage validation system
+            
+            ## Commands Available for Verification:
+            ```bash
+            # Run validation pipeline
+            python -m tools.validation.pipeline_orchestrator --run-full
+            
+            # Check code quality
+            ruff check . --fix
+            ruff format .
+            mypy mcp_task_orchestrator/
+            
+            # Run tests
+            python -m pytest tests/ -v
+            pytest tests/security/ -v
+            ```
+            
+            Please provide a thorough, constructive review that helps maintain the high quality and security standards of the MCP Task Orchestrator project.
+          
+          # Allow Claude to run project-specific validation tools
+          allowed_tools: |
+            Bash(python -m pytest*),
+            Bash(python -m tools.validation.*),
+            Bash(ruff*),
+            Bash(mypy*),
+            Bash(python tools/diagnostics/*),
+            Read,Grep,Glob
+          
+          # Skip review for specific conditions
+          if: |
+            !contains(github.event.pull_request.title, '[skip-review]') &&
+            !contains(github.event.pull_request.title, '[WIP]') &&
+            !contains(github.event.pull_request.title, 'docs: auto-fix')
+

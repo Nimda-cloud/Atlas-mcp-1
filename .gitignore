@@ -104,6 +104,12 @@ dmypy.json
 *.sqlite
 *.sqlite3
 
+# ML Models and Large Data Files
+*.pth
+*.model
+*.npz
+*.ark
+
 # Backup Files
 *.bak
 *.backup
