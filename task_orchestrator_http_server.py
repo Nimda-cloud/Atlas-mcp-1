@@ -32,9 +32,9 @@ if vendored_path.exists():
 
 # Import task orchestrator components with fallback
 try:
-    from mcp_task_orchestrator.infrastructure.mcp.tool_definitions import get_all_tools
-    from mcp_task_orchestrator.infrastructure.mcp.tool_router import route_tool_call
-    from mcp_task_orchestrator.infrastructure.mcp.handlers.core_handlers import (
+    from mcp_task_orchestrator.infrastructure.mcp.tool_definitions import get_all_tools  # type: ignore
+    from mcp_task_orchestrator.infrastructure.mcp.tool_router import route_tool_call  # type: ignore
+    from mcp_task_orchestrator.infrastructure.mcp.handlers.core_handlers import (  # type: ignore
         setup_logging,
         enable_dependency_injection
     )
@@ -184,10 +184,10 @@ async def call_tool(request: Dict[str, Any]):
             # Extract text content from MCP response
             response_data = []
             for item in result:
-                if hasattr(item, 'text'):
-                    response_data.append(item.text)
-                elif isinstance(item, dict) and 'text' in item:
+                if isinstance(item, dict) and 'text' in item:
                     response_data.append(item['text'])
+                elif hasattr(item, 'text') and not isinstance(item, dict):
+                    response_data.append(item.text)
                 else:
                     response_data.append(str(item))
             

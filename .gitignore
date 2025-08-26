@@ -30,7 +30,7 @@ atlas_env/
 venv/
 env/
 ENV/
-
+atlas_venv/
 # Data and Logs
 data/
 logs/

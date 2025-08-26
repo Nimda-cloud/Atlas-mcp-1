@@ -50,6 +50,22 @@ except ImportError as e:
     print(f"Error: {e}")
     sys.exit(1)
 
+# Optional imports for TTS functionality
+UKRAINIAN_TTS_AVAILABLE = False
+PYGAME_AVAILABLE = False
+
+try:
+    from ukrainian_tts.tts import TTS  # type: ignore
+    UKRAINIAN_TTS_AVAILABLE = True
+except ImportError:
+    TTS = None
+
+try:
+    import pygame  # type: ignore
+    PYGAME_AVAILABLE = True
+except ImportError:
+    pygame = None
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -1932,32 +1948,35 @@ Task: {task_description}"""
                 # Спробувати прямий виклик українського TTS
                 logger.info(f"🎙️ Using Ukrainian TTS for: {text[:50]}...")
                 
-                # Import українського TTS локально з fallback
-                import tempfile
-                try:
-                    from ukrainian_tts.tts import TTS
-                    import pygame
-                    
-                    # Ініціалізація TTS
-                    tts = TTS(device='cpu')
-                    
-                    # Генерація аудіо
-                    temp_path = tempfile.mktemp(suffix='.wav')
-                    with open(temp_path, 'wb') as output_file:
-                        tts.tts(text, voice, "dictionary", output_file)
-                    
-                    # Відтворення через pygame
-                    pygame.mixer.init()
-                    pygame.mixer.music.load(temp_path)
-                    pygame.mixer.music.play()
-                except ImportError as import_err:
-                    logger.warning(f"Ukrainian TTS modules not available: {import_err}")
-                    # Fallback to system say
+                # Перевірка наявності необхідних модулів
+                if not UKRAINIAN_TTS_AVAILABLE:
+                    logger.warning("Ukrainian TTS not available, falling back to system TTS")
                     await self.call_mcp_tool_via_proxy("say_tts", {"text": text, "rate": rate})
                     return {"success": True, "message": "Used fallback TTS"}
                 
+                if not PYGAME_AVAILABLE:
+                    logger.warning("Pygame not available, falling back to system TTS")
+                    await self.call_mcp_tool_via_proxy("say_tts", {"text": text, "rate": rate})
+                    return {"success": True, "message": "Used fallback TTS"}
+                
+                # Import локально з перевіркою
+                import tempfile
+                
+                # Ініціалізація TTS
+                tts = TTS(device='cpu')  # type: ignore
+                
+                # Генерація аудіо
+                temp_path = tempfile.mktemp(suffix='.wav')
+                with open(temp_path, 'wb') as output_file:
+                    tts.tts(text, voice, "dictionary", output_file)  # type: ignore
+                
+                # Відтворення через pygame
+                pygame.mixer.init()  # type: ignore
+                pygame.mixer.music.load(temp_path)  # type: ignore
+                pygame.mixer.music.play()  # type: ignore
+                
                 # Чекаємо закінчення
-                while pygame.mixer.music.get_busy():
+                while pygame.mixer.music.get_busy():  # type: ignore
                     await asyncio.sleep(0.1)
                 
                 # Очищення
