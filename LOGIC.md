@@ -1,15 +1,30 @@
 # Atlas-mcp System: Інтелектуальна Архітектура 🚀
 
+> Canonical system logic document. Оновлено: 2025-08-26
+
+## Changelog (excerpt)
+
+| Дата | Зміни |
+|------|-------|
+| 2025-08-26 | Уніфікація документації, нормалізація кількості інструментів (107), доповнення секції 9.1, вирівнювання термінів (service/tool), додано цей Changelog |
+| 2025-08-25 | Планувальник: нормалізація сервісів, виправлення Unknown tool, автоматичний парсинг спискових відповідей |
+| 2025-08-24 | Динамічний registry /tools → планувальний prompt, валідація плану |
+| 2025-08-23 | Timeout-и, безпека (whitelist/blacklist), TTS ієрархія, health aggregation |
+| 2025-08-20 | Інтеграція Orchestrator V2 циклів (initialize → plan → execute → synthesize) |
+
+---
+
 ## Статус системи 🔥
 
 **🎯 ПРАЦЮЄ НА ПОВНУ ПОТУЖНІСТЬ! Всі компоненти онлайн:**
 
 - **Atlas Core** → [http://localhost:8000](http://localhost:8000) (3 агенти + Enhanced TTS)
 - **Task Orchestrator** → [http://localhost:4006](http://localhost:4006) (розумне планування)  
-- **MCP Proxy** → [http://localhost:9090](http://localhost:9090) (127 інструментів)
+- **MCP Proxy** → [http://localhost:9090](http://localhost:9090) (107 інструментів)
 - **3D Helmet Viewer** → [http://localhost:8080](http://localhost:8080) (демо)
 
 **🎙️ TTS СТАТУС:**
+
 - ✅ **Ukrainian TTS** (robinhad/ukrainian-tts) - ПРАЦЮЄ!
 - ✅ **Google TTS API** - з API ключем готовий
 - ✅ **Google gTTS** - встановлено  
@@ -124,7 +139,7 @@ graph TD
 
 ### MCP Proxy (9090)
 
-- **47 інструментів**: TTS, Automation, Playwright, AppleScript
+- **107 інструментів**: (див. таблицю категорій нижче)
 - **Маршрутизація**: Розподіл запитів між сервісами
 - **Кешування**: Оптимізація продуктивності
 
@@ -320,7 +335,7 @@ Ukrainian TTS
 | AppleScript | 25 | notifications, calendar, mail |
 | System | 15 | file_manager, network, monitoring |
 
-Загалом: 127 інструментів доступних через MCP Proxy
+Загалом: 107 інструментів доступних через MCP Proxy
 
 ## 11. Моніторинг та логування
 

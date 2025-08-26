@@ -96,7 +96,7 @@ test: ## Тестування основних компонентів
 clean: ## Очистити тимчасові файли
 	@echo "🧹 Cleaning up..."
 	@rm -f deployment.log
-	@rm -f atlas.log
+	@rm -f logs/atlas.log
 	@rm -f /tmp/atlas_core.log
 	@rm -f /tmp/task_orchestrator.log
 	@echo "✅ Cleanup complete"

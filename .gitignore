@@ -32,7 +32,6 @@ env/
 ENV/
 atlas_venv/
 # Data and Logs
-data/
 logs/
 *.log
 *.pid
@@ -63,7 +62,11 @@ config.json
 !config.example.json
 
 # Ollama Models (too large)
-models/
+# Allow committed models directory structure but ignore large binaries
+# If you want to version a specific lightweight model, remove its pattern below.
+models/*.pth
+models/*.pt
+models/*.bin
 
 # Temporary Files
 tmp/
@@ -105,7 +108,7 @@ dmypy.json
 *.sqlite3
 
 # ML Models and Large Data Files
-*.pth
+# Large ML / data artifacts (kept out of git; move to data/ or models/ as needed)
 *.model
 *.npz
 *.ark

@@ -1,10 +1,20 @@
 # 🚀 Atlas MCP - Advanced Automation System
 
-**Atlas MCP** - це потужна система автоматизації з підтримкою Model Context Protocol (MCP), що надає **92 інструменти** через 6 активних сервісів.
+**Atlas MCP** - це потужна система автоматизації з підтримкою Model Context Protocol (MCP).
+
+**Інструменти:**
+
+- **92 активних** у поточному direct режимі (без повного proxy агрегування)
+- **107 доступних всього** при ввімкненому MCP Proxy (повний реєстр див. `LOGIC.md`)
+
+Детальна інтелектуальна логіка та архітектурні оновлення: див. **[`LOGIC.md`](./LOGIC.md)** (канонічний документ).
+
+Архівні історичні файли логіки переміщено до `docs/archive/` (файли `LOGIC_old`, `LOGIC2`, `LOGIC_NEW`).
 
 ## ⚡ Quick Start
 
 ### 🆕 Нова установка (One Command Deploy)
+
 ```bash
 # Клонування і повне розгортання
 git clone https://github.com/Nimda-cloud/Atlas-mcp-1.git
@@ -18,6 +28,7 @@ cd Atlas-mcp-1
 ```
 
 ### 🔄 Існуюча установка
+
 ```bash
 # Швидке оновлення всіх компонентів
 ./update_atlas.sh
@@ -30,6 +41,7 @@ cd Atlas-mcp-1
 ```
 
 ### 🛠️ Makefile Commands (Рекомендовано)
+
 ```bash
 make deploy          # Повне розгортання
 make update          # Оновлення компонентів
@@ -56,6 +68,7 @@ make help            # Всі доступні команди
 ## 🌐 API Endpoints
 
 ### Core Atlas API (Port 8000)
+
 | Призначення | URL | Метод |
 |-------------|-----|-------|
 | Статус системи | `http://localhost:8000/` | GET |
@@ -66,6 +79,7 @@ make help            # Всі доступні команди
 | Оновлення інструментів | `http://localhost:8000/tools/refresh` | POST |
 
 ### MCP Proxy (Port 9090)
+
 | Сервіс | URL | Опис |
 |--------|-----|------|
 | Health Check | `http://localhost:9090/health` | Статус MCP Proxy |
@@ -74,6 +88,7 @@ make help            # Всі доступні команди
 ## 📦 Автоматично встановлювані компоненти
 
 ### � Python Environment
+
 - **Core Dependencies**: fastapi, uvicorn, aiohttp, ollama, **prometheus-client**
 - **MCP Libraries**: mcp, anthropic, openai
 - **TTS & Audio**: ukrainian-tts, gTTS, pygame  
@@ -82,6 +97,7 @@ make help            # Всі доступні команди
 - **Development**: black, flake8, pytest
 
 ### � NPM Global Packages  
+
 - **@modelcontextprotocol/inspector** - MCP debugging
 - **@modelcontextprotocol/server-github** - GitHub integration
 - **better-playwright-mcp** - Advanced web automation (29 tools)
@@ -89,11 +105,13 @@ make help            # Всі доступні команди
 - **playwright-mcp-chromium** - Chromium browser support
 
 ### � AppleScript MCP Server
+
 - **TypeScript-based enterprise architecture**
 - **32 native macOS tools**: Calendar, Clipboard, Finder, Notifications, System controls, iTerm, Mail, Messages, Notes, Pages, Shortcuts
 - **Modular component system**
 
 ### 🔧 Go Components
+
 - **atlas-mcp-proxy** - MCP services aggregation server
 
 ## 📊 Моніторинг та продуктивність
@@ -129,6 +147,7 @@ Atlas MCP працює в **MCP Proxy режимі** для оптимально
 ## 🔄 Lifecycle Management
 
 ### Deploy & Update Automation
+
 ```bash
 # Повне розгортання з нуля (створює всі компоненти)
 ./deploy_atlas.sh
@@ -159,6 +178,8 @@ Atlas автоматично конфігурує:
 - **[🎉 Playwright Integration](docs/PLAYWRIGHT_MCP_SUCCESS_REPORT.md)** - Успішна інтеграція Playwright
 - **[📊 Prometheus Integration](docs/PROMETHEUS_INTEGRATION_SUMMARY.md)** - Інтеграція моніторингу
 - **[📋 Installation Summary](docs/INSTALLATION_SUMMARY.md)** - Підсумок установки
+- **[🧠 System Logic (Canonical)](LOGIC.md)** - Актуальна інтелектуальна архітектура
+- **[🗂 Архів логічних версій](docs/archive/)** - Історичні файли (`LOGIC_old`, `LOGIC2`, `LOGIC_NEW`)
 
 ## 🧪 Тестування після установки
 
@@ -179,24 +200,28 @@ curl http://localhost:8000/metrics | grep atlas_requests_total
 ## 🆘 Вирішення проблем
 
 ### Проблема: Python imports не працюють
+
 ```bash
 source atlas_venv/bin/activate
 pip install -r requirements.txt
 ```
 
 ### Проблема: NPM пакети не знайдено
+
 ```bash
 npm install -g better-playwright-mcp --force
 npm cache clean --force
 ```
 
 ### Проблема: MCP сервери не запускаються
+
 ```bash
 make validate-mcp
 ./stop_atlas.sh && ./start_atlas.sh
 ```
 
 ### Проблема: Порти зайняті
+
 ```bash
 # Перевірити зайняті порти
 lsof -i :8000,:9090,:4006

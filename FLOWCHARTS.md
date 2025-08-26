@@ -35,7 +35,7 @@
                         ┌─────────────────────────────┐
                         │      🌉 MCP Proxy           │
                         │       Port: 9090            │
-                        │   • 47 Tools Available      │
+                        │   • 107 Tools Available     │
                         │   • Service Routing         │
                         │   • Load Balancing          │
                         └─────────────┬───────────────┘
@@ -162,7 +162,7 @@
 │ 25 tools   │  │ 16 tools   │  │ 15 tools   │
 └────────────┘  └────────────┘  └────────────┘
 
-Total: 107 tools available through unified proxy
+Total: 107 tools available through unified proxy (canonical count; деталі в `LOGIC.md`)
 ```
 
 ## 5. Стани сесії Task Orchestrator

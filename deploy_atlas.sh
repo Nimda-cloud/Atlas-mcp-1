@@ -307,7 +307,7 @@ ATLAS_TTS_CONFIG=$SCRIPT_DIR/mcp_tts_ukrainian/config.yaml
 
 # Logging
 LOG_LEVEL=INFO
-ATLAS_LOG_FILE=$SCRIPT_DIR/atlas.log
+ATLAS_LOG_FILE=$SCRIPT_DIR/logs/atlas.log
 EOF
     log "✅ Environment configuration created"
 fi
