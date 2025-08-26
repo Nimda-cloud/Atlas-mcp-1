@@ -6,22 +6,40 @@
 
 set -euo pipefail
 
-SHOW_VIEWER=0
+#############################################
+# Налаштування запуску 3D Viewer (Web UI)
+# Тепер за замовчуванням УВІМКНЕНО, можна вимкнути --no-viewer
+# Пріоритет: CLI flag > env ATLAS_ENABLE_VIEWER (1/0) > default (1)
+#############################################
+
+if [[ -n "${ATLAS_ENABLE_VIEWER:-}" ]]; then
+    if [[ "${ATLAS_ENABLE_VIEWER}" == "0" ]]; then
+        SHOW_VIEWER=0
+    else
+        SHOW_VIEWER=1
+    fi
+else
+    SHOW_VIEWER=1
+fi
+
 # За замовчуванням увімкнений MCP Proxy режим
 export ATLAS_MCP_PROXY_MODE="${ATLAS_MCP_PROXY_MODE:-true}"
 
 for arg in "$@"; do
     case "$arg" in
         --viewer) SHOW_VIEWER=1 ; shift ;;
+        --no-viewer) SHOW_VIEWER=0 ; shift ;;
         --proxy) export ATLAS_MCP_PROXY_MODE=true ; shift ;;
         --no-proxy) export ATLAS_MCP_PROXY_MODE=false ; shift ;;
         --help|-h)
-            echo "Usage: $0 [--viewer] [--proxy] [--no-proxy]"
-            echo "  --viewer     також стартує 3d_helmet_viewer/start_viewer.sh (порт 8080) якщо існує"
-            echo "  --proxy      увімкнути MCP Proxy режим (за замовчуванням)"
-            echo "  --no-proxy   вимкнути MCP Proxy, запуск в direct mode"
+            echo "Usage: $0 [--viewer|--no-viewer] [--proxy|--no-proxy]"
+            echo "  --viewer       примусово УВІМКНУТИ 3D Web Viewer (порт 8080)"
+            echo "  --no-viewer    вимкнути 3D Web Viewer (override env ATLAS_ENABLE_VIEWER)"
+            echo "  --proxy        увімкнути MCP Proxy режим (за замовчуванням)"
+            echo "  --no-proxy     вимкнути MCP Proxy, direct mode"
+            echo "  env ATLAS_ENABLE_VIEWER=0|1 може задати дефолт без флагів"
             echo ""
-            echo "За замовчуванням Atlas запускається з MCP Proxy на порту 9090"
+            echo "За замовчуванням: Viewer = ON, Proxy = ON"
             exit 0
             ;;
     esac

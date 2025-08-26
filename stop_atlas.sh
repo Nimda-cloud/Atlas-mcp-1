@@ -63,6 +63,7 @@ pkill -f "atlas_core.py" 2>/dev/null || true
 pkill -f "task_orchestrator_http_server.py" 2>/dev/null || true
 pkill -f "mcp-proxy" 2>/dev/null || true
 pkill -f "atlas_minimal_live.py" 2>/dev/null || true
+pkill -f "http.server.*8080" 2>/dev/null || true
 
 # Очищення логів
 rm -f /tmp/atlas_*.log 2>/dev/null || true
