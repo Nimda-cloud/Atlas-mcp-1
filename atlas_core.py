@@ -396,6 +396,26 @@ class AtlasCore:
                 REQUEST_LATENCY.labels(method, path).observe(asyncio.get_event_loop().time() - start)
                 raise
         
+        @self.app.get("/tools")
+        async def list_tools():
+            """Get comprehensive list of available MCP tools"""
+            if self.mcp_proxy_mode:
+                return {
+                    "mode": "proxy",
+                    "proxy_url": self.mcp_proxy_url,
+                    "tools": self.get_available_mcp_tools(),
+                    "total_tools": sum(len(tools) for tools in self.get_available_mcp_tools().values()),
+                    "services": list(self.get_available_mcp_tools().keys()),
+                    "proxy_status": await self.check_mcp_proxy_status()
+                }
+            else:
+                return {
+                    "mode": "direct",
+                    "endpoints": {k: v.get("base_url") for k, v in self.mcp_endpoints.items()},
+                    "status": await self.check_mcp_status(),
+                    "tools": "Available in direct mode - check individual endpoints"
+                }
+
         @self.app.get("/")
         async def dashboard():
             return {
@@ -405,7 +425,7 @@ class AtlasCore:
                 "mode": "proxy" if self.mcp_proxy_mode else "direct",
                 "proxy_url": self.mcp_proxy_url if self.mcp_proxy_mode else None,
                 "agents": list(self.agents.keys()),
-                "endpoints": ["/chat", "/action", "/tts", "/status", "/metrics"]
+                "endpoints": ["/chat", "/action", "/tts", "/status", "/metrics", "/tools"]
             }
         
         @self.app.post("/chat")
