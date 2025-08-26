@@ -39,13 +39,23 @@ if [ -f "/tmp/atlas_core.pid" ]; then
     rm -f /tmp/atlas_core.pid
 fi
 
-if [ -f "/tmp/atlas_frontend.pid" ]; then
-    FRONTEND_PID=$(cat /tmp/atlas_frontend.pid)
-    if kill -0 "$FRONTEND_PID" 2>/dev/null; then
-        kill "$FRONTEND_PID"
-        log "Зупинено Frontend (PID: $FRONTEND_PID)"
+if [ -f "/tmp/atlas_viewer.pid" ]; then
+    VIEWER_PID=$(cat /tmp/atlas_viewer.pid)
+    if kill -0 "$VIEWER_PID" 2>/dev/null; then
+        kill "$VIEWER_PID"
+        log "Зупинено Viewer (PID: $VIEWER_PID)"
     fi
-    rm -f /tmp/atlas_frontend.pid
+    rm -f /tmp/atlas_viewer.pid
+fi
+
+# Зупинка MCP Proxy (якщо запущено)
+if [ -f "/tmp/mcp_proxy.pid" ]; then
+    MCP_PROXY_PID=$(cat /tmp/mcp_proxy.pid)
+    if kill -0 "$MCP_PROXY_PID" 2>/dev/null; then
+        kill "$MCP_PROXY_PID"
+        log "Зупинено MCP Proxy (PID: $MCP_PROXY_PID)"
+    fi
+    rm -f /tmp/mcp_proxy.pid
 fi
 
 # Додаткове очищення

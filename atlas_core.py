@@ -271,10 +271,13 @@ class AtlasCore:
         # MCP config store
         self.mcp_endpoints: Dict[str, Dict[str, str]] = {}
         
-        # MCP Proxy support
+        # MCP Proxy support (Variant B)
         self.mcp_proxy_mode = os.getenv('ATLAS_MCP_PROXY_MODE', 'false').lower() == 'true'
         self.mcp_proxy_url = os.getenv('ATLAS_MCP_PROXY_URL', 'http://127.0.0.1:4010')
         self.mcp_tools_cache = {}
+        # Список клієнтів для proxy (name[:type]) напр.: "tts:sse,playwright:streamable-http,automation:stdio"
+        self.mcp_proxy_clients_raw = os.getenv('ATLAS_MCP_PROXY_CLIENTS', 'tts,automation,playwright,task-orchestrator')
+        self.mcp_proxy_clients = {}
         
         # LLM1 log monitoring and feedback system
         self.log_monitor_task = None
@@ -286,7 +289,7 @@ class AtlasCore:
         self.setup_agents()
         self.setup_web_interface()
         if self.mcp_proxy_mode:
-            logger.info("Atlas MCP Proxy mode enabled")
+            logger.info("Atlas MCP Proxy mode enabled (Variant B)")
         else:
             self.load_mcp_config()
     
@@ -398,672 +401,7 @@ class AtlasCore:
             return """
             <!DOCTYPE html>
             <html>
-            <head>
-                <title>ATLAS // HACKER TERMINAL</title>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Source+Code+Pro:wght@300;400;600&display=swap" rel="stylesheet">
-                <style>
-                    * { margin: 0; padding: 0; box-sizing: border-box; }
-                    
-                    body { 
-                        font-family: 'Source Code Pro', monospace; 
-                        background: #000; 
-                        color: #00ff00; 
-                        overflow: hidden; 
-                        height: 100vh;
-                        position: relative;
-                    }
-                    
-                    /* Matrix rain background effect */
-                    #matrix-bg {
-                        position: fixed;
-                        top: 0;
-                        left: 0;
-                        width: 100%;
-                        height: 100%;
-                        z-index: -1;
-                        opacity: 0.1;
-                    }
-                    
-                    .container {
-                        display: grid;
-                        grid-template-columns: 1fr 400px;
-                        height: 100vh;
-                        gap: 2px;
-                        background: #001100;
-                        /* Prevent grid children from pushing layout vertically */
-                        overflow: hidden;
-                    }
-                    
-                    /* Left side - 3D Model and status */
-                    .main-area {
-                        display: flex;
-                        flex-direction: column;
-                        background: rgba(0, 20, 0, 0.8);
-                        border: 1px solid #00ff00;
-                        position: relative;
-                        /* Ensure status bar stays visible within viewport */
-                        min-height: 0;
-                        overflow: hidden;
-                    }
-                    
-                    .header {
-                        padding: 10px 20px;
-                        background: linear-gradient(45deg, #001100, #003300);
-                        border-bottom: 1px solid #00ff00;
-                        text-align: center;
-                    }
-                    
-                    .header h1 {
-                        font-family: 'Orbitron', monospace;
-                        font-weight: 900;
-                        font-size: 24px;
-                        color: #00ff00;
-                        text-shadow: 0 0 10px #00ff00;
-                        letter-spacing: 3px;
-                    }
-                    
-                    .header .subtitle {
-                        font-size: 12px;
-                        color: #00aa00;
-                        opacity: 0.8;
-                        margin-top: 5px;
-                    }
-                    
-                    /* 3D Model Area */
-                    .model-area {
-                        flex: 1;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        position: relative;
-                        background: radial-gradient(circle, rgba(0,40,0,0.3) 0%, rgba(0,0,0,0.8) 100%);
-                    }
-                    
-                    .ai-avatar {
-                        width: 200px;
-                        height: 200px;
-                        border: 2px solid #00ff00;
-                        border-radius: 50%;
-                        background: radial-gradient(circle, rgba(0,255,0,0.1) 0%, rgba(0,100,0,0.05) 100%);
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        font-family: 'Orbitron', monospace;
-                        font-size: 48px;
-                        color: #00ff00;
-                        text-shadow: 0 0 20px #00ff00;
-                        animation: pulse 2s infinite;
-                        cursor: pointer;
-                        transition: all 0.3s ease;
-                    }
-                    
-                    .ai-avatar:hover {
-                        box-shadow: 0 0 30px #00ff00;
-                        transform: scale(1.05);
-                    }
-                    
-                    .ai-avatar.speaking {
-                        animation: speak 0.5s infinite alternate;
-                        box-shadow: 0 0 40px #00ff00;
-                    }
-                    
-                    @keyframes pulse {
-                        0%, 100% { opacity: 0.7; }
-                        50% { opacity: 1; }
-                    }
-                    
-                    @keyframes speak {
-                        0% { transform: scale(1); }
-                        100% { transform: scale(1.1); }
-                    }
-                    
-                    .status-bar {
-                        padding: 10px 20px;
-                        background: rgba(0, 40, 0, 0.9);
-                        border-top: 1px solid #00ff00;
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        font-size: 12px;
-                    }
-                    
-                    .status-item {
-                        display: flex;
-                        align-items: center;
-                        gap: 5px;
-                    }
-                    
-                    .status-led {
-                        width: 8px;
-                        height: 8px;
-                        border-radius: 50%;
-                        background: #00ff00;
-                        box-shadow: 0 0 5px #00ff00;
-                        animation: blink 1s infinite;
-                    }
-                    
-                    @keyframes blink {
-                        0%, 50% { opacity: 1; }
-                        51%, 100% { opacity: 0.3; }
-                    }
-                    
-                    /* Right side - Chat and Logs */
-                    .right-panel {
-                        display: flex;
-                        flex-direction: column;
-                        background: rgba(0, 20, 0, 0.9);
-                        border: 1px solid #00ff00;
-                        /* Allow flex children to shrink to fit height */
-                        min-height: 0;
-                        overflow: hidden;
-                    }
-                    
-                    .chat-section {
-                        flex: 1;
-                        display: flex;
-                        flex-direction: column;
-                        border-bottom: 1px solid #00ff00;
-                        position: relative;
-                        /* Critical for preventing content from pushing layout */
-                        min-height: 0;
-                    }
-                    
-                    .chat-header {
-                        padding: 10px;
-                        background: linear-gradient(45deg, #001100, #003300);
-                        border-bottom: 1px solid #00ff00;
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                    }
-                    
-                    .chat-title {
-                        font-family: 'Orbitron', monospace;
-                        font-weight: 700;
-                        color: #00ff00;
-                        font-size: 14px;
-                    }
-                    
-                    .admin-btn {
-                        background: rgba(0, 255, 0, 0.1);
-                        border: 1px solid #00ff00;
-                        color: #00ff00;
-                        padding: 4px 8px;
-                        font-size: 10px;
-                        cursor: pointer;
-                        font-family: 'Source Code Pro', monospace;
-                        transition: all 0.3s ease;
-                    }
-                    
-                    .admin-btn:hover {
-                        background: rgba(0, 255, 0, 0.2);
-                        box-shadow: 0 0 10px #00ff00;
-                    }
-                    
-                    .chat-messages {
-                        flex: 1;
-                        padding: 10px;
-                        overflow-y: auto;
-                        background: rgba(0, 0, 0, 0.5);
-                        /* Avoid min-content height overflow */
-                        min-height: 0;
-                    }
-                    
-                    .message {
-                        margin-bottom: 10px;
-                        padding: 8px;
-                        background: rgba(0, 40, 0, 0.3);
-                        border-left: 2px solid #00ff00;
-                        font-size: 12px;
-                        line-height: 1.4;
-                    }
-                    
-                    .message.user {
-                        background: rgba(0, 60, 0, 0.3);
-                        border-left-color: #00aa00;
-                    }
-                    
-                    .message.system {
-                        background: rgba(0, 80, 0, 0.3);
-                        border-left-color: #00ffaa;
-                    }
-                    
-                    .chat-input-area {
-                        padding: 10px;
-                        background: rgba(0, 40, 0, 0.8);
-                        border-top: 1px solid #00ff00;
-                    }
-                    
-                    .chat-input {
-                        width: 100%;
-                        background: rgba(0, 0, 0, 0.7);
-                        border: 1px solid #00ff00;
-                        color: #00ff00;
-                        padding: 8px;
-                        font-family: 'Source Code Pro', monospace;
-                        font-size: 12px;
-                        resize: none;
-                        height: 60px;
-                    }
-                    
-                    .chat-input:focus {
-                        outline: none;
-                        box-shadow: 0 0 10px #00ff00;
-                    }
-                    
-                    .send-btn {
-                        margin-top: 5px;
-                        background: rgba(0, 255, 0, 0.1);
-                        border: 1px solid #00ff00;
-                        color: #00ff00;
-                        padding: 8px 16px;
-                        cursor: pointer;
-                        font-family: 'Source Code Pro', monospace;
-                        font-size: 12px;
-                        width: 100%;
-                        transition: all 0.3s ease;
-                    }
-                    
-                    .send-btn:hover {
-                        background: rgba(0, 255, 0, 0.2);
-                        box-shadow: 0 0 15px #00ff00;
-                    }
-                    
-                    /* Logs section */
-                    .logs-section {
-                        height: 200px;
-                        display: flex;
-                        flex-direction: column;
-                        background: rgba(0, 0, 0, 0.8);
-                    }
-                    
-                    .logs-header {
-                        padding: 8px 10px;
-                        background: linear-gradient(45deg, #001100, #003300);
-                        border-bottom: 1px solid #00ff00;
-                        font-family: 'Orbitron', monospace;
-                        font-weight: 700;
-                        color: #00ff00;
-                        font-size: 12px;
-                    }
-                    
-                    .logs-content {
-                        flex: 1;
-                        overflow-y: auto;
-                        padding: 5px;
-                        font-size: 10px;
-                        line-height: 1.2;
-                    }
-                    
-                    .log-entry {
-                        margin-bottom: 2px;
-                        opacity: 0.8;
-                        white-space: nowrap;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                    }
-                    
-                    .log-entry.info { color: #00aa00; }
-                    .log-entry.warning { color: #ffaa00; }
-                    .log-entry.error { color: #ff4444; }
-                    .log-entry.success { color: #00ff88; }
-                    
-                    /* Scrollbar styling */
-                    ::-webkit-scrollbar {
-                        width: 6px;
-                    }
-                    
-                    ::-webkit-scrollbar-track {
-                        background: rgba(0, 0, 0, 0.3);
-                    }
-                    
-                    ::-webkit-scrollbar-thumb {
-                        background: #00ff00;
-                        border-radius: 3px;
-                    }
-                    
-                    ::-webkit-scrollbar-thumb:hover {
-                        background: #00aa00;
-                    }
-                    
-                    /* Admin Panel (hidden by default) */
-                    .admin-panel {
-                        position: fixed;
-                        top: 50%;
-                        left: 50%;
-                        transform: translate(-50%, -50%);
-                        width: 400px;
-                        height: 300px;
-                        background: rgba(0, 0, 0, 0.95);
-                        border: 2px solid #00ff00;
-                        padding: 20px;
-                        display: none;
-                        z-index: 1000;
-                        box-shadow: 0 0 50px #00ff00;
-                    }
-                    
-                    .admin-panel.active {
-                        display: block;
-                    }
-                    
-                    .admin-panel h3 {
-                        font-family: 'Orbitron', monospace;
-                        color: #00ff00;
-                        margin-bottom: 15px;
-                        text-align: center;
-                    }
-                    
-                    .admin-grid {
-                        display: grid;
-                        grid-template-columns: 1fr 1fr;
-                        gap: 10px;
-                    }
-                    
-                    .admin-button {
-                        background: rgba(0, 255, 0, 0.1);
-                        border: 1px solid #00ff00;
-                        color: #00ff00;
-                        padding: 10px;
-                        cursor: pointer;
-                        font-family: 'Source Code Pro', monospace;
-                        font-size: 11px;
-                        text-align: center;
-                        transition: all 0.3s ease;
-                    }
-                    
-                    .admin-button:hover {
-                        background: rgba(0, 255, 0, 0.2);
-                        box-shadow: 0 0 10px #00ff00;
-                    }
-                    
-                    .close-admin {
-                        position: absolute;
-                        top: 10px;
-                        right: 15px;
-                        background: none;
-                        border: none;
-                        color: #00ff00;
-                        font-size: 18px;
-                        cursor: pointer;
-                    }
-                </style>
-            </head>
-            <body>
-                <canvas id="matrix-bg"></canvas>
-                
-                <div class="container">
-                    <!-- Left side - Main Area with 3D Model -->
-                    <div class="main-area">
-                        <div class="header">
-                            <h1>ATLAS</h1>
-                            <div class="subtitle">AUTONOMOUS NEURAL INTERFACE</div>
-                        </div>
-                        
-                        <div class="model-area">
-                            <div class="ai-avatar" id="aiAvatar" onclick="speakStatus()">
-                                ⬢
-                            </div>
-                        </div>
-                        
-                        <div class="status-bar">
-                            <div class="status-item">
-                                <div class="status-led"></div>
-                                <span>AGENTS: 3/3 ONLINE</span>
-                            </div>
-                            <div class="status-item">
-                                <div class="status-led"></div>
-                                <span>SYSTEM: READY</span>
-                            </div>
-                            <div class="status-item">
-                                <div class="status-led"></div>
-                                <span>AUTOMATION: ACTIVE</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Right side - Chat and Logs -->
-                    <div class="right-panel">
-                        <div class="chat-section">
-                            <div class="chat-header">
-                                <div class="chat-title">NEURAL LINK</div>
-                                <button class="admin-btn" onclick="toggleAdmin()">ADMIN</button>
-                            </div>
-                            
-                            <div class="chat-messages" id="chatMessages">
-                                <div class="message system">
-                                    <strong>[SYSTEM]</strong> Atlas Neural Interface initialized.<br>
-                                    All agents online. Awaiting commands.
-                                </div>
-                            </div>
-                            
-                            <div class="chat-input-area">
-                                <textarea id="userInput" class="chat-input" placeholder="Enter command..."></textarea>
-                                <button class="send-btn" onclick="sendMessage()">TRANSMIT</button>
-                            </div>
-                        </div>
-                        
-                        <div class="logs-section">
-                            <div class="logs-header">SYSTEM LOGS</div>
-                            <div class="logs-content" id="systemLogs">
-                                <div class="log-entry info">[INFO] System initialization complete</div>
-                                <div class="log-entry success">[OK] LLM1 Interface Agent: ONLINE</div>
-                                <div class="log-entry success">[OK] LLM2 Orchestrator Agent: ONLINE</div>
-                                <div class="log-entry success">[OK] LLM3 Monitor Agent: ONLINE</div>
-                                <div class="log-entry info">[INFO] Web interface loaded</div>
-                                <div class="log-entry info">[INFO] Awaiting user input...</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Admin Panel -->
-                <div class="admin-panel" id="adminPanel">
-                    <button class="close-admin" onclick="toggleAdmin()">×</button>
-                    <h3>ADMIN CONTROL MATRIX</h3>
-                    <div class="admin-grid">
-                        <button class="admin-button" onclick="performAction('system_info')">SYSTEM INFO</button>
-                        <button class="admin-button" onclick="performAction('monitor_system')">DEEP SCAN</button>
-                        <button class="admin-button" onclick="performAction('open_app')">LAUNCH APP</button>
-                        <button class="admin-button" onclick="refreshStatus()">REFRESH</button>
-                        <button class="admin-button" onclick="clearLogs()">CLEAR LOGS</button>
-                        <button class="admin-button" onclick="toggleVoice()">VOICE TOGGLE</button>
-                    </div>
-                </div>
-                
-                <script>
-                    // Matrix rain effect
-                    function initMatrix() {
-                        const canvas = document.getElementById('matrix-bg');
-                        const ctx = canvas.getContext('2d');
-                        
-                        canvas.width = window.innerWidth;
-                        canvas.height = window.innerHeight;
-                        
-                        const chars = "ATLAS0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-                        const charArray = chars.split("");
-                        const columns = canvas.width / 20;
-                        const drops = [];
-                        
-                        for(let x = 0; x < columns; x++) {
-                            drops[x] = 1;
-                        }
-                        
-                        function draw() {
-                            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
-                            ctx.fillRect(0, 0, canvas.width, canvas.height);
-                            
-                            ctx.fillStyle = '#00ff00';
-                            ctx.font = '15px Source Code Pro';
-                            
-                            for(let i = 0; i < drops.length; i++) {
-                                const text = charArray[Math.floor(Math.random() * charArray.length)];
-                                ctx.fillText(text, i * 20, drops[i] * 20);
-                                
-                                if(drops[i] * 20 > canvas.height && Math.random() > 0.975) {
-                                    drops[i] = 0;
-                                }
-                                drops[i]++;
-                            }
-                        }
-                        
-                        setInterval(draw, 35);
-                    }
-                    
-                    // Initialize matrix effect
-                    initMatrix();
-                    
-                    // Chat functionality
-                    async function sendMessage() {
-                        const input = document.getElementById('userInput');
-                        const messages = document.getElementById('chatMessages');
-                        const message = input.value.trim();
-                        
-                        if (!message) return;
-                        
-                        // Add user message
-                        addMessage(message, 'user');
-                        input.value = '';
-                        
-                        // Show processing
-                        addMessage('Processing command...', 'system');
-                        animateAvatar(true);
-                        
-                        try {
-                            const result = await fetch('/chat', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ message: message })
-                            });
-                            
-                            const data = await result.json();
-                            
-                            // Remove processing message
-                            const lastMsg = messages.lastElementChild;
-                            if (lastMsg && lastMsg.textContent.includes('Processing')) {
-                                messages.removeChild(lastMsg);
-                            }
-                            
-                            addMessage(data.response, 'system');
-                            addLog('Command executed: ' + message, 'success');
-                            
-                        } catch (error) {
-                            addMessage('ERROR: ' + error.message, 'system');
-                            addLog('Error: ' + error.message, 'error');
-                        }
-                        
-                        animateAvatar(false);
-                    }
-                    
-                    function addMessage(text, type) {
-                        const messages = document.getElementById('chatMessages');
-                        const msgDiv = document.createElement('div');
-                        msgDiv.className = 'message ' + type;
-                        
-                        const prefix = type === 'user' ? '[USER]' : '[ATLAS]';
-                        msgDiv.innerHTML = '<strong>' + prefix + '</strong> ' + text;
-                        
-                        messages.appendChild(msgDiv);
-                        messages.scrollTop = messages.scrollHeight;
-                    }
-                    
-                    function addLog(text, level = 'info') {
-                        const logs = document.getElementById('systemLogs');
-                        const logDiv = document.createElement('div');
-                        logDiv.className = 'log-entry ' + level;
-                        
-                        const timestamp = new Date().toTimeString().split(' ')[0];
-                        logDiv.textContent = '[' + timestamp + '] ' + text;
-                        
-                        logs.appendChild(logDiv);
-                        logs.scrollTop = logs.scrollHeight;
-                        
-                        // Keep max 50 log entries
-                        while (logs.children.length > 50) {
-                            logs.removeChild(logs.firstChild);
-                        }
-                    }
-                    
-                    function animateAvatar(speaking) {
-                        const avatar = document.getElementById('aiAvatar');
-                        if (speaking) {
-                            avatar.classList.add('speaking');
-                        } else {
-                            avatar.classList.remove('speaking');
-                        }
-                    }
-                    
-                    async function performAction(action) {
-                        addLog('Executing action: ' + action, 'info');
-                        animateAvatar(true);
-                        
-                        try {
-                            const result = await fetch('/action', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ action: action })
-                            });
-                            
-                            const data = await result.json();
-                            addMessage(data.result, 'system');
-                            addLog('Action completed: ' + action, 'success');
-                            
-                        } catch (error) {
-                            addMessage('ERROR: ' + error.message, 'system');
-                            addLog('Action failed: ' + error.message, 'error');
-                        }
-                        
-                        animateAvatar(false);
-                    }
-                    
-                    function toggleAdmin() {
-                        const panel = document.getElementById('adminPanel');
-                        panel.classList.toggle('active');
-                    }
-                    
-                    function speakStatus() {
-                        addMessage('All systems operational. 3 agents online. Automation ready.', 'system');
-                        animateAvatar(true);
-                        setTimeout(() => animateAvatar(false), 2000);
-                    }
-                    
-                    function refreshStatus() {
-                        location.reload();
-                    }
-                    
-                    function clearLogs() {
-                        document.getElementById('systemLogs').innerHTML = '';
-                        addLog('Logs cleared', 'info');
-                    }
-                    
-                    function toggleVoice() {
-                        addLog('Voice system toggle requested', 'info');
-                        addMessage('Voice synthesis system status: READY', 'system');
-                    }
-                    
-                    // Enter key to send message
-                    document.getElementById('userInput').addEventListener('keypress', function(e) {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            sendMessage();
-                        }
-                    });
-                    
-                    // Window resize handler
-                    window.addEventListener('resize', () => {
-                        const canvas = document.getElementById('matrix-bg');
-                        canvas.width = window.innerWidth;
-                        canvas.height = window.innerHeight;
-                    });
-                    
-                    // Initial log entries
-                    setTimeout(() => {
-                        addLog('Neural link established', 'success');
-                        addLog('Monitoring system events...', 'info');
-                    }, 1000);
-                </script>
-            </body>
+           
             </html>
             """
         
@@ -1898,39 +1236,94 @@ Task: {task_description}"""
             return name, False
 
     async def load_mcp_config_proxy_mode(self):
-        """Load MCP configuration in proxy mode - single endpoint aggregation"""
-        proxy_url = self.mcp_proxy_url
-        
+        """Load MCP configuration in proxy mode - parse clients and discover tools (Variant B)"""
+        proxy_url = self.mcp_proxy_url.rstrip('/')
         try:
             timeout = aiohttp.ClientTimeout(total=5)
             async with aiohttp.ClientSession(timeout=timeout) as session:
-                # Test if proxy is responding at all (any response is good)
                 test_url = f"{proxy_url}/"
                 async with session.get(test_url) as resp:
-                    # Accept any response (404, 200, 405, etc.) as proof that proxy is running
-                    if resp.status in [200, 404, 405, 500]:
-                        logger.info(f"MCP Proxy is responsive at {proxy_url} (HTTP {resp.status})")
-                        
-                        # Configure MCP tools cache for proxy mode
-                        self.mcp_tools_cache = {
-                            "tts": ["say_tts", "elevenlabs_tts", "google_tts", "openai_tts"],
-                            "automation": ["mouseClick", "mouseMove", "screenshot", "type", "keyControl"],
-                            "applescript": ["run_applescript"],
-                            "automator": ["run_workflow"],
-                            "playwright": ["browser_navigate", "browser_click", "browser_type"],
-                            "vnc": ["vnc_screenshot", "vnc_control"]
-                        }
-                        
-                        logger.info(f"✅ MCP Proxy: Connected to {proxy_url}")
-                        logger.info(f"🔧 Available namespaces: {list(self.mcp_tools_cache.keys())}")
-                        logger.info(f"📦 Total tools: {sum(len(tools) for tools in self.mcp_tools_cache.values())}")
-                        return True
-                    else:
-                        logger.error(f"MCP Proxy returned unexpected HTTP {resp.status}")
+                    if resp.status not in [200, 404, 405, 500]:
+                        logger.error(f"MCP Proxy не доступний (HTTP {resp.status})")
                         return False
-                        
+                    logger.info(f"🔗 MCP Proxy доступний: {proxy_url} (HTTP {resp.status})")
+                
+                # Парсинг списку клієнтів з env
+                raw_items = [c.strip() for c in self.mcp_proxy_clients_raw.split(',') if c.strip()]
+                if not raw_items:
+                    logger.warning("Не задано клієнтів в ATLAS_MCP_PROXY_CLIENTS")
+                    return False
+                
+                for item in raw_items:
+                    if ':' in item:
+                        name, ctype = item.split(':', 1)
+                        ctype = ctype.strip().lower()
+                    else:
+                        name, ctype = item, 'sse'
+                    name = name.strip()
+                    if not name:
+                        continue
+                    
+                    if ctype not in ('sse', 'streamable-http', 'stdio'):
+                        logger.warning(f"Невідомий тип клієнта '{ctype}' для {name}, використовую sse")
+                        ctype = 'sse'
+                    
+                    # stdio через проксі експонується як sse
+                    eff_type = 'sse' if ctype == 'stdio' else ctype
+                    if eff_type == 'sse':
+                        health_url = f"{proxy_url}/{name}/sse"
+                        execute_base = f"{proxy_url}/{name}"
+                    else:  # streamable-http
+                        health_url = f"{proxy_url}/{name}/mcp"
+                        execute_base = f"{proxy_url}/{name}/mcp"
+                    
+                    self.mcp_proxy_clients[name] = {
+                        'type': eff_type,
+                        'declared_type': ctype,
+                        'health_url': health_url,
+                        'execute_base': execute_base
+                    }
+                
+                # Спроба автовизначення доступних інструментів
+                discovered = {}
+                for svc, meta in self.mcp_proxy_clients.items():
+                    tools_candidates = [
+                        f"{meta['execute_base']}/tools",
+                        f"{proxy_url}/{svc}/tools"
+                    ]
+                    for candidate in tools_candidates:
+                        try:
+                            async with session.get(candidate) as t_resp:
+                                if t_resp.status == 200:
+                                    data = await t_resp.json()
+                                    tools = []
+                                    if isinstance(data, dict) and 'tools' in data:
+                                        tools = [t.get('name', t.get('id', str(t))) for t in data['tools'] if isinstance(t, dict)]
+                                    elif isinstance(data, list):
+                                        tools = [t.get('name', t.get('id', str(t))) if isinstance(t, dict) else str(t) for t in data]
+                                    if tools:
+                                        discovered[svc] = tools
+                                        logger.info(f"� Знайдено {len(tools)} інструментів для {svc}: {tools[:3]}{'...' if len(tools)>3 else ''}")
+                                        break
+                        except Exception:
+                            continue
+                
+                # Fallback для відомих сервісів
+                if not discovered:
+                    logger.warning("Автовизначення інструментів не вдалося, використовую статичний набір")
+                    discovered = {
+                        "tts": ["say_tts"],
+                        "automation": ["mouseClick", "mouseMove", "screenshot", "type"],
+                        "playwright": ["browser_navigate", "browser_click", "browser_type"],
+                        "task-orchestrator": ["call_tool"]
+                    }
+                
+                self.mcp_tools_cache = discovered
+                logger.info(f"📦 Загалом proxy інструментів: {sum(len(v) for v in self.mcp_tools_cache.values())}")
+                return True
+                
         except Exception as e:
-            logger.error(f"Failed to connect to MCP proxy at {proxy_url}: {e}")
+            logger.error(f"Помилка ініціалізації MCP proxy: {e}")
             return False
 
     async def call_mcp_tool_via_proxy(self, tool_name: str, args: dict):

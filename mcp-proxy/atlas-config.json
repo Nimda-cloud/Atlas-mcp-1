@@ -1,0 +1,78 @@
+{
+  "mcpProxy": {
+    "baseURL": "http://localhost:4010",
+    "addr": ":4010",
+    "name": "Atlas MCP Proxy",
+    "version": "1.0.0",
+    "type": "sse",
+    "options": {
+      "panicIfInvalid": false,
+      "logEnabled": true,
+      "authTokens": [
+        "atlas-default-token"
+      ]
+    }
+  },
+  "mcpServers": {
+    "tts": {
+      "command": "python3",
+      "args": [
+        "/Users/dev/Documents/Atlas-mcp/mcp_tts_ukrainian/mcp_tts_server.py"
+      ],
+      "options": {
+        "panicIfInvalid": false,
+        "logEnabled": true
+      }
+    },
+    "task-orchestrator": {
+      "url": "http://localhost:4006/mcp",
+      "options": {
+        "panicIfInvalid": false,
+        "logEnabled": true
+      }
+    },
+    "automation": {
+      "command": "python3",
+      "args": [
+        "-m", "mcp_automation.server"
+      ],
+      "env": {
+        "ATLAS_AUTOMATION_MODE": "macos"
+      },
+      "options": {
+        "panicIfInvalid": false,
+        "logEnabled": true,
+        "toolFilter": {
+          "mode": "allow",
+          "list": [
+            "mouseClick",
+            "mouseMove", 
+            "screenshot",
+            "type",
+            "keyControl"
+          ]
+        }
+      }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-playwright"
+      ],
+      "options": {
+        "panicIfInvalid": false,
+        "logEnabled": true,
+        "toolFilter": {
+          "mode": "allow",
+          "list": [
+            "browser_navigate",
+            "browser_click", 
+            "browser_type",
+            "browser_screenshot"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,9 +1,22 @@
 #!/bin/bash
 
 # Atlas Universal Startup Script
-# Запускає Task Orchestrator + Atlas Core + Frontend в правильному порядку
+# Запускає Task Orchestrator + Atlas Core (UI вилучено, опціонально можна підняти окремий viewer)
 
-set -e
+set -euo pipefail
+
+SHOW_VIEWER=0
+
+for arg in "$@"; do
+    case "$arg" in
+        --viewer) SHOW_VIEWER=1 ; shift ;;
+        --help|-h)
+            echo "Usage: $0 [--viewer]"
+            echo "  --viewer   також стартує 3d_helmet_viewer/start_viewer.sh (порт 8080) якщо існує"
+            exit 0
+            ;;
+    esac
+done
 
 # Кольори
 RED='\033[0;31m'
@@ -149,37 +162,77 @@ if ! kill -0 $ORCHESTRATOR_PID 2>/dev/null; then
     exit 1
 fi
 
-# 2. Запуск Atlas Core
+#############################################
+# 2. Опціональний запуск MCP Proxy
+#############################################
+MCP_PROXY_PID=""
+if [[ "${ATLAS_MCP_PROXY_MODE:-false}" == "true" ]]; then
+    info "Запускаю MCP Proxy..."
+    cd "$ATLAS_DIR/mcp-proxy"
+    if [[ -f "start-atlas-proxy.sh" ]]; then
+        nohup ./start-atlas-proxy.sh > /tmp/mcp_proxy.log 2>&1 &
+        MCP_PROXY_PID=$!
+        echo $MCP_PROXY_PID > /tmp/mcp_proxy.pid
+        log "MCP Proxy запущено (PID: $MCP_PROXY_PID)"
+        sleep 3
+        wait_for_service "http://localhost:4010/" "MCP Proxy" || {
+            warn "MCP Proxy не запустився, продовжую в direct mode"
+            export ATLAS_MCP_PROXY_MODE=false
+        }
+    else
+        warn "MCP Proxy скрипт не знайдено, продовжую в direct mode"
+        export ATLAS_MCP_PROXY_MODE=false
+    fi
+fi
+
+#############################################
+# 3. Запуск Atlas Core
+#############################################
 info "Запускаю Atlas Core..."
 cd "$ATLAS_DIR"
-export ATLAS_MCP_PROXY_MODE=false  # Use direct MCP mode
 export UKRAINIAN_TTS_ENABLED=true
+
+# Підказка щодо CORS, якщо увімкнуто
+if [[ "${ATLAS_ENABLE_CORS:-0}" == "1" ]]; then
+    info "CORS увімкнено (origins: ${ATLAS_ALLOWED_ORIGINS:-*})"
+fi
 
 nohup $PYTHON_CMD atlas_core.py > /tmp/atlas_core.log 2>&1 &
 ATLAS_PID=$!
 echo $ATLAS_PID > /tmp/atlas_core.pid
 log "Atlas Core запущено (PID: $ATLAS_PID)"
 
-# Перевірка Atlas Core
-sleep 3
+# Перевірка Atlas Core процеса
+sleep 2
 if ! kill -0 $ATLAS_PID 2>/dev/null; then
-    error "Atlas Core не запустився"
-    cat /tmp/atlas_core.log
-    exit 1
+        error "Atlas Core не запустився"
+        cat /tmp/atlas_core.log || true
+        exit 1
 fi
 
-# Перевірка сервісів
+# Швидкий liveness (/health), потім докладний /status
 wait_for_service "http://localhost:4006/health" "Task Orchestrator" || exit 1
-wait_for_service "http://localhost:8000/status" "Atlas Core" || exit 1
+wait_for_service "http://localhost:8000/health" "Atlas Core (health)" || exit 1
+wait_for_service "http://localhost:8000/status" "Atlas Core (status)" || exit 1
 
 echo ""
 log "🎉 Atlas повністю запущено!"
 echo ""
 info "📊 Статус сервісів:"
+if [[ -n "$MCP_PROXY_PID" ]]; then
+    info "   MCP Proxy: http://localhost:4010 (PID: $MCP_PROXY_PID)"
+fi
 info "   Task Orchestrator: http://localhost:4006 (PID: $ORCHESTRATOR_PID)"
-info "   Atlas Core:        http://localhost:8000 (PID: $ATLAS_PID)"
+info "   Atlas Core API:    http://localhost:8000 (PID: $ATLAS_PID)"
+if [[ $SHOW_VIEWER -eq 1 ]]; then
+    if [[ -f "$ATLAS_DIR/3d_helmet_viewer/start_viewer.sh" ]]; then
+        info "   Viewer:            http://localhost:8080 (автозапуск)"
+    else
+        warning "   Viewer (--viewer) запитано, але скрипт 3d_helmet_viewer/start_viewer.sh не знайдено"
+    fi
+fi
 echo ""
-info "🌐 Відкрийте браузер: http://localhost:8000"
+info "🌐 Перевірка стану: http://localhost:8000/status (root / -> короткий JSON, /health -> швидкий)"
 info "🛑 Для зупинки: Ctrl+C або ./stop_atlas.sh"
 echo ""
 
@@ -196,3 +249,16 @@ echo ""
 # Виходимо з trap cleanup, залишаючи процеси працювати
 trap - SIGINT SIGTERM EXIT
 log "🚀 Atlas працює автономно!"
+
+# Опціональний запуск viewer
+if [[ $SHOW_VIEWER -eq 1 ]]; then
+    if [[ -f "$ATLAS_DIR/3d_helmet_viewer/start_viewer.sh" ]]; then
+        info "Запускаю viewer (--viewer) на порту 8080..."
+        nohup bash "$ATLAS_DIR/3d_helmet_viewer/start_viewer.sh" > /tmp/atlas_viewer.log 2>&1 &
+        VIEWER_PID=$!
+        echo $VIEWER_PID > /tmp/atlas_viewer.pid
+        log "Viewer запущено (PID: $VIEWER_PID)"
+    else
+        warning "Viewer не запущено: скрипт start_viewer.sh відсутній"
+    fi
+fi

@@ -30,8 +30,10 @@ class LiveLogStreamer:
     def __init__(self):
         self.log_queue = queue.Queue()
         self.is_running = False
-        self.mcp_proxy_url = "http://localhost:4010"
-        self.atlas_core_url = "http://localhost:8000"
+        # Читаємо URL з env або fallback на localhost
+        self.mcp_proxy_url = os.getenv("ATLAS_MCP_PROXY_URL", "http://localhost:4010")
+        self.atlas_core_url = os.getenv("ATLAS_CORE_URL", "http://localhost:8000")
+        self.mcp_proxy_enabled = os.getenv("ATLAS_MCP_PROXY_MODE", "false").lower() == "true"
         
     def start_streaming(self):
         """Запуск стрімінгу логів"""
@@ -115,6 +117,11 @@ class LiveLogStreamer:
         """Моніторинг MCP сервісів"""
         while self.is_running:
             try:
+                if not self.mcp_proxy_enabled:
+                    # Якщо proxy вимкнено, пропускаємо моніторинг
+                    time.sleep(10)
+                    continue
+                    
                 response = requests.get(f"{self.mcp_proxy_url}/health", timeout=3)
                 if response.status_code == 200:
                     self._add_log("[MCP] Proxy operational")
@@ -124,7 +131,8 @@ class LiveLogStreamer:
                     self._add_log(f"[MCP] Proxy status: {response.status_code}", "warning")
                     
             except requests.exceptions.ConnectionError:
-                self._add_log("[MCP] Proxy offline", "warning")
+                if self.mcp_proxy_enabled:
+                    self._add_log("[MCP] Proxy offline", "warning")
             except Exception as e:
                 self._add_log(f"[MCP] Error: {str(e)[:40]}...", "error")
                 
