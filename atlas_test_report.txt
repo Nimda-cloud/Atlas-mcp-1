@@ -2,9 +2,9 @@
 ╔═══════════════════════════════════════════════════════════════╗
 ║                    ATLAS MCP COMPREHENSIVE TEST REPORT        ║
 ╠═══════════════════════════════════════════════════════════════╣
-║ Date: 2025-08-27 01:15:35                                    ║
-║ Total Tests:  33 | Passed:  22 | Failed:  11                    ║
-║ Success Rate:  66.7%                                    ║
+║ Date: 2025-08-27 01:17:42                                    ║
+║ Total Tests:  33 | Passed:  23 | Failed:  10                    ║
+║ Success Rate:  69.7%                                    ║
 ╚═══════════════════════════════════════════════════════════════╝
 
 📋 SUMMARY BY CATEGORY:
@@ -14,7 +14,7 @@
    ATLAS_CORE     :  3/ 3 (100.0%)
    TOOLS          :  0/ 1 (  0.0%)
    MCP_PROXY      :  0/ 5 (  0.0%)
-   LOGIC          :  1/ 2 ( 50.0%)
+   LOGIC          :  2/ 2 (100.0%)
    DIAGNOSTICS    :  2/ 2 (100.0%)
    FIXES          :  2/ 2 (100.0%)
 
@@ -46,7 +46,7 @@
    ❌ MCP_PROXY   : Proxy Endpoint: /tools         - Connection failed
    ❌ MCP_PROXY   : Proxy Endpoint: /              - Connection failed
    ❌ MCP_PROXY   : Proxy Endpoint: /api/health    - Connection failed
-   ❌ LOGIC       : Chat Logic                     - Atlas Core not running
+   ✅ LOGIC       : Chat Logic                     - Chat endpoint responding
    ✅ LOGIC       : TTS Logic                      - TTS endpoint responding
    ✅ DIAGNOSTICS : Diagnostic: scripts/atlas_diagnostic.sh - Executed successfully
    ✅ DIAGNOSTICS : Diagnostic: atlas_diagnostic.sh - Executed successfully
@@ -64,7 +64,6 @@
    ❌ Proxy Endpoint: /tools: Connection failed
    ❌ Proxy Endpoint: /: Connection failed
    ❌ Proxy Endpoint: /api/health: Connection failed
-   ❌ Chat Logic: Atlas Core not running
 
 🎯 RECOMMENDATIONS:
    🚀 Run ./start_atlas.sh to start all services
