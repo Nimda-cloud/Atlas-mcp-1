@@ -25,14 +25,6 @@
         "ATLAS_TTS_CONFIG": "/Users/dev/Documents/Atlas-mcp/mcp_tts_ukrainian/config.yaml"
       },
       "options": {
-        "toolFilter": {
-          "mode": "allow",
-          "list": [
-            "text_to_speech_ukrainian",
-            "voice_synthesis",
-            "audio_generation"
-          ]
-        },
         "panicIfInvalid": false,
         "logEnabled": true
       }
@@ -45,15 +37,6 @@
         "ATLAS_ORCHESTRATOR_HOST": "localhost"
       },
       "options": {
-        "toolFilter": {
-          "mode": "allow",
-          "list": [
-            "create_task",
-            "execute_workflow",
-            "manage_pipeline",
-            "orchestrate_services"
-          ]
-        },
         "panicIfInvalid": false,
         "logEnabled": true,
         "authTokens": [
@@ -71,15 +54,6 @@
         "ATLAS_MCP_BASE_PATH": "/Users/dev/Documents/Atlas-mcp/mcp-task-orchestrator"
       },
       "options": {
-        "toolFilter": {
-          "mode": "allow",
-          "list": [
-            "file_operations",
-            "system_automation",
-            "workflow_management",
-            "template_processing"
-          ]
-        },
         "panicIfInvalid": false,
         "logEnabled": true
       }
@@ -104,6 +78,21 @@
         },
         "panicIfInvalid": false,
         "logEnabled": false
+      }
+    },
+    "atlas-playwright-better": {
+      "command": "npx",
+      "args": [
+        "better-playwright-mcp",
+        "mcp"
+      ],
+      "env": {
+        "PLAYWRIGHT_HEADLESS": "true",
+        "PLAYWRIGHT_BROWSER": "chromium"
+      },
+      "options": {
+        "panicIfInvalid": false,
+        "logEnabled": true
       }
     }
   }

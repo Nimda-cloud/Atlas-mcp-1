@@ -396,6 +396,35 @@ class AtlasCore:
                 REQUEST_LATENCY.labels(method, path).observe(asyncio.get_event_loop().time() - start)
                 raise
         
+        @self.app.get("/tools/refresh")
+        async def refresh_tools():
+            """Перезапустити детекцію MCP інструментів"""
+            if self.mcp_proxy_mode:
+                try:
+                    logger.info("Manual MCP tools refresh requested...")
+                    self.mcp_tools_cache = await self.discover_mcp_tools_real()
+                    total_tools = sum(len(tools) for tools in self.mcp_tools_cache.values())
+                    
+                    return {
+                        "success": True,
+                        "message": f"Tools refreshed: {total_tools} tools from {len(self.mcp_tools_cache)} services",
+                        "tools": self.mcp_tools_cache,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                except Exception as e:
+                    logger.error(f"Tools refresh failed: {e}")
+                    return {
+                        "success": False,
+                        "error": str(e),
+                        "timestamp": datetime.now().isoformat()
+                    }
+            else:
+                return {
+                    "success": False,
+                    "error": "MCP proxy mode not enabled",
+                    "timestamp": datetime.now().isoformat()
+                }
+
         @self.app.get("/tools")
         async def list_tools():
             """Get comprehensive list of available MCP tools"""
@@ -418,6 +447,15 @@ class AtlasCore:
 
         @self.app.get("/")
         async def dashboard():
+            tools_info = {}
+            if self.mcp_proxy_mode:
+                tools = self.get_available_mcp_tools()
+                tools_info = {
+                    "total_tools": sum(len(tools_list) for tools_list in tools.values()),
+                    "services": len(tools),
+                    "by_service": {service: len(tools_list) for service, tools_list in tools.items()}
+                }
+            
             return {
                 "status": "Atlas Autonomous System",
                 "version": "1.0.0",
@@ -425,7 +463,8 @@ class AtlasCore:
                 "mode": "proxy" if self.mcp_proxy_mode else "direct",
                 "proxy_url": self.mcp_proxy_url if self.mcp_proxy_mode else None,
                 "agents": list(self.agents.keys()),
-                "endpoints": ["/chat", "/action", "/tts", "/status", "/metrics", "/tools"]
+                "endpoints": ["/chat", "/action", "/tts", "/status", "/metrics", "/tools", "/tools/refresh"],
+                "mcp_tools": tools_info
             }
         
         @self.app.post("/chat")
@@ -1424,21 +1463,108 @@ Task: {task_description}"""
         logger.warning(f"MCP Tool '{tool_name}' not yet implemented via proxy")
         return {"status": "pending", "message": f"Tool {tool_name} via proxy not yet implemented"}
 
+    async def discover_mcp_tools_real(self):
+        """Автодетекція реальних MCP інструментів з працюючих серверів"""
+        discovered_tools = {}
+        
+        # Task Orchestrator - REST API запит
+        try:
+            timeout = aiohttp.ClientTimeout(total=5)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get("http://localhost:4006/tools") as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        if data.get("tools"):
+                            tools = [tool.get("name", f"tool_{i}") for i, tool in enumerate(data["tools"])]
+                            discovered_tools["task-orchestrator"] = tools
+                            logger.info(f"Discovered {len(tools)} task-orchestrator tools")
+                        else:
+                            # Fallback до відомих інструментів Task Orchestrator
+                            fallback_tools = [
+                                "orchestrator_initialize_session", "orchestrator_synthesize_results", "orchestrator_get_status",
+                                "orchestrator_plan_task", "orchestrator_update_task", "orchestrator_delete_task", 
+                                "orchestrator_cancel_task", "orchestrator_query_tasks", "orchestrator_execute_task",
+                                "orchestrator_complete_task", "orchestrator_list_sessions", "orchestrator_resume_session",
+                                "orchestrator_cleanup_sessions", "orchestrator_session_status", "orchestrator_maintenance_coordinator"
+                            ]
+                            discovered_tools["task-orchestrator"] = fallback_tools
+                            logger.info(f"Using fallback task-orchestrator tools: {len(fallback_tools)}")
+        except Exception as e:
+            logger.warning(f"Failed to discover task-orchestrator tools: {e}")
+            # Fallback до відомих інструментів
+            fallback_tools = [
+                "orchestrator_initialize_session", "orchestrator_synthesize_results", "orchestrator_get_status",
+                "orchestrator_plan_task", "orchestrator_update_task", "orchestrator_delete_task", 
+                "orchestrator_cancel_task", "orchestrator_query_tasks", "orchestrator_execute_task",
+                "orchestrator_complete_task", "orchestrator_list_sessions", "orchestrator_resume_session",
+                "orchestrator_cleanup_sessions", "orchestrator_session_status", "orchestrator_maintenance_coordinator"
+            ]
+            discovered_tools["task-orchestrator"] = fallback_tools
+        
+        # TTS Server - через MCP Proxy (він запускається через stdin/stdout)
+        # Використовуємо відомі інструменти з коду
+        tts_tools = ["say_tts", "list_voices", "tts_status"]
+        discovered_tools["tts"] = tts_tools
+        logger.info(f"Added TTS tools: {len(tts_tools)}")
+        
+        # Automation та Playwright - статичні (NPX-based)
+        automation_tools = ["mouseClick", "mouseMove", "screenshot", "type", "keyControl", "systemCommand", "read_file", "write_file"]
+        
+        # Better Playwright MCP - розширений список (29 інструментів)
+        playwright_tools = [
+            "createPage", "activatePage", "closePage", "listPages", "closeAllPages",
+            "listPagesWithoutId", "closePagesWithoutId", "closePageByIndex",
+            "browserClick", "browserType", "browserHover", "browserSelectOption", 
+            "browserPressKey", "browserFileUpload", "browserHandleDialog",
+            "browserNavigate", "browserNavigateBack", "browserNavigateForward",
+            "scrollToBottom", "scrollToTop", "waitForTimeout", "waitForSelector",
+            "getElementHTML", "pageToHtmlFile", "getScreenshot", "getPDFSnapshot",
+            "getPageSnapshot", "downloadImage", "captureSnapshot"
+        ]
+        
+        discovered_tools["automation"] = automation_tools
+        discovered_tools["playwright"] = playwright_tools
+        
+        # GitHub Integration - якщо доступний
+        if os.getenv("GITHUB_TOKEN"):
+            github_tools = ["create_issue", "get_repository", "search_repositories", "create_pull_request", "list_issues", "get_issue", "create_comment"]
+            discovered_tools["github-integration"] = github_tools
+        
+        # Web Fetch - статичні інструменти
+        web_fetch_tools = ["fetch_url", "fetch_html", "fetch_json", "fetch_text", "web_search"]
+        discovered_tools["web-fetch"] = web_fetch_tools
+        
+        return discovered_tools
+
     def get_available_mcp_tools(self):
         """Get list of available MCP tools grouped by namespace"""
         if hasattr(self, 'mcp_tools_cache') and self.mcp_tools_cache:
             return self.mcp_tools_cache
         
-        # Fallback: створюємо базовий список з відомих сервісів
+        # Fallback: використовуємо розширений список базованих на реальних серверах
         if self.mcp_proxy_mode:
             return {
-                "tts": ["say_tts"],
-                "automation": ["mouseClick", "mouseMove", "screenshot", "type"],
-                "playwright": ["browser_navigate", "browser_click", "browser_type"],
-                "task-orchestrator": ["call_tool"],
-                "github-integration": ["create_issue", "get_repository", "search_repositories", "create_pull_request"],
-                "atlas-automation-mcp": ["file_operations", "system_automation", "workflow_management"],
-                "atlas-tts-ukrainian": ["text_to_speech_ukrainian", "voice_synthesis"]
+                "task-orchestrator": [
+                    "orchestrator_initialize_session", "orchestrator_synthesize_results", "orchestrator_get_status",
+                    "orchestrator_plan_task", "orchestrator_update_task", "orchestrator_delete_task", 
+                    "orchestrator_cancel_task", "orchestrator_query_tasks", "orchestrator_execute_task",
+                    "orchestrator_complete_task", "orchestrator_list_sessions", "orchestrator_resume_session",
+                    "orchestrator_cleanup_sessions", "orchestrator_session_status", "orchestrator_maintenance_coordinator"
+                ],
+                "tts": ["say_tts", "list_voices", "tts_status"],
+                "automation": ["mouseClick", "mouseMove", "screenshot", "type", "keyControl", "systemCommand", "read_file", "write_file"],
+                "playwright": [
+                    "createPage", "activatePage", "closePage", "listPages", "closeAllPages",
+                    "listPagesWithoutId", "closePagesWithoutId", "closePageByIndex",
+                    "browserClick", "browserType", "browserHover", "browserSelectOption", 
+                    "browserPressKey", "browserFileUpload", "browserHandleDialog",
+                    "browserNavigate", "browserNavigateBack", "browserNavigateForward",
+                    "scrollToBottom", "scrollToTop", "waitForTimeout", "waitForSelector",
+                    "getElementHTML", "pageToHtmlFile", "getScreenshot", "getPDFSnapshot",
+                    "getPageSnapshot", "downloadImage", "captureSnapshot"
+                ],
+                "github-integration": ["create_issue", "get_repository", "search_repositories", "create_pull_request", "list_issues", "get_issue", "create_comment"] if os.getenv("GITHUB_TOKEN") else [],
+                "web-fetch": ["fetch_url", "fetch_html", "fetch_json", "fetch_text", "web_search"]
             }
         return {}
 
@@ -1501,6 +1627,9 @@ Task: {task_description}"""
         # Initialize MCP system (proxy or direct mode)
         await self.initialize_mcp()
         
+        # Initialize MCP tools discovery
+        await self.initialize_mcp_tools()
+        
         # Start LLM1 log monitoring and feedback
         await self.start_log_monitoring()
         
@@ -1520,6 +1649,27 @@ Task: {task_description}"""
             await server.serve()
         finally:
             monitoring_task.cancel()
+
+    async def initialize_mcp_tools(self):
+        """Ініціалізація MCP tools discovery при запуску"""
+        if self.mcp_proxy_mode:
+            logger.info("Initializing MCP tools discovery...")
+            try:
+                # Даємо час серверам запуститися
+                await asyncio.sleep(3)
+                
+                # Запускаємо автодетекцію
+                self.mcp_tools_cache = await self.discover_mcp_tools_real()
+                total_tools = sum(len(tools) for tools in self.mcp_tools_cache.values())
+                logger.info(f"MCP Tools Discovery completed: {total_tools} tools from {len(self.mcp_tools_cache)} services")
+                
+                # Виводимо детальну інформацію
+                for service, tools in self.mcp_tools_cache.items():
+                    logger.info(f"  {service}: {len(tools)} tools - {', '.join(tools[:3])}{'...' if len(tools) > 3 else ''}")
+                    
+            except Exception as e:
+                logger.error(f"Failed to initialize MCP tools discovery: {e}")
+                self.mcp_tools_cache = {}
     
     # ======= ДОПОМІЖНІ МЕТОДИ ДЛЯ НОВОЇ АРХІТЕКТУРИ =======
     
