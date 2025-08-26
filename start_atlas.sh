@@ -172,6 +172,8 @@ export TASK_ORCHESTRATOR_PORT=4006
 export ATLAS_MCP_SERVERS="task-orchestrator"
 export ATLAS_MCP_TASK_ORCHESTRATOR_URL="http://localhost:4006"
 export ATLAS_WORKING_DIR="$ATLAS_DIR"
+export ATLAS_MCP_USE_GLOBAL_CONFIG=true
+export ATLAS_MCP_PROXY_CLIENTS="atlas-tts-ukrainian,atlas-task-orchestrator,atlas-automation-mcp,github-integration"
 
 nohup $PYTHON_CMD task_orchestrator_http_server.py > /tmp/task_orchestrator.log 2>&1 &
 ORCHESTRATOR_PID=$!

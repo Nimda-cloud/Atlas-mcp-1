@@ -1426,8 +1426,20 @@ Task: {task_description}"""
 
     def get_available_mcp_tools(self):
         """Get list of available MCP tools grouped by namespace"""
-        if hasattr(self, 'mcp_tools_cache'):
+        if hasattr(self, 'mcp_tools_cache') and self.mcp_tools_cache:
             return self.mcp_tools_cache
+        
+        # Fallback: створюємо базовий список з відомих сервісів
+        if self.mcp_proxy_mode:
+            return {
+                "tts": ["say_tts"],
+                "automation": ["mouseClick", "mouseMove", "screenshot", "type"],
+                "playwright": ["browser_navigate", "browser_click", "browser_type"],
+                "task-orchestrator": ["call_tool"],
+                "github-integration": ["create_issue", "get_repository", "search_repositories", "create_pull_request"],
+                "atlas-automation-mcp": ["file_operations", "system_automation", "workflow_management"],
+                "atlas-tts-ukrainian": ["text_to_speech_ukrainian", "voice_synthesis"]
+            }
         return {}
 
     async def check_mcp_proxy_status(self):

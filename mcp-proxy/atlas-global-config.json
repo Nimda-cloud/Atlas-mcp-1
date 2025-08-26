@@ -84,51 +84,6 @@
         "logEnabled": true
       }
     },
-    "atlas-core-api": {
-      "url": "http://localhost:8000/mcp",
-      "type": "streamable-http",
-      "env": {
-        "ATLAS_CORE_PORT": "8000",
-        "ATLAS_CORE_HOST": "localhost"
-      },
-      "options": {
-        "toolFilter": {
-          "mode": "allow",
-          "list": [
-            "atlas_core_api",
-            "system_status",
-            "health_check",
-            "configuration_management"
-          ]
-        },
-        "panicIfInvalid": false,
-        "logEnabled": true,
-        "authTokens": [
-          "atlas-core-token"
-        ]
-      }
-    },
-    "atlas-3d-viewer": {
-      "url": "http://localhost:8080/mcp",
-      "type": "streamable-http",
-      "env": {
-        "ATLAS_VIEWER_PORT": "8080",
-        "ATLAS_VIEWER_HOST": "localhost"
-      },
-      "options": {
-        "toolFilter": {
-          "mode": "allow",
-          "list": [
-            "3d_visualization",
-            "helmet_viewer",
-            "real_time_monitoring",
-            "interactive_display"
-          ]
-        },
-        "panicIfInvalid": false,
-        "logEnabled": true
-      }
-    },
     "github-integration": {
       "command": "npx",
       "args": [
@@ -148,49 +103,7 @@
           ]
         },
         "panicIfInvalid": false,
-        "logEnabled": true
-      }
-    },
-    "web-fetch": {
-      "command": "uvx",
-      "args": [
-        "mcp-server-fetch"
-      ],
-      "options": {
-        "toolFilter": {
-          "mode": "allow",
-          "list": [
-            "fetch_url",
-            "web_scraping",
-            "content_retrieval"
-          ]
-        },
-        "panicIfInvalid": false,
-        "logEnabled": true
-      }
-    },
-    "atlas-playwright": {
-      "url": "http://localhost:3000/mcp",
-      "type": "streamable-http",
-      "env": {
-        "ATLAS_PLAYWRIGHT_PORT": "3000",
-        "ATLAS_PLAYWRIGHT_HOST": "localhost"
-      },
-      "options": {
-        "toolFilter": {
-          "mode": "allow",
-          "list": [
-            "browser_automation",
-            "web_testing",
-            "ui_interaction",
-            "screenshot_capture"
-          ]
-        },
-        "panicIfInvalid": false,
-        "logEnabled": true,
-        "authTokens": [
-          "atlas-playwright-token"
-        ]
+        "logEnabled": false
       }
     }
   }

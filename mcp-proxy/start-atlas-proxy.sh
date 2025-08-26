@@ -34,8 +34,14 @@ if [[ "$1" == "--global" ]] || [[ "$ATLAS_MCP_USE_GLOBAL_CONFIG" == "true" ]]; t
     CONFIG_FILE="atlas-global-config.json"
     echo "📋 Використовуємо глобальну конфігурацію: $CONFIG_FILE"
 else
+# Підтримка ATLAS_MCP_USE_GLOBAL_CONFIG для вибору конфігурації
+if [[ "${ATLAS_MCP_USE_GLOBAL_CONFIG:-false}" == "true" ]]; then
+    CONFIG_FILE="atlas-global-config.json"
+    echo "📋 Використовуємо глобальну конфігурацію: $CONFIG_FILE"
+else
     CONFIG_FILE="atlas-config.json" 
     echo "📋 Використовуємо базову конфігурацію: $CONFIG_FILE"
+fi
 fi
 
 if [[ ! -f "$CONFIG_FILE" ]]; then
