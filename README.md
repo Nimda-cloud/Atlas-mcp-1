@@ -1,61 +1,236 @@
-# Atlas MCP - Autonomous System
+# 🚀 Atlas MCP - Advanced Automation System
 
-## 🚀 Quick Start
+**Atlas MCP** - це потужна система автоматизації з підтримкою Model Context Protocol (MCP), що надає **92 інструменти** через 6 активних сервісів.
 
-### New Installation (Recommended)
+## ⚡ Quick Start
+
+### 🆕 Нова установка (One Command Deploy)
 ```bash
-# Clone and deploy Atlas from scratch
+# Клонування і повне розгортання
 git clone https://github.com/Nimda-cloud/Atlas-mcp-1.git
 cd Atlas-mcp-1
 
-# Complete deployment (installs everything)
+# Повна автоматична установка всіх компонентів
 ./deploy_atlas.sh
 
-# Start Atlas
+# Запуск Atlas
 ./start_atlas.sh
 ```
 
-### Existing Installation
+### 🔄 Існуюча установка
 ```bash
-# Update components
+# Швидке оновлення всіх компонентів
 ./update_atlas.sh
 
-# Start Atlas Core + MCP Proxy + Task Orchestrator
+# Запуск системи
 ./start_atlas.sh
 
-# Start with 3D viewer (port 8080)
-./start_atlas.sh --viewer
-
-# Stop everything
+# Зупинка всіх сервісів
 ./stop_atlas.sh
 ```
 
-## 📚 Documentation
+### 🛠️ Makefile Commands (Рекомендовано)
+```bash
+make deploy          # Повне розгортання
+make update          # Оновлення компонентів
+make start           # Запуск системи
+make stop            # Зупинка системи
+make status          # Статус сервісів
+make validate-mcp    # Валідація MCP серверів
+make tools-count     # Кількість інструментів
+make help            # Всі доступні команди
+```
 
-- **[📖 Deployment Guide](DEPLOYMENT_GUIDE.md)** - Complete installation instructions
-- **[📊 MCP Tools Report](MCP_TOOLS_DISCOVERY_REPORT.md)** - Tool discovery analysis
-- **[🎉 Playwright Success Report](PLAYWRIGHT_MCP_SUCCESS_REPORT.md)** - Playwright integration results
+## 🎯 Поточний стан: 92 інструменти активні
 
-## 🎯 Current Status: 60+ Tools Available
+| Сервіс | Інструменти | Опис | Статус |
+|--------|-------------|------|---------|
+| **AppleScript MCP** | 32 | macOS автоматизація (Calendar, Finder, Messages, etc.) | ✅ Active |
+| **Better Playwright** | 29 | Веб-автоматизація, скріншоти, браузер | ✅ Active |
+| **Task Orchestrator** | 15 | Планування завдань, виконання | ✅ Active |
+| **Automation** | 8 | Миша, клавіатура, файлові операції | ✅ Active |
+| **Web Fetch** | 5 | HTTP запити, парсинг веб-сторінок | ✅ Active |
+| **TTS Ukrainian** | 3 | Українське озвучування тексту | ✅ Active |
+| **ЗАГАЛОМ** | **92** | **Full automation suite** | ✅ **184% від початкової мети!** |
 
-| Service | Tools | Status |
-|---------|-------|--------|
-| **Task Orchestrator** | 15 | ✅ Active |
-| **TTS Ukrainian** | 3 | ✅ Active |
-| **Automation** | 8 | ✅ Active |
-| **Playwright (Better)** | 29 | ✅ Active |
-| **Web Fetch** | 5 | ✅ Active |
-| **TOTAL** | **60** | ✅ **120% of target!** |
+## 🌐 API Endpoints
 
-### Core API Endpoints
+### Core Atlas API (Port 8000)
+| Призначення | URL | Метод |
+|-------------|-----|-------|
+| Статус системи | `http://localhost:8000/` | GET |
+| Список інструментів | `http://localhost:8000/tools` | GET |
+| Чат API | `http://localhost:8000/chat` | POST |
+| Виконання дій | `http://localhost:8000/action` | POST |
+| Prometheus метрики | `http://localhost:8000/metrics` | GET |
+| Оновлення інструментів | `http://localhost:8000/tools/refresh` | POST |
 
-| Purpose        | URL                                  |
-| -------------- | ------------------------------------ |
-| Health (fast)  | <http://localhost:8000/health>         |
-| Status (full)  | <http://localhost:8000/status>         |
-| Chat API       | <http://localhost:8000/chat> (POST)    |
-| Action API     | <http://localhost:8000/action> (POST)  |
-| Viewer (static)| <http://localhost:8080/atlas_minimal_frontend.html> (if started) |
+### MCP Proxy (Port 9090)
+| Сервіс | URL | Опис |
+|--------|-----|------|
+| Health Check | `http://localhost:9090/health` | Статус MCP Proxy |
+| Task Orchestrator | `http://localhost:4006/tools` | Управління завданнями |
+
+## 📦 Автоматично встановлювані компоненти
+
+### � Python Environment
+- **Core Dependencies**: fastapi, uvicorn, aiohttp, ollama, **prometheus-client**
+- **MCP Libraries**: mcp, anthropic, openai
+- **TTS & Audio**: ukrainian-tts, gTTS, pygame  
+- **Automation**: pyautogui, pynput, pyobjc (macOS)
+- **AI/ML**: torch, transformers, numpy, scipy
+- **Development**: black, flake8, pytest
+
+### � NPM Global Packages  
+- **@modelcontextprotocol/inspector** - MCP debugging
+- **@modelcontextprotocol/server-github** - GitHub integration
+- **better-playwright-mcp** - Advanced web automation (29 tools)
+- **@playwright/mcp** - Official Playwright MCP
+- **playwright-mcp-chromium** - Chromium browser support
+
+### � AppleScript MCP Server
+- **TypeScript-based enterprise architecture**
+- **32 native macOS tools**: Calendar, Clipboard, Finder, Notifications, System controls, iTerm, Mail, Messages, Notes, Pages, Shortcuts
+- **Modular component system**
+
+### 🔧 Go Components
+- **atlas-mcp-proxy** - MCP services aggregation server
+
+## 📊 Моніторинг та продуктивність
+
+### Prometheus Integration
+Atlas включає професійний моніторинг через Prometheus:
+
+```bash
+# Перевірка метрик системи
+curl http://localhost:8000/metrics
+
+# Основні метрики:
+# atlas_requests_total - кількість HTTP запитів
+# atlas_request_latency_seconds - час відгуку
+```
+
+### Порти сервісів
+- **8000** - Atlas Core API + Prometheus metrics
+- **9090** - MCP Proxy (агрегація сервісів)  
+- **4006** - Task Orchestrator
+- **8080** - 3D Helmet Viewer (опційно)
+- **3001** - Better Playwright HTTP API
+
+## 🚀 Архітектура системи
+
+Atlas MCP працює в **MCP Proxy режимі** для оптимальної продуктивності:
+
+1. **Atlas Core** - центральний API і 3-агентна система
+2. **MCP Proxy** - агрегує всі MCP сервіси в єдиний endpoint
+3. **Спеціалізовані MCP сервери** - кожен надає специфічні інструменти
+4. **Автодетекція інструментів** - динамічне виявлення доступних можливостей
+
+## 🔄 Lifecycle Management
+
+### Deploy & Update Automation
+```bash
+# Повне розгортання з нуля (створює всі компоненти)
+./deploy_atlas.sh
+
+# Швидке оновлення (оновлює існуючі компоненти)  
+./update_atlas.sh
+
+# Валідація системи
+make validate-mcp
+```
+
+### Environment Configuration
+Atlas автоматично конфігурує:
+- Python віртуальне середовище (`atlas_venv/`)
+- NPM глобальні пакети
+- Go executable компіляція
+- MCP сервіси конфігурація
+- Prometheus моніторинг
+
+## 📚 Документація
+
+Повна документація знаходиться в папці **`docs/`**:
+
+- **[📖 Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - Детальні інструкції розгортання
+- **[📋 Components Checklist](docs/DEPLOYMENT_COMPONENTS_CHECKLIST.md)** - Перевірочний список компонентів
+- **[🎯 Status Report](docs/DEPLOYMENT_STATUS_REPORT.md)** - Поточний статус системи
+- **[📊 MCP Tools Discovery](docs/MCP_TOOLS_DISCOVERY_REPORT.md)** - Аналіз виявлення інструментів
+- **[🎉 Playwright Integration](docs/PLAYWRIGHT_MCP_SUCCESS_REPORT.md)** - Успішна інтеграція Playwright
+- **[📊 Prometheus Integration](docs/PROMETHEUS_INTEGRATION_SUMMARY.md)** - Інтеграція моніторингу
+- **[📋 Installation Summary](docs/INSTALLATION_SUMMARY.md)** - Підсумок установки
+
+## 🧪 Тестування після установки
+
+```bash
+# Перевірка статусу системи
+curl http://localhost:8000/ | jq
+
+# Перевірка кількості інструментів (має бути 92)
+curl http://localhost:8000/tools | jq '.total_tools'
+
+# Валідація MCP серверів
+make validate-mcp
+
+# Перевірка Prometheus метрик  
+curl http://localhost:8000/metrics | grep atlas_requests_total
+```
+
+## 🆘 Вирішення проблем
+
+### Проблема: Python imports не працюють
+```bash
+source atlas_venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Проблема: NPM пакети не знайдено
+```bash
+npm install -g better-playwright-mcp --force
+npm cache clean --force
+```
+
+### Проблема: MCP сервери не запускаються
+```bash
+make validate-mcp
+./stop_atlas.sh && ./start_atlas.sh
+```
+
+### Проблема: Порти зайняті
+```bash
+# Перевірити зайняті порти
+lsof -i :8000,:9090,:4006
+
+# Повна зупинка Atlas
+./stop_atlas.sh
+```
+
+## 📈 Результати розгортання
+
+✅ **92 інструменти** доступні через MCP Protocol  
+✅ **6 активних сервісів** з автодетекцією  
+✅ **Prometheus моніторинг** HTTP API  
+✅ **AppleScript MCP** - 32 native macOS tools  
+✅ **Better Playwright** - 29 веб-автоматизація tools  
+✅ **One-command deployment** з повною автоматизацією  
+✅ **Професійна архітектура** з enterprise-ready компонентами  
+
+## 🤝 Contributing
+
+Atlas MCP використовує модульну архітектуру - додавання нових MCP серверів простіше за додаванням до:
+1. **deploy_atlas.sh** - автоматична установка
+2. **atlas-global-config.json** - конфігурація MCP Proxy  
+3. **atlas_core.py** - автодетекція інструментів
+
+## 📄 License
+
+[MIT License](LICENSE) - Використовуйте вільно в комерційних та особистих проектах.
+
+---
+
+**Atlas MCP v2.0** - Ready for Production! 🚀
+
+*Automated deployment • 92 tools • 6 services • Enterprise monitoring • macOS native automation*
 
 ### Active Components (Minimal Mode)
 
