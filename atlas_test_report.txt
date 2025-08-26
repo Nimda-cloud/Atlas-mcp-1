@@ -2,9 +2,9 @@
 ╔═══════════════════════════════════════════════════════════════╗
 ║                    ATLAS MCP COMPREHENSIVE TEST REPORT        ║
 ╠═══════════════════════════════════════════════════════════════╣
-║ Date: 2025-08-27 00:47:21                                    ║
-║ Total Tests:  90 | Passed:  78 | Failed:  12                    ║
-║ Success Rate:  86.7%                                    ║
+║ Date: 2025-08-27 00:58:32                                    ║
+║ Total Tests:  90 | Passed:  82 | Failed:   8                    ║
+║ Success Rate:  91.1%                                    ║
 ╚═══════════════════════════════════════════════════════════════╝
 
 📋 SUMMARY BY CATEGORY:
@@ -14,9 +14,9 @@
    ATLAS_CORE     :  3/ 3 (100.0%)
    TOOLS          : 12/12 (100.0%)
    MCP_PROXY      :  0/ 5 (  0.0%)
-   LOGIC          :  0/ 2 (  0.0%)
+   LOGIC          :  2/ 2 (100.0%)
    MCP_TOOLS      : 44/44 (100.0%)
-   DIAGNOSTICS    :  0/ 2 (  0.0%)
+   DIAGNOSTICS    :  2/ 2 (100.0%)
    FIXES          :  2/ 2 (100.0%)
 
 🔍 DETAILED RESULTS:
@@ -60,8 +60,8 @@
    ❌ MCP_PROXY   : Proxy Endpoint: /tools         - Not Found (404)
    ❌ MCP_PROXY   : Proxy Endpoint: /              - Not Found (404)
    ❌ MCP_PROXY   : Proxy Endpoint: /api/health    - Not Found (404)
-   ❌ LOGIC       : Chat Logic                     - Atlas Core not running
-   ❌ LOGIC       : TTS Logic                      - Atlas Core not running
+   ✅ LOGIC       : Chat Logic                     - Chat endpoint responding
+   ✅ LOGIC       : TTS Logic                      - TTS endpoint responding
    ✅ MCP_TOOLS   : Tool Category: task-orchestrator - 32 tools
    ✅ MCP_TOOLS   : Tool Available: orchestrator_initialize_session - Listed in task-orchestrator
    ✅ MCP_TOOLS   : Tool Available: orchestrator_synthesize_results - Listed in task-orchestrator
@@ -106,8 +106,8 @@
    ✅ MCP_TOOLS   : Tool Available: fetch_url      - Listed in web-fetch
    ✅ MCP_TOOLS   : Tool Available: fetch_html     - Listed in web-fetch
    ✅ MCP_TOOLS   : Tool Available: fetch_json     - Listed in web-fetch
-   ❌ DIAGNOSTICS : Diagnostic: scripts/atlas_diagnostic.sh - Script not found
-   ❌ DIAGNOSTICS : Diagnostic: atlas_diagnostic.sh - Script not found
+   ✅ DIAGNOSTICS : Diagnostic: scripts/atlas_diagnostic.sh - Executed successfully
+   ✅ DIAGNOSTICS : Diagnostic: atlas_diagnostic.sh - Executed successfully
    ✅ FIXES       : Fix Suggestion: MCP Proxy      - Start MCP Proxy service on port 9090
    ✅ FIXES       : Fix Suggestion: Services       - Use ./start_atlas.sh to start all services
 
@@ -120,10 +120,6 @@
    ❌ Proxy Endpoint: /tools: Not Found (404)
    ❌ Proxy Endpoint: /: Not Found (404)
    ❌ Proxy Endpoint: /api/health: Not Found (404)
-   ❌ Chat Logic: Atlas Core not running
-   ❌ TTS Logic: Atlas Core not running
-   ❌ Diagnostic: scripts/atlas_diagnostic.sh: Script not found
-   ❌ Diagnostic: atlas_diagnostic.sh: Script not found
 
 🎯 RECOMMENDATIONS:
    🚀 Run ./start_atlas.sh to start all services
