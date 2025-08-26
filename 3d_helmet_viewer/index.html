@@ -68,7 +68,7 @@
             overflow-y: auto;
             overflow-x: hidden;
             padding-right: 12px; /* трохи менше, бо скрол схований */
-            scrollbar-width: none; /* Firefox only; інші браузери ігнорують без помилок */
+            /* scrollbar-width: none;  (Removed for broader compatibility) */
             -ms-overflow-style: none; /* IE / старий Edge */
         }
 
@@ -547,48 +547,69 @@
             }
 
             startMCPLogging() {
-                // Отримання живих логів з сервера
-                this.pollLiveLogs();
-                
-                // Також симулювати деякі локальні системні логи
-                setInterval(() => {
-                    const timestamp = new Date().toLocaleTimeString();
-                    const systemLogs = [
-                        `[${timestamp}] [SYSTEM] Memory usage: 45%`,
-                        `[${timestamp}] [NETWORK] Bandwidth: 15.3 MB/s`,
-                        `[${timestamp}] [CPU] Load average: 0.85`,
-                        `[${timestamp}] [DISK] Free space: 78%`,
-                        `[${timestamp}] [PROCESSES] Active: 142`,
-                        `[${timestamp}] [ATLAS] Monitoring active`,
-                        `[${timestamp}] [MCP] Tools available: 24`
-                    ];
-                    
-                    const randomLog = systemLogs[Math.floor(Math.random() * systemLogs.length)];
-                    this.logMessage(randomLog);
-                }, 3000);
+                // Підключення через Server-Sent Events до /logs/stream
+                const baseUrl = (window.ATLAS_API_BASE || 'http://localhost:8000').replace(/\/$/, '');
+                const streamUrl = `${baseUrl}/logs/stream`;
+                this.logMessage(`[INIT] Підключення до потоку логів: ${streamUrl}`);
+                let retryDelay = 2000;
+                const maxDelay = 15000;
+
+                const connect = () => {
+                    try {
+                        const es = new EventSource(streamUrl);
+                        this._eventSource = es;
+                        es.onopen = () => {
+                            this.logMessage(`[SSE] Підключено (retryDelay=${retryDelay}ms)`);
+                            retryDelay = 2000; // reset
+                        };
+                        es.onmessage = (evt) => {
+                            if (!evt.data) return;
+                            try {
+                                const entry = JSON.parse(evt.data);
+                                const ts = entry.timestamp || new Date().toISOString();
+                                const lvl = (entry.level || 'INFO').toUpperCase();
+                                const src = entry.source || 'atlas';
+                                const msg = entry.message || '';
+                                this.logMessage(`[${ts}] [${lvl}] ${src}: ${msg}`);
+                            } catch (e) {
+                                // raw line fallback
+                                this.logMessage(`[SSE_RAW] ${evt.data}`);
+                            }
+                        };
+                        es.onerror = () => {
+                            es.close();
+                            this.logMessage(`[SSE] Роз'єднано, повторне підключення через ${(retryDelay/1000).toFixed(1)}s`, 'warning');
+                            setTimeout(connect, retryDelay);
+                            retryDelay = Math.min(maxDelay, retryDelay * 1.7);
+                        };
+                    } catch (err) {
+                        this.logMessage(`[SSE] Помилка ініціалізації: ${err.message}`, 'error');
+                        setTimeout(connect, retryDelay);
+                        retryDelay = Math.min(maxDelay, retryDelay * 1.7);
+                    }
+                };
+                connect();
+                // Fallback початкове отримання останніх логів якщо SSE повільно стартує
+                this.pollLiveLogs(true);
             }
 
-            async pollLiveLogs() {
+            async pollLiveLogs(initial = false) {
+                // Одноразове завантаження backlog для випадку якщо SSE підключається із затримкою
+                if (!initial) return;
                 const baseUrl = (window.ATLAS_API_BASE || 'http://localhost:8000').replace(/\/$/, '');
-                const url = `${baseUrl}/logs?limit=120`;
+                const url = `${baseUrl}/logs?limit=200`;
                 try {
                     const response = await fetch(url);
                     if (response.ok) {
                         const data = await response.json();
                         if (data.logs && data.logs.length > 0) {
-                            // Очищаємо контейнер і показуємо останні логи один раз
                             this.logsContainer.innerHTML = '';
                             data.logs.forEach(log => {
-                                this.logMessage(`[${log.timestamp}] [${log.level}] ${log.source}: ${log.message}`);
+                                this.logMessage(`[${log.timestamp}] [${(log.level||'INFO').toUpperCase()}] ${log.source}: ${log.message}`);
                             });
                         }
-                    } else {
-                        this.logMessage(`[LOGS] HTTP ${response.status}`, 'warning');
                     }
-                } catch (error) {
-                    // Можна логувати кожні N спроб, але не flood
-                }
-                setTimeout(() => this.pollLiveLogs(), 2000);
+                } catch(_) { /* ignore */ }
             }
 
             simulateTTSPause(text) {

@@ -32,14 +32,15 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
+from collections import deque
 
 # Third-party imports (will be installed via requirements.txt)
 try:
     import aiohttp
     import ollama
-    from fastapi import FastAPI, HTTPException, Response
+    from fastapi import FastAPI, HTTPException, Response, Request
     from fastapi.staticfiles import StaticFiles
-    from fastapi.responses import HTMLResponse
+    from fastapi.responses import HTMLResponse, StreamingResponse
     from fastapi.middleware.cors import CORSMiddleware
     import uvicorn
     from dotenv import load_dotenv
@@ -55,15 +56,21 @@ UKRAINIAN_TTS_AVAILABLE = False
 PYGAME_AVAILABLE = False
 
 try:
+    print("🎙️ Trying to import Ukrainian TTS...")
     from ukrainian_tts.tts import TTS  # type: ignore
     UKRAINIAN_TTS_AVAILABLE = True
-except ImportError:
+    print("✅ Ukrainian TTS imported successfully")
+except ImportError as e:
+    print(f"⚠️ Ukrainian TTS not available: {e}")
     TTS = None
 
 try:
+    print("🎮 Trying to import pygame...")
     import pygame  # type: ignore
     PYGAME_AVAILABLE = True
-except ImportError:
+    print("✅ Pygame imported successfully")
+except ImportError as e:
+    print(f"⚠️ Pygame not available: {e}")
     pygame = None
 
 # Configure logging
@@ -297,10 +304,19 @@ class AtlasCore:
         self.log_monitor_task = None
         self.last_feedback_time = datetime.now()
         self.monitoring_enabled = True
-        self.log_buffer = []
+        # In-memory log buffer & concurrency primitives
+        self.log_buffer: List[Dict[str, Any]] = []
         self.max_log_buffer_size = 100
-        self.log_buffer_lock = asyncio.Lock()  # Thread safety for log buffer
-        
+        self.log_buffer_lock = asyncio.Lock()
+        # Subscribers for live log streaming (SSE)
+        self.log_subscribers: List[asyncio.Queue] = []
+        # Latency & reliability statistics per service/tool-group
+        # latency_stats[service] = { 'calls': int, 'errors': int, 'total_ms': float,
+        #   'last_ms': float, 'samples': deque, 'last_error': str|None, 'since': datetime, 'ema_ms': float }
+        self.latency_stats: Dict[str, Dict[str, Any]] = {}
+        self._latency_window = 200
+
+        # Initialize subsystems
         self.setup_agents()
         self.setup_web_interface()
         if self.mcp_proxy_mode:
@@ -528,6 +544,43 @@ class AtlasCore:
             except Exception as e:
                 logger.error(f"/logs endpoint error: {e}")
                 raise HTTPException(status_code=500, detail="Failed to read logs")
+
+        @self.app.get("/logs/stream")
+        async def stream_logs(request: Request):
+            """Server-Sent Events stream of live logs (backfills recent buffer)."""
+            async def event_generator():
+                # Per-client queue
+                q: asyncio.Queue = asyncio.Queue()
+                self.log_subscribers.append(q)
+                # Send backlog first
+                try:
+                    async with self.log_buffer_lock:
+                        backlog = list(self.log_buffer[-200:])  # cap backlog
+                    for entry in backlog:
+                        yield f"data: {json.dumps(entry, ensure_ascii=False)}\n\n"
+                    # Heartbeat timer
+                    last_heartbeat = time.time()
+                    while True:
+                        # Disconnect check
+                        if await request.is_disconnected():
+                            break
+                        try:
+                            entry = await asyncio.wait_for(q.get(), timeout=10.0)
+                            yield f"data: {json.dumps(entry, ensure_ascii=False)}\n\n"
+                        except asyncio.TimeoutError:
+                            # Heartbeat every 10s
+                            now = time.time()
+                            if now - last_heartbeat >= 10:
+                                last_heartbeat = now
+                                yield ": heartbeat\n\n"
+                            continue
+                finally:
+                    # Remove subscriber
+                    try:
+                        self.log_subscribers.remove(q)
+                    except ValueError:
+                        pass
+            return StreamingResponse(event_generator(), media_type="text/event-stream")
     
     async def process_user_message(self, message: str) -> str:
         """Process user message through the 3-agent system"""
@@ -1120,6 +1173,19 @@ Provide ONLY the English translation as a clear, detailed task description that 
                 self.log_buffer.append(log_entry)
                 if len(self.log_buffer) > self.max_log_buffer_size:
                     self.log_buffer = self.log_buffer[-self.max_log_buffer_size:]
+            # Broadcast to SSE subscribers (non-blocking)
+            dead_queues = []
+            for q in self.log_subscribers:
+                try:
+                    if q.qsize() < 100:  # simple backpressure guard
+                        q.put_nowait(log_entry)
+                except Exception:
+                    dead_queues.append(q)
+            for dq in dead_queues:
+                try:
+                    self.log_subscribers.remove(dq)
+                except ValueError:
+                    pass
 
         loop.create_task(_append())
     
@@ -1390,13 +1456,41 @@ Provide ONLY the English translation as a clear, detailed task description that 
                 "count_online": sum(1 for v in mcp_status.values() if v),
             }
         
+        # Performance metrics snapshot
+        performance = {"services": {}, "updated_at": datetime.now().isoformat()}
+        for svc, data in self.latency_stats.items():
+            calls = data.get('calls', 0)
+            errors = data.get('errors', 0)
+            total_ms = data.get('total_ms', 0.0)
+            samples = list(data.get('samples', []))
+            avg_ms = (total_ms / calls) if calls else None
+            p95 = None
+            if samples:
+                sorted_samples = sorted(samples)
+                idx = int(0.95 * (len(sorted_samples) - 1))
+                p95 = sorted_samples[idx]
+            # Extract 'since' safely
+            _since_val = data.get('since')
+            performance['services'][svc] = {
+                "calls_total": calls,
+                "errors": errors,
+                "success_rate": round((calls - errors) / calls, 3) if calls else None,
+                "avg_ms": round(avg_ms, 2) if avg_ms is not None else None,
+                "ema_ms": round(data.get('ema_ms', avg_ms), 2) if avg_ms is not None else None,
+                "p95_ms": round(p95, 2) if p95 is not None else None,
+                "last_ms": round(data.get('last_ms', 0.0), 2) if calls else None,
+                "last_error": data.get('last_error'),
+                "since": _since_val.isoformat() if isinstance(_since_val, datetime) else None
+            }
+
         return {
             "timestamp": datetime.now().isoformat(),
             "platform": platform.system(),
             "agents_online": len(self.agents),
             "task_queue_size": self.task_queue.qsize(),
             "automation_ready": True,
-            "mcp": mcp_info
+            "mcp": mcp_info,
+            "performance": performance
         }
 
     async def load_mcp_config(self) -> None:
@@ -1497,7 +1591,7 @@ Provide ONLY the English translation as a clear, detailed task description that 
                     if resp.status not in [200, 404, 405, 500]:
                         logger.error(f"MCP Proxy не доступний (HTTP {resp.status})")
                         return False
-                    logger.info(f"🔗 MCP Proxy доступний: {proxy_url} (HTTP {resp.status})")
+                        logger.info(f"🔗 MCP Proxy доступний: {proxy_url} (HTTP {resp.status})")
                 
                 # Парсинг списку клієнтів з env
                 raw_items = [c.strip() for c in self.mcp_proxy_clients_raw.split(',') if c.strip()]
@@ -1717,6 +1811,7 @@ Provide ONLY the English translation as a clear, detailed task description that 
     async def _execute_proxy_tool(self, tool_name: str, args: dict) -> dict:
         """Execute non-TTS tools via MCP proxy"""
         try:
+            _lat_start = time.perf_counter()
             # Determine service and route based on tool
             service_map = {
                 "mouseClick": "automation",
@@ -1747,6 +1842,7 @@ Provide ONLY the English translation as a clear, detailed task description that 
                     if response.status == 200:
                         result = await response.json()
                         logger.info(f"✅ [PROXY] {tool_name} completed successfully")
+                        self._record_latency(service, _lat_start, error=False)
                         return {
                             "status": "success",
                             "result": result,
@@ -1756,6 +1852,7 @@ Provide ONLY the English translation as a clear, detailed task description that 
                     else:
                         error_text = await response.text()
                         logger.error(f"❌ [PROXY] {tool_name} failed: HTTP {response.status}")
+                        self._record_latency(service, _lat_start, error=True, last_error=f"HTTP {response.status}")
                         return {
                             "status": "error", 
                             "error": f"HTTP {response.status}: {error_text}",
@@ -1764,6 +1861,7 @@ Provide ONLY the English translation as a clear, detailed task description that 
                         }
         except Exception as e:
             logger.error(f"❌ [PROXY] {tool_name} exception: {e}")
+            self._record_latency(service, locals().get('_lat_start'), error=True, last_error=str(e))
             return {
                 "status": "error",
                 "error": str(e),
@@ -2332,6 +2430,7 @@ REJECT if task involves:
     async def call_task_orchestrator_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Call a tool on the task orchestrator MCP server"""
         try:
+            _lat_start = time.perf_counter()
             # Try direct connection to Task Orchestrator first (bypass MCP Proxy issues)
             direct_endpoint = "http://localhost:4006"
             
@@ -2369,23 +2468,60 @@ REJECT if task involves:
                             result = result[0]  # Take first element if it's a list
                         
                         if isinstance(result, dict):
-                            # Derive success more intelligently: if explicit success provided use it; else infer from absence of error
                             inferred_success = result.get("success") if "success" in result else ("error" not in result)
+                            self._record_latency('orchestrator', _lat_start, error=not inferred_success)
                             return {"success": inferred_success, **result}
                         else:
+                            self._record_latency('orchestrator', _lat_start, error=False)
                             return {"success": True, "result": result}
                     else:
                         error_text = await response.text()
                         logger.error(f"🟠 [Task Orchestrator] Tool {tool_name} failed: {response.status} {error_text}")
+                        self._record_latency('orchestrator', _lat_start, error=True, last_error=f"HTTP {response.status}")
                         return {"success": False, "error": f"HTTP {response.status}: {error_text}"}
                         
         except Exception as e:
             logger.error(f"🟠 [Task Orchestrator] Tool {tool_name} exception: {e}")
+            self._record_latency('orchestrator', locals().get('_lat_start'), error=True, last_error=str(e))
             return {"success": False, "error": str(e)}
 
-    # ======= DEPRECATED METHODS REMOVED TO ELIMINATE CODE DUPLICATION =======
-    # execute_mcp_step_via_proxy, llm2_error_recovery, execute_simple_task 
-    # - functionality integrated into Task Orchestrator or no longer needed
+    def _record_latency(self, service: str, start_time: Optional[float], error: bool, last_error: Optional[str] = None):
+        """Record latency & reliability metrics for a service group.
+
+        Parameters:
+          service: logical service/tool group name
+          start_time: perf_counter at call start
+          error: whether call ended in error
+          last_error: optional error description
+        """
+        try:
+            if start_time is None:
+                return
+            elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+            stats = self.latency_stats.get(service)
+            if not stats:
+                stats = {
+                    'calls': 0,
+                    'errors': 0,
+                    'total_ms': 0.0,
+                    'last_ms': 0.0,
+                    'samples': deque(maxlen=self._latency_window),
+                    'last_error': None,
+                    'since': datetime.now(),
+                    'ema_ms': elapsed_ms
+                }
+                self.latency_stats[service] = stats
+            stats['calls'] += 1
+            if error:
+                stats['errors'] += 1
+                if last_error:
+                    stats['last_error'] = last_error
+            stats['total_ms'] += elapsed_ms
+            stats['last_ms'] = elapsed_ms
+            stats['samples'].append(elapsed_ms)
+            stats['ema_ms'] = stats['ema_ms'] * 0.8 + elapsed_ms * 0.2
+        except Exception:
+            pass
 
 def main():
     """Main entry point"""
@@ -2394,6 +2530,7 @@ def main():
     
     # Check if Ollama is available
     try:
+        print("🔍 Checking Ollama availability...")
         import ollama
         # Respect environment configuration for Ollama endpoint
         api_base = os.getenv("OLLAMA_URL") or os.getenv("OLLAMA_HOST") or "http://localhost:11434"
@@ -2409,14 +2546,25 @@ def main():
         return
     
     # Initialize and run Atlas
-    atlas = AtlasCore()
+    print("🚀 Initializing Atlas Core...")
+    try:
+        atlas = AtlasCore()
+        print("✅ Atlas Core initialized successfully")
+    except Exception as e:
+        print(f"❌ Error initializing Atlas Core: {e}")
+        import traceback
+        traceback.print_exc()
+        return
     
+    print("🌐 Starting Atlas server...")
     try:
         asyncio.run(atlas.run())
     except KeyboardInterrupt:
         print("\n🛑 Atlas system stopped by user")
     except Exception as e:
         print(f"❌ Error starting Atlas: {e}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
     main()
