@@ -302,8 +302,7 @@ class AtlasCore:
         self.setup_web_interface()
         if self.mcp_proxy_mode:
             logger.info("Atlas MCP Proxy mode enabled (Variant B)")
-        else:
-            self.load_mcp_config()
+        # MCP config will be loaded during initialize_mcp() call
     
     @staticmethod
     def _normalize_model(name: str) -> str:
@@ -537,11 +536,8 @@ class AtlasCore:
             # 🔵 LLM1 звітує про початок
             logger.info(f"🔵 [LLM1] Initial response: {cleaned_response}")
             
-            # Перевірка чи потрібно виконання задач
-            action_keywords = ['open', 'close', 'run', 'execute', 'launch', 'start', 'stop', 
-                             'відкрий', 'закрий', 'запусти', 'виконай', 'розгорни', 'запуск', 'стоп']
-            
-            needs_execution = any(keyword in message.lower() for keyword in action_keywords)
+            # Перевірка чи потрібно виконання задач через покращений класифікатор
+            needs_execution = await self._classify_action_intent(message, cleaned_response)
             
             if needs_execution:
                 # 🔵 LLM1 звітує про передачу завдання
@@ -609,6 +605,120 @@ Provide ONLY the English translation as a clear, detailed task description that 
         cleaned = re.sub(r'^\s*\n+', '', cleaned)
         
         return cleaned
+    
+    async def _classify_action_intent(self, user_message: str, llm1_response: str) -> bool:
+        """Покращений класифікатор для визначення потреби у виконанні дій"""
+        try:
+            # Швидка перевірка простих ключових слів
+            action_keywords = {
+                'direct_action': ['open', 'close', 'run', 'execute', 'launch', 'start', 'stop', 'create', 'delete'],
+                'ukrainian_action': ['відкрий', 'закрий', 'запусти', 'виконай', 'розгорни', 'запуск', 'стоп', 'створи', 'видали'],
+                'information_only': ['що', 'how', 'explain', 'tell', 'describe', 'розкажи', 'поясни', 'опиши']
+            }
+            
+            message_lower = user_message.lower()
+            
+            # Швидкий відбір: якщо є прямі дієслова дії
+            has_action_words = any(word in message_lower for word in 
+                                 action_keywords['direct_action'] + action_keywords['ukrainian_action'])
+            
+            # Швидкий відбір: якщо тільки інформаційні запити
+            only_info_request = any(word in message_lower for word in action_keywords['information_only'])
+            
+            if has_action_words and not only_info_request:
+                logger.info("🎯 [CLASSIFIER] Direct action keywords detected")
+                return True
+                
+            if only_info_request and not has_action_words:
+                logger.info("🎯 [CLASSIFIER] Information-only request detected")
+                return False
+            
+            # Складніші випадки - використовуємо LLM1 для класифікації
+            classification_prompt = f"""Проаналізуй чи потребує цей запит ВИКОНАННЯ КОНКРЕТНИХ ДІЙ на комп'ютері.
+
+Запит користувача: "{user_message}"
+Попередня відповідь LLM1: "{llm1_response}"
+
+ВИКОНАННЯ ДІЙ потрібно для:
+- Відкриття/закриття програм
+- Виконання команд
+- Створення/видалення файлів
+- Автоматизація завдань
+- Контроль системи
+
+НЕ потрібно для:
+- Звичайного спілкування
+- Запитів інформації
+- Пояснень
+- Теоретичних питань
+
+Відповідай ТІЛЬКИ: ТАК або НІ"""
+
+            classification = await self.agents["interface"].generate_response(
+                classification_prompt,
+                "Ти класифікатор дій. Відповідай ТІЛЬКИ 'ТАК' або 'НІ'"
+            )
+            
+            # Парсинг відповіді
+            classification_clean = classification.lower().strip()
+            is_action_needed = 'так' in classification_clean or 'yes' in classification_clean
+            
+            logger.info(f"🎯 [CLASSIFIER] LLM classification: {classification_clean} → {'ACTION' if is_action_needed else 'NO_ACTION'}")
+            return is_action_needed
+            
+        except Exception as e:
+            logger.error(f"🎯 [CLASSIFIER] Error in classification: {e}")
+            # Fallback до простих ключових слів
+            action_keywords = ['open', 'close', 'run', 'execute', 'launch', 'start', 'stop', 
+                             'відкрий', 'закрий', 'запусти', 'виконай', 'розгорни', 'запуск', 'стоп']
+            fallback_result = any(keyword in user_message.lower() for keyword in action_keywords)
+            logger.info(f"🎯 [CLASSIFIER] Fallback to keywords: {'ACTION' if fallback_result else 'NO_ACTION'}")
+            return fallback_result
+    
+    async def _discover_proxy_services(self):
+        """Відкриває доступні сервіси через проксі для health checks"""
+        try:
+            # Спробуємо отримати список доступних сервісів
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+                # Типові ендпоінти різних сервісів
+                test_endpoints = [
+                    ("tts", "/tts/sse"),
+                    ("task_orchestrator", "/task_orchestrator/mcp"),
+                    ("ollama", "/ollama/mcp"), 
+                    ("macos_automation", "/macos_automation/mcp"),
+                    ("prometheus", "/prometheus/mcp")
+                ]
+                
+                working_services = []
+                for service_name, endpoint in test_endpoints:
+                    try:
+                        health_url = f"{self.mcp_proxy_url}{endpoint}"
+                        async with session.get(health_url) as response:
+                            if response.status < 500:  # 2xx, 3xx, 4xx all indicate service exists
+                                working_services.append(service_name)
+                                self.mcp_endpoints[f"proxy_{service_name}"] = {
+                                    "base_url": self.mcp_proxy_url,
+                                    "health_url": health_url
+                                }
+                                logger.info(f"🟢 [HEALTH] Discovered working service: {service_name} at {health_url}")
+                    except Exception as e:
+                        logger.debug(f"🔴 [HEALTH] Service {service_name} not available: {e}")
+                        continue
+                
+                if not working_services:
+                    # Fallback to original tts endpoint
+                    self.mcp_endpoints["proxy"]["health_url"] = f"{self.mcp_proxy_url}/tts/sse"
+                    logger.warning("🟡 [HEALTH] No services discovered, using fallback TTS health check")
+                else:
+                    # Use first working service as primary health check
+                    primary_service = working_services[0]
+                    self.mcp_endpoints["proxy"]["health_url"] = self.mcp_endpoints[f"proxy_{primary_service}"]["health_url"]
+                    logger.info(f"🟢 [HEALTH] Using {primary_service} as primary health check, {len(working_services)} services total")
+                    
+        except Exception as e:
+            logger.error(f"🔴 [HEALTH] Error discovering proxy services: {e}")
+            # Fallback
+            self.mcp_endpoints["proxy"]["health_url"] = f"{self.mcp_proxy_url}/tts/sse"
     
     async def execute_task_with_task_orchestrator(self, english_task: str, original_message: str) -> List[Dict]:
         """🟠 Task Orchestrator - планує і виконує завдання через MCP Task Orchestrator"""
@@ -1112,7 +1222,7 @@ Provide ONLY the English translation as a clear, detailed task description that 
             "mcp": mcp_info
         }
 
-    def load_mcp_config(self) -> None:
+    async def load_mcp_config(self) -> None:
         """Load MCP servers configuration.
         In proxy mode (ATLAS_MCP_PROXY_MODE=true): Use single proxy endpoint
         In direct mode: Use individual server endpoints
@@ -1122,12 +1232,11 @@ Provide ONLY the English translation as a clear, detailed task description that 
             logger.info(f"🔗 MCP Proxy mode enabled - using {self.mcp_proxy_url}")
             # In proxy mode, we don't need individual endpoints
             # All calls go through call_mcp_tool_via_proxy()
-            self.mcp_endpoints = {
-                "proxy": {
-                    "base_url": self.mcp_proxy_url,
-                    "health_url": f"{self.mcp_proxy_url}/tts/sse"  # Use working endpoint for health check
-                }
-            }
+            # In proxy mode, build health checks for all available services
+            self.mcp_endpoints = {"proxy": {"base_url": self.mcp_proxy_url}}
+            
+            # Discover available services for comprehensive health checks
+            await self._discover_proxy_services()
             return
 
         # Direct mode: Load individual server endpoints
@@ -1588,9 +1697,9 @@ Provide ONLY the English translation as a clear, detailed task description that 
             if not success:
                 logger.warning("Failed to initialize MCP proxy, falling back to direct mode")
                 self.mcp_proxy_mode = False
-                self.load_mcp_config()
+                await self.load_mcp_config()
         else:
-            self.load_mcp_config()
+            await self.load_mcp_config()
     
     async def start_monitoring(self):
         """Start background monitoring tasks"""
