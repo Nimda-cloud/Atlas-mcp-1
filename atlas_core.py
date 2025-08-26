@@ -39,6 +39,7 @@ try:
     from fastapi import FastAPI, HTTPException, Response
     from fastapi.staticfiles import StaticFiles
     from fastapi.responses import HTMLResponse
+    from fastapi.middleware.cors import CORSMiddleware
     import uvicorn
     from dotenv import load_dotenv
     # Prometheus metrics
@@ -240,6 +241,16 @@ class AtlasCore:
         self.task_queue = asyncio.Queue()
         self.system_status = None
         self.app = FastAPI(title="Atlas Autonomous System", version="1.0.0")
+        
+        # Add CORS middleware
+        self.app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+        
         # MCP config store
         self.mcp_endpoints: Dict[str, Dict[str, str]] = {}
         

@@ -58,36 +58,47 @@
             width: 33.333%;
             height: 100%;
             background: rgba(0, 0, 0, 0.4);
-            padding: 8px;
+            padding: 8px; /* рівномірно; текст відступимо всередині контейнера */
             pointer-events: auto;
-            border-right: 1px solid rgba(0, 255, 65, 0.1);
+            border-right: none; /* без лінії */
         }
 
         .logs-container {
             height: 100%;
             overflow-y: auto;
             overflow-x: hidden;
+            padding-right: 12px; /* трохи менше, бо скрол схований */
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE / старий Edge */
+        }
+
+        .logs-container::-webkit-scrollbar {
+            width: 0;
+            height: 0;
         }
 
         .log-line {
             color: #00ff41;
             margin: 0;
-            padding: 1px 0;
+            padding: 2px 0 1px 0; /* трохи більше вертикального відступу для більшого шрифту */
             word-wrap: break-word;
-            font-size: 10px;
-            line-height: 1.2;
+            font-size: 11px; /* було 10px */
+            line-height: 1.28; /* підлаштовано для читабельності */
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            letter-spacing: 0.3px; /* легке розрідження для хакерського вигляду */
         }
 
         .log-line.error {
-            color: #ff4141;
+            color: #00ff41;
         }
 
         .log-line.warning {
-            color: #ffff41;
+            color: #00ff41;
         }
 
         .log-line.info {
-            color: #4141ff;
+            color: #178d35;
         }
 
         /* Right Panel - Chat */
@@ -232,10 +243,11 @@
         <!-- Left Panel - MCP Logs -->
         <div class="logs-panel">
             <div class="logs-container" id="logsContainer">
-                <div class="log-line">[ATLAS] System initializing...</div>
-                <div class="log-line">[MCP] Proxy connecting...</div>
-                <div class="log-line">[TTS] Service ready</div>
-                <div class="log-line">[AUTO] Automation ready</div>
+                <div class="log-line">[05:21:07] [ATLAS] System initializing...</div>
+                <div class="log-line">[05:21:08] [MCP] Proxy connecting...</div>
+                <div class="log-line">[05:21:09] [TTS] Service ready</div>
+                <div class="log-line">[05:21:10] [AUTO] Automation ready</div>
+                <div class="log-line">[05:21:11] [NET] Ports listening</div>
             </div>
         </div>
 
@@ -328,7 +340,7 @@
             bindEvents() {
                 // Chat input events
                 this.chatInput.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' && e.ctrlKey) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
                         this.sendMessage();
                     }
@@ -442,9 +454,9 @@
             }
 
             async sendToAtlas(message) {
-                // Try MCP proxy first
+                // Use local proxy for CORS-free communication
                 try {
-                    const response = await fetch('http://localhost:4010/api/chat', {
+                    const response = await fetch('/api/chat', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ message })
@@ -453,28 +465,14 @@
                     if (response.ok) {
                         const data = await response.json();
                         return data.response || data.message || 'Відповідь отримана';
+                    } else {
+                        this.logMessage(`[CHAT] HTTP ${response.status}`, 'warning');
+                        return 'Помилка сервера';
                     }
                 } catch (error) {
-                    this.logMessage('[MCP] Proxy unavailable, trying Atlas Core', 'warning');
+                    this.logMessage(`[CHAT] Error: ${error.message}`, 'error');
+                    return 'Помилка підключення';
                 }
-
-                // Fallback to Atlas Core
-                try {
-                    const response = await fetch('http://localhost:8000/api/chat', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ message })
-                    });
-                    
-                    if (response.ok) {
-                        const data = await response.json();
-                        return data.response || data.message || 'Відповідь отримана';
-                    }
-                } catch (error) {
-                    this.logMessage('[ATLAS] Core unavailable', 'error');
-                }
-
-                return 'Всі сервіси недоступні';
             }
 
             addMessage(text, type) {
@@ -498,48 +496,59 @@
 
             logMessage(text, type = 'info') {
                 const logDiv = document.createElement('div');
-                logDiv.className = `log-line ${type}`;
-                logDiv.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+                logDiv.className = 'log-line';
+                // Чистий текст без парсінгу, просто зелений колір
+                logDiv.textContent = text;
                 
                 this.logsContainer.appendChild(logDiv);
                 this.logsContainer.scrollTop = this.logsContainer.scrollHeight;
                 
-                // Keep only last 200 log lines
-                while (this.logsContainer.children.length > 200) {
+                // Зберігати тільки останні 300 рядків логів
+                while (this.logsContainer.children.length > 300) {
                     this.logsContainer.removeChild(this.logsContainer.firstChild);
                 }
             }
 
             startMCPLogging() {
-                // Simulate MCP proxy logs
+                // Отримання живих логів з сервера
+                this.pollLiveLogs();
+                
+                // Також симулювати деякі локальні системні логи
                 setInterval(() => {
-                    const logTypes = [
-                        '[MCP] Tools available: 24',
-                        '[PROXY] Request processed',
-                        '[TTS] Audio generated',
-                        '[AUTO] Task executed',
-                        '[SYSTEM] Memory: 45%'
+                    const timestamp = new Date().toLocaleTimeString();
+                    const systemLogs = [
+                        `[${timestamp}] [SYSTEM] Memory usage: 45%`,
+                        `[${timestamp}] [NETWORK] Bandwidth: 15.3 MB/s`,
+                        `[${timestamp}] [CPU] Load average: 0.85`,
+                        `[${timestamp}] [DISK] Free space: 78%`,
+                        `[${timestamp}] [PROCESSES] Active: 142`,
+                        `[${timestamp}] [ATLAS] Monitoring active`,
+                        `[${timestamp}] [MCP] Tools available: 24`
                     ];
                     
-                    const randomLog = logTypes[Math.floor(Math.random() * logTypes.length)];
+                    const randomLog = systemLogs[Math.floor(Math.random() * systemLogs.length)];
                     this.logMessage(randomLog);
                 }, 3000);
-
-                // Try to get real MCP logs
-                this.pollMCPStatus();
             }
 
-            async pollMCPStatus() {
+            async pollLiveLogs() {
                 try {
-                    const response = await fetch('http://localhost:4010/health');
+                    const response = await fetch('/api/logs');
                     if (response.ok) {
-                        this.logMessage('[MCP] Proxy online', 'info');
+                        const data = await response.json();
+                        if (data.logs && data.logs.length > 0) {
+                            data.logs.forEach(log => {
+                                // Показувати чистий лог без додаткового форматування
+                                this.logMessage(log.message);
+                            });
+                        }
                     }
                 } catch (error) {
-                    this.logMessage('[MCP] Proxy offline', 'warning');
+                    // Тихо ігнорувати помилки мережі
                 }
                 
-                setTimeout(() => this.pollMCPStatus(), 10000);
+                // Повторити через 1 секунду для більш живого відчуття
+                setTimeout(() => this.pollLiveLogs(), 1000);
             }
         }
 
