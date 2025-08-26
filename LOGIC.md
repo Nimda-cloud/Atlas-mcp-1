@@ -320,7 +320,7 @@ Ukrainian TTS
 | AppleScript | 25 | notifications, calendar, mail |
 | System | 15 | file_manager, network, monitoring |
 
-Загалом: 107 інструментів доступних через MCP Proxy
+Загалом: 127 інструментів доступних через MCP Proxy
 
 ## 11. Моніторинг та логування
 
