@@ -60,6 +60,7 @@ cleanup() {
     pkill -f "atlas-mcp-proxy" 2>/dev/null || true
     pkill -f "mcp-proxy" 2>/dev/null || true
     pkill -f "atlas_minimal_live.py" 2>/dev/null || true
+    pkill -f "http.server.*8080" 2>/dev/null || true
     
     # Очищуємо PID файли
     rm -f /tmp/atlas_*.pid 2>/dev/null || true
@@ -86,6 +87,7 @@ clean_processes() {
     pkill -f "task_orchestrator_http_server.py" 2>/dev/null || true
     pkill -f "mcp-proxy" 2>/dev/null || true
     pkill -f "atlas_minimal_live.py" 2>/dev/null || true
+    pkill -f "http.server.*8080" 2>/dev/null || true
     
     # Очищення портів
     if check_port 4006; then
@@ -94,6 +96,10 @@ clean_processes() {
     
     if check_port 8000; then
         lsof -ti:8000 2>/dev/null | xargs -r kill -9 2>/dev/null || true
+    fi
+    
+    if check_port 8080; then
+        lsof -ti:8080 2>/dev/null | xargs -r kill -9 2>/dev/null || true
     fi
     
     sleep 2
@@ -229,9 +235,45 @@ if ! kill -0 $ATLAS_PID 2>/dev/null; then
 fi
 
 # Швидкий liveness (/health), потім докладний /status
+#############################################
+# 4. Опціональний запуск 3D Helmet Viewer
+#############################################
+VIEWER_PID=""
+if [[ $SHOW_VIEWER -eq 1 ]]; then
+    if [[ -f "$ATLAS_DIR/3d_helmet_viewer/start_viewer.sh" ]]; then
+        info "Запускаю 3D Helmet Viewer..."
+        cd "$ATLAS_DIR/3d_helmet_viewer"
+        
+        # Встановлюємо CORS для взаємодії з viewer
+        export ATLAS_ENABLE_CORS=1
+        export ATLAS_ALLOWED_ORIGINS="${ATLAS_ALLOWED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}"
+        
+        nohup bash start_viewer.sh > /tmp/atlas_viewer.log 2>&1 &
+        VIEWER_PID=$!
+        echo $VIEWER_PID > /tmp/atlas_viewer.pid
+        log "3D Helmet Viewer запущено (PID: $VIEWER_PID)"
+        
+        # Перевірка Viewer процеса
+        sleep 2
+        if ! kill -0 $VIEWER_PID 2>/dev/null; then
+            warning "3D Helmet Viewer не запустився, дивіться /tmp/atlas_viewer.log"
+        fi
+    else
+        warning "3D Helmet Viewer не запущено: скрипт start_viewer.sh відсутній"
+    fi
+fi
+
+#############################################
+# 5. Перевірка готовності всіх сервісів
+#############################################
 wait_for_service "http://localhost:4006/health" "Task Orchestrator" || exit 1
 wait_for_service "http://localhost:8000/health" "Atlas Core (health)" || exit 1
 wait_for_service "http://localhost:8000/status" "Atlas Core (status)" || exit 1
+
+# Перевірка Viewer якщо запущено
+if [[ $SHOW_VIEWER -eq 1 && -n "$VIEWER_PID" ]]; then
+    wait_for_service "http://localhost:8080/" "3D Helmet Viewer" || warning "Viewer недоступний"
+fi
 
 echo ""
 log "🎉 Atlas повністю запущено!"
@@ -256,10 +298,11 @@ info "   ⚙️  Atlas Core API:    http://localhost:8000 (PID: $ATLAS_PID)"
 
 # Viewer
 if [[ $SHOW_VIEWER -eq 1 ]]; then
-    if [[ -f "$ATLAS_DIR/3d_helmet_viewer/start_viewer.sh" ]]; then
-        info "   🎮 Viewer:            http://localhost:8080 (автозапуск)"
+    if [[ -n "$VIEWER_PID" && -f "$ATLAS_DIR/3d_helmet_viewer/start_viewer.sh" ]]; then
+        info "   🎮 3D Helmet Viewer:  http://localhost:8080 (PID: $VIEWER_PID)"
+        info "      └─ Frontend:      atlas_minimal_frontend.html"
     else
-        warning "   🎮 Viewer:            ❌ Скрипт start_viewer.sh не знайдено"
+        warning "   🎮 3D Helmet Viewer:  ❌ Не запустився або скрипт відсутній"
     fi
 fi
 
@@ -278,6 +321,9 @@ log "🎉 Система працює у фоні"
 log "📊 Для перегляду логів:"
 info "   Task Orchestrator: tail -f /tmp/task_orchestrator.log"
 info "   Atlas Core:        tail -f /tmp/atlas_core.log"
+if [[ $SHOW_VIEWER -eq 1 && -n "$VIEWER_PID" ]]; then
+    info "   3D Helmet Viewer:  tail -f /tmp/atlas_viewer.log"
+fi
 echo ""
 log "⏰ Система буде працювати до зупинки або перезавантаження"
 log "🛑 Для зупинки: ./stop_atlas.sh"
@@ -286,16 +332,3 @@ echo ""
 # Виходимо з trap cleanup, залишаючи процеси працювати
 trap - SIGINT SIGTERM EXIT
 log "🚀 Atlas працює автономно!"
-
-# Опціональний запуск viewer
-if [[ $SHOW_VIEWER -eq 1 ]]; then
-    if [[ -f "$ATLAS_DIR/3d_helmet_viewer/start_viewer.sh" ]]; then
-        info "Запускаю viewer (--viewer) на порту 8080..."
-        nohup bash "$ATLAS_DIR/3d_helmet_viewer/start_viewer.sh" > /tmp/atlas_viewer.log 2>&1 &
-        VIEWER_PID=$!
-        echo $VIEWER_PID > /tmp/atlas_viewer.pid
-        log "Viewer запущено (PID: $VIEWER_PID)"
-    else
-        warning "Viewer не запущено: скрипт start_viewer.sh відсутній"
-    fi
-fi
