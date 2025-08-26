@@ -1127,6 +1127,12 @@ class AtlasCore:
                 
                 return f"{cleaned_response}{results_summary}"
             
+            # Озвучити відповідь українською TTS
+            try:
+                await self.call_mcp_tool_via_proxy("say_tts", {"text": cleaned_response})
+            except Exception as e:
+                logger.warning(f"TTS failed: {e}")
+            
             return cleaned_response
             
         except Exception as e:
@@ -1554,20 +1560,24 @@ Task: {task_description}"""
         }
 
     def load_mcp_config(self) -> None:
-        """Load MCP servers from environment variables into self.mcp_endpoints.
-        Supported variable formats:
-          - ATLAS_MCP_SERVERS: comma-separated list of names (e.g., "automation,macos-automator,tts,playwright")
-          - ATLAS_MCP_<NAME_UPPER>_URL for generic mapping
-          - Specific shorthands: ATLAS_MCP_TTS_URL, ATLAS_MCP_PLAYWRIGHT_URL
-        Defaults (docker-compose service names):
-          automation -> http://mcp-automation:4002
-          macos-automator -> http://mcp-automator:4003
-          tts -> http://mcp-tts:4004
-          playwright -> http://mcp-playwright:4005/mcp
-        Health path rules:
-          - If base_url ends with '/mcp' -> use it as-is and accept HTTP 200 or 400 as "online"
-          - Else append '/health' and expect HTTP 200
+        """Load MCP servers configuration.
+        In proxy mode (ATLAS_MCP_PROXY_MODE=true): Use single proxy endpoint
+        In direct mode: Use individual server endpoints
         """
+        # If proxy mode is enabled, use proxy for all MCP calls
+        if self.mcp_proxy_mode:
+            logger.info(f"🔗 MCP Proxy mode enabled - using {self.mcp_proxy_url}")
+            # In proxy mode, we don't need individual endpoints
+            # All calls go through call_mcp_tool_via_proxy()
+            self.mcp_endpoints = {
+                "proxy": {
+                    "base_url": self.mcp_proxy_url,
+                    "health_url": f"{self.mcp_proxy_url}/tts/sse"  # Use working endpoint for health check
+                }
+            }
+            return
+
+        # Direct mode: Load individual server endpoints
         servers_str = os.getenv("ATLAS_MCP_SERVERS", "").strip()
         if not servers_str:
             self.mcp_endpoints = {}
@@ -1676,33 +1686,61 @@ Task: {task_description}"""
         if not hasattr(self, 'mcp_proxy_url'):
             raise Exception("MCP Proxy not initialized")
         
-        # For TBXark proxy, we need to use SSE endpoints
-        # This is a simplified implementation - in real use, you'd implement proper SSE client
-        
-        # For now, let's implement basic say_tts directly
+        # Use direct Ukrainian TTS for TTS calls
         if tool_name == "say_tts":
             text = args.get("text", "")
-            rate = args.get("rate", 200)
+            voice = args.get("voice", "mykyta") 
             
             try:
-                # Use macOS say command directly
+                # Спробувати прямий виклик українського TTS
+                logger.info(f"🎙️ Using Ukrainian TTS for: {text[:50]}...")
+                
+                # Import українського TTS локально
+                import tempfile
+                from ukrainian_tts.tts import TTS
+                import pygame
+                
+                # Ініціалізація TTS
+                tts = TTS(device='cpu')
+                
+                # Генерація аудіо
+                temp_path = tempfile.mktemp(suffix='.wav')
+                with open(temp_path, 'wb') as output_file:
+                    tts.tts(text, voice, "dictionary", output_file)
+                
+                # Відтворення через pygame
+                pygame.mixer.init()
+                pygame.mixer.music.load(temp_path)
+                pygame.mixer.music.play()
+                
+                # Чекаємо закінчення
+                while pygame.mixer.music.get_busy():
+                    await asyncio.sleep(0.1)
+                
+                # Очищення
+                import os
+                os.unlink(temp_path)
+                
+                logger.info(f"✅ Ukrainian TTS completed for: {text[:50]}...")
+                return {"status": "success", "message": f"Ukrainian TTS: {text}"}
+                
+            except Exception as e:
+                logger.warning(f"⚠️ Ukrainian TTS failed: {e}, falling back to macOS say")
+                
+                # Fallback на macOS say
                 process = await asyncio.create_subprocess_exec(
-                    'say', '-r', str(rate), text,
+                    'say', '-r', str(args.get("rate", 200)), text,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
                 stdout, stderr = await process.communicate()
                 
                 if process.returncode == 0:
-                    logger.info(f"TTS: Successfully spoke text: {text[:50]}...")
-                    return {"status": "success", "message": f"Speaking: {text}"}
+                    logger.info(f"Fallback TTS: Successfully spoke text: {text[:50]}...")
+                    return {"status": "success", "message": f"Fallback TTS: {text}"}
                 else:
-                    logger.error(f"TTS error: {stderr.decode()}")
+                    logger.error(f"All TTS methods failed: {stderr.decode()}")
                     return {"status": "error", "message": stderr.decode()}
-                    
-            except Exception as e:
-                logger.error(f"TTS exception: {e}")
-                return {"status": "error", "message": str(e)}
         
         # For other tools, return placeholder
         logger.warning(f"MCP Tool '{tool_name}' not yet implemented via proxy")
