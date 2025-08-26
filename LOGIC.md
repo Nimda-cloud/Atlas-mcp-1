@@ -6,6 +6,7 @@
 
 | Дата | Зміни |
 |------|-------|
+| 2025-08-27 | **АНАЛІЗ СИСТЕМИ**: Виявлено 143 інструменти (не 107!), MCP Proxy працює з помилкою 404 на health endpoint, всі компоненти стабільні |
 | 2025-08-26 | Уніфікація документації, нормалізація кількості інструментів (107), доповнення секції 9.1, вирівнювання термінів (service/tool), додано цей Changelog |
 | 2025-08-25 | Планувальник: нормалізація сервісів, виправлення Unknown tool, автоматичний парсинг спискових відповідей |
 | 2025-08-24 | Динамічний registry /tools → планувальний prompt, валідація плану |
@@ -20,7 +21,7 @@
 
 - **Atlas Core** → [http://localhost:8000](http://localhost:8000) (3 агенти + Enhanced TTS)
 - **Task Orchestrator** → [http://localhost:4006](http://localhost:4006) (розумне планування)  
-- **MCP Proxy** → [http://localhost:9090](http://localhost:9090) (107 інструментів)
+- **MCP Proxy** → [http://localhost:9090](http://localhost:9090) (143 інструменти)
 - **3D Helmet Viewer** → [http://localhost:8080](http://localhost:8080) (демо)
 
 **🎙️ TTS СТАТУС:**
@@ -328,14 +329,19 @@ Ukrainian TTS
 
 | Категорія | Кількість | Приклади |
 |-----------|-----------|----------|
-| Task Orchestrator | 16 | initialize_session, plan_task, execute_task |
+| Task Orchestrator | 32 | initialize_session, plan_task, execute_task |
 | TTS | 6 | say_tts, stop_tts, set_voice |
 | Automation | 19 | mouseClick, screenshot, keyControl |
-| Playwright | 26 | browserClick, browserType, screenshot |
-| AppleScript | 25 | notifications, calendar, mail |
-| System | 15 | file_manager, network, monitoring |
+| Playwright | 29 | browserClick, browserType, screenshot |
+| AppleScript | 32 | notifications, calendar, mail |
+| File Manager | 5 | read_file, write_file, list_directory |
+| Network | 4 | ping, http_request, download_file |
+| System Monitor | 4 | get_cpu_usage, get_memory_usage |
+| Calendar | 4 | create_event, list_events |
+| Notifications | 3 | send_notification, schedule_notification |
+| Web Fetch | 5 | fetch_url, fetch_html, web_search |
 
-Загалом: 107 інструментів доступних через MCP Proxy
+Загалом: 143 інструменти доступних через MCP Proxy
 
 ## 11. Моніторинг та логування
 
