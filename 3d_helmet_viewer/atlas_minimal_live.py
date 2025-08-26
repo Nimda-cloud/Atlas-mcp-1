@@ -310,6 +310,10 @@ class AtlasMinimalHandler(SimpleHTTPRequestHandler):
             if response:
                 if self.live_streamer:
                     self.live_streamer._add_log(f"[CHAT] Atlas response: {response[:30]}...")
+                
+                # Автоматичне TTS для відповідей Atlas
+                self.send_tts_to_atlas(response)
+                
                 self.send_json_response({"response": response})
                 return
             
@@ -394,6 +398,34 @@ class AtlasMinimalHandler(SimpleHTTPRequestHandler):
             return response.status_code == 200
         except Exception as e:
             logger.debug(f"TTS request failed: {e}")
+        return False
+
+    def send_tts_to_atlas(self, text):
+        """Відправка TTS запиту до Atlas Core"""
+        try:
+            if self.live_streamer:
+                self.live_streamer._add_log(f"[TTS] Speaking: {text[:20]}...")
+            
+            # Atlas Core має /tts endpoint
+            response = requests.post(
+                f"{self.atlas_core_url}/tts",
+                json={"text": text, "rate": 200},
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                if self.live_streamer:
+                    self.live_streamer._add_log("[TTS] Success", "info")
+                return True
+            else:
+                if self.live_streamer:
+                    self.live_streamer._add_log(f"[TTS] Error {response.status_code}", "warning")
+                return False
+                
+        except Exception as e:
+            if self.live_streamer:
+                self.live_streamer._add_log(f"[TTS] Failed: {str(e)[:30]}", "error")
+            logger.debug(f"TTS to Atlas failed: {e}")
         return False
 
     def check_service(self, url):

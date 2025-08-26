@@ -1062,6 +1062,21 @@ class AtlasCore:
             result = await self.execute_action(action)
             return {"result": result}
         
+        @self.app.post("/tts")
+        async def tts(request: dict):
+            text = request.get("text", "")
+            rate = request.get("rate", 200)
+            if not text:
+                raise HTTPException(status_code=400, detail="Text is required")
+            
+            try:
+                # Use direct TTS implementation
+                result = await self.call_mcp_tool_via_proxy("say_tts", {"text": text, "rate": rate})
+                return result
+            except Exception as e:
+                logger.error(f"TTS error: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
         @self.app.get("/status")
         async def status():
             return await self.get_system_status()
