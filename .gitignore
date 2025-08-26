@@ -110,6 +110,8 @@ dmypy.json
 # ML Models and Large Data Files
 # Large ML / data artifacts (kept out of git; move to data/ or models/ as needed)
 *.model
+*.pth
+*.pt
 *.npz
 *.ark
 
