@@ -1,0 +1,197 @@
+{
+  "mcpProxy": {
+    "baseURL": "http://localhost:9090",
+    "addr": ":9090",
+    "name": "Atlas MCP Proxy",
+    "version": "1.0.0",
+    "type": "streamable-http",
+    "options": {
+      "panicIfInvalid": false,
+      "logEnabled": true,
+      "authTokens": [
+        "atlas-default-token",
+        "atlas-secure-token"
+      ]
+    }
+  },
+  "mcpServers": {
+    "atlas-tts-ukrainian": {
+      "command": "python",
+      "args": [
+        "/Users/dev/Documents/Atlas-mcp/mcp_tts_ukrainian/mcp_tts_server.py"
+      ],
+      "env": {
+        "ATLAS_TTS_MODEL_PATH": "/Users/dev/Documents/Atlas-mcp/mcp_tts_ukrainian/model.pth",
+        "ATLAS_TTS_CONFIG": "/Users/dev/Documents/Atlas-mcp/mcp_tts_ukrainian/config.yaml"
+      },
+      "options": {
+        "toolFilter": {
+          "mode": "allow",
+          "list": [
+            "text_to_speech_ukrainian",
+            "voice_synthesis",
+            "audio_generation"
+          ]
+        },
+        "panicIfInvalid": false,
+        "logEnabled": true
+      }
+    },
+    "atlas-task-orchestrator": {
+      "url": "http://localhost:4006/sse",
+      "type": "sse",
+      "env": {
+        "ATLAS_ORCHESTRATOR_PORT": "4006",
+        "ATLAS_ORCHESTRATOR_HOST": "localhost"
+      },
+      "options": {
+        "toolFilter": {
+          "mode": "allow",
+          "list": [
+            "create_task",
+            "execute_workflow",
+            "manage_pipeline",
+            "orchestrate_services"
+          ]
+        },
+        "panicIfInvalid": false,
+        "logEnabled": true,
+        "authTokens": [
+          "atlas-orchestrator-token"
+        ]
+      }
+    },
+    "atlas-automation-mcp": {
+      "command": "python",
+      "args": [
+        "/Users/dev/Documents/Atlas-mcp/mcp-task-orchestrator/mcp_task_orchestrator/server.py"
+      ],
+      "env": {
+        "ATLAS_MCP_ORCHESTRATOR_MODE": "true",
+        "ATLAS_MCP_BASE_PATH": "/Users/dev/Documents/Atlas-mcp/mcp-task-orchestrator"
+      },
+      "options": {
+        "toolFilter": {
+          "mode": "allow",
+          "list": [
+            "file_operations",
+            "system_automation",
+            "workflow_management",
+            "template_processing"
+          ]
+        },
+        "panicIfInvalid": false,
+        "logEnabled": true
+      }
+    },
+    "atlas-core-api": {
+      "url": "http://localhost:8000/mcp",
+      "type": "streamable-http",
+      "env": {
+        "ATLAS_CORE_PORT": "8000",
+        "ATLAS_CORE_HOST": "localhost"
+      },
+      "options": {
+        "toolFilter": {
+          "mode": "allow",
+          "list": [
+            "atlas_core_api",
+            "system_status",
+            "health_check",
+            "configuration_management"
+          ]
+        },
+        "panicIfInvalid": false,
+        "logEnabled": true,
+        "authTokens": [
+          "atlas-core-token"
+        ]
+      }
+    },
+    "atlas-3d-viewer": {
+      "url": "http://localhost:8080/mcp",
+      "type": "streamable-http",
+      "env": {
+        "ATLAS_VIEWER_PORT": "8080",
+        "ATLAS_VIEWER_HOST": "localhost"
+      },
+      "options": {
+        "toolFilter": {
+          "mode": "allow",
+          "list": [
+            "3d_visualization",
+            "helmet_viewer",
+            "real_time_monitoring",
+            "interactive_display"
+          ]
+        },
+        "panicIfInvalid": false,
+        "logEnabled": true
+      }
+    },
+    "github-integration": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}",
+        "ATLAS_GITHUB_REPO": "Nimda-cloud/Atlas-mcp-1"
+      },
+      "options": {
+        "toolFilter": {
+          "mode": "block",
+          "list": [
+            "delete_repository",
+            "force_push"
+          ]
+        },
+        "panicIfInvalid": false,
+        "logEnabled": true
+      }
+    },
+    "web-fetch": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-fetch"
+      ],
+      "options": {
+        "toolFilter": {
+          "mode": "allow",
+          "list": [
+            "fetch_url",
+            "web_scraping",
+            "content_retrieval"
+          ]
+        },
+        "panicIfInvalid": false,
+        "logEnabled": true
+      }
+    },
+    "atlas-playwright": {
+      "url": "http://localhost:3000/mcp",
+      "type": "streamable-http",
+      "env": {
+        "ATLAS_PLAYWRIGHT_PORT": "3000",
+        "ATLAS_PLAYWRIGHT_HOST": "localhost"
+      },
+      "options": {
+        "toolFilter": {
+          "mode": "allow",
+          "list": [
+            "browser_automation",
+            "web_testing",
+            "ui_interaction",
+            "screenshot_capture"
+          ]
+        },
+        "panicIfInvalid": false,
+        "logEnabled": true,
+        "authTokens": [
+          "atlas-playwright-token"
+        ]
+      }
+    }
+  }
+}

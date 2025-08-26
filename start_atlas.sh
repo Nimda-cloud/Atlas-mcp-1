@@ -175,7 +175,7 @@ if [[ "${ATLAS_MCP_PROXY_MODE:-false}" == "true" ]]; then
         echo $MCP_PROXY_PID > /tmp/mcp_proxy.pid
         log "MCP Proxy запущено (PID: $MCP_PROXY_PID)"
         sleep 3
-        wait_for_service "http://localhost:4010/" "MCP Proxy" || {
+        wait_for_service "http://localhost:9090/" "MCP Proxy" || {
             warn "MCP Proxy не запустився, продовжую в direct mode"
             export ATLAS_MCP_PROXY_MODE=false
         }
@@ -220,7 +220,7 @@ log "🎉 Atlas повністю запущено!"
 echo ""
 info "📊 Статус сервісів:"
 if [[ -n "$MCP_PROXY_PID" ]]; then
-    info "   MCP Proxy: http://localhost:4010 (PID: $MCP_PROXY_PID)"
+    info "   MCP Proxy: http://localhost:9090 (PID: $MCP_PROXY_PID)"
 fi
 info "   Task Orchestrator: http://localhost:4006 (PID: $ORCHESTRATOR_PID)"
 info "   Atlas Core API:    http://localhost:8000 (PID: $ATLAS_PID)"

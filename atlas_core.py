@@ -273,7 +273,7 @@ class AtlasCore:
         
         # MCP Proxy support (Variant B)
         self.mcp_proxy_mode = os.getenv('ATLAS_MCP_PROXY_MODE', 'false').lower() == 'true'
-        self.mcp_proxy_url = os.getenv('ATLAS_MCP_PROXY_URL', 'http://127.0.0.1:4010')
+        self.mcp_proxy_url = os.getenv('ATLAS_MCP_PROXY_URL', 'http://127.0.0.1:9090')
         self.mcp_tools_cache = {}
         # Список клієнтів для proxy (name[:type]) напр.: "tts:sse,playwright:streamable-http,automation:stdio"
         self.mcp_proxy_clients_raw = os.getenv('ATLAS_MCP_PROXY_CLIENTS', 'tts,automation,playwright,task-orchestrator')

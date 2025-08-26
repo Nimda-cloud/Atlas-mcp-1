@@ -31,7 +31,7 @@ class LiveLogStreamer:
         self.log_queue = queue.Queue()
         self.is_running = False
         # Читаємо URL з env або fallback на localhost
-        self.mcp_proxy_url = os.getenv("ATLAS_MCP_PROXY_URL", "http://localhost:4010")
+        self.mcp_proxy_url = os.getenv("ATLAS_MCP_PROXY_URL", "http://localhost:9090")
         self.atlas_core_url = os.getenv("ATLAS_CORE_URL", "http://localhost:8000")
         self.mcp_proxy_enabled = os.getenv("ATLAS_MCP_PROXY_MODE", "false").lower() == "true"
         
@@ -95,7 +95,7 @@ class LiveLogStreamer:
                 # Порти
                 try:
                     result = subprocess.run(
-                        ["lsof", "-i", ":8000", "-i", ":4010", "-i", ":8080"], 
+                        ["lsof", "-i", ":8000", "-i", ":9090", "-i", ":8080"], 
                         capture_output=True, 
                         text=True
                     )
@@ -159,7 +159,7 @@ class AtlasMinimalHandler(SimpleHTTPRequestHandler):
     live_streamer = None
     
     def __init__(self, *args, **kwargs):
-        self.mcp_proxy_url = "http://localhost:4010"
+        self.mcp_proxy_url = "http://localhost:9090"
         self.atlas_core_url = "http://localhost:8000"
         super().__init__(*args, **kwargs)
 

@@ -81,7 +81,7 @@ Atlas включає вбудований MCP Proxy сервер для агре
 
 ```bash
 export ATLAS_MCP_PROXY_MODE=true
-export ATLAS_MCP_PROXY_URL=http://localhost:4010
+export ATLAS_MCP_PROXY_URL=http://localhost:9090
 export ATLAS_MCP_PROXY_CLIENTS=tts:sse,automation:stdio,playwright:streamable-http,task-orchestrator:sse
 ./start_atlas.sh
 ```
@@ -98,20 +98,51 @@ MCP Proxy підтримує:
 
 ### Endpoints при увімкненому Proxy
 
-- `http://localhost:4010/` - базовий proxy
-- `http://localhost:4010/{service}/sse` - для sse клієнтів
-- `http://localhost:4010/{service}/mcp` - для streamable-http клієнтів
+- `http://localhost:9090/` - базовий proxy
+- `http://localhost:9090/{service}/sse` - для sse клієнтів
+- `http://localhost:9090/{service}/mcp` - для streamable-http клієнтів
 
 ### Прямий запуск Proxy
 
 ```bash
 cd mcp-proxy
-./start-atlas-proxy.sh [config-file]
+# Базова Atlas конфігурація
+./start-atlas-proxy.sh
+
+# Глобальна конфігурація всіх MCP сервісів
+./start-atlas-proxy.sh --global
+# або
+export ATLAS_MCP_USE_GLOBAL_CONFIG=true
+./start-atlas-proxy.sh
 ```
+
+### Глобальна MCP Конфігурація
+
+Файл `mcp-proxy/atlas-global-config.json` містить повну конфігурацію всіх Atlas MCP сервісів:
+
+- **atlas-tts-ukrainian** - Ukrainian TTS сервіс
+- **atlas-task-orchestrator** - SSE оркестратор
+- **atlas-automation-mcp** - Stdio автоматизація
+- **atlas-core-api** - Core API через HTTP
+- **atlas-3d-viewer** - 3D Viewer HTTP endpoint
+- **github-integration** - GitHub MCP сервіс
+- **web-fetch** - Fetch MCP сервіс
+- **atlas-playwright** - Browser automation
+
+### Порт стандартизація
+
+Всі компоненти тепер використовують стандартизовані порти:
+
+- **9090** - MCP Proxy (раніше 4010)
+- **8000** - Atlas Core API
+- **4006** - Task Orchestrator
+- **8080** - 3D Helmet Viewer
+- **3000** - Playwright (якщо використовується)
 
 ### Additional Notes
 
 - UI терміналний інтерфейс видалено; API-first архітектура.
 - 3D Viewer ізольовано і може еволюціонувати незалежно.
 - Додаткові MCP сервіси можна додати через `ATLAS_MCP_SERVERS` (direct mode) або `ATLAS_MCP_PROXY_CLIENTS` (proxy mode).
+- Глобальна конфігурація підтримує tool filtering і auth tokens для кожного сервісу.
  
