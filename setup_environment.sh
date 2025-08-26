@@ -1,11 +1,12 @@
 #!/bin/bash
-"""
-Atlas Environment Setup Script
-==============================
 
-This script sets up and validates the Atlas virtual environment.
-Run this before starting the Atlas system to ensure all dependencies are available.
-"""
+# Atlas Environment Setup Script
+# ==============================
+# 
+# This script sets up and validates the Atlas virtual environment.
+# Run this before starting the Atlas system to ensure all dependencies are available.
+# 
+# Оновлено: 2025-08-26 - Актуалізовано перевірки та залежності
 
 set -e  # Exit on any error
 
@@ -60,6 +61,7 @@ try:
     import aiohttp
     import ollama
     import pygame
+    import requests
     print('✅ Core imports: OK')
 except ImportError as e:
     errors.append(f'Core imports: {e}')
@@ -69,25 +71,41 @@ try:
     import ukrainian_tts
     print('✅ Ukrainian TTS: Available')
 except ImportError:
-    print('⚠️  Ukrainian TTS: Not available (optional)')
+    print('⚠️  Ukrainian TTS: Not available (можна встановити окремо)')
+
+# Test TTS fallbacks
+try:
+    import pyttsx3
+    import gtts
+    print('✅ TTS Fallbacks: OK')
+except ImportError as e:
+    errors.append(f'TTS fallbacks: {e}')
 
 # Test macOS frameworks
 try:
-    import objc
     import pyautogui
-    print('✅ macOS automation: OK')
+    import pynput
+    import psutil
+    print('✅ System automation: OK')
 except ImportError as e:
-    errors.append(f'macOS automation: {e}')
+    errors.append(f'System automation: {e}')
 
-# Test MCP (if available)
+# Test macOS specific (optional)
 try:
-    import mcp
-    print('✅ MCP client: Available')
+    import objc
+    print('✅ macOS PyObjC: Available')
 except ImportError:
-    print('⚠️  MCP client: Not available (using HTTP fallback)')
+    print('⚠️  macOS PyObjC: Not available (optional)')
+
+# Test AppleScript (optional)
+try:
+    import applescript
+    print('✅ AppleScript: Available')
+except ImportError:
+    print('⚠️  AppleScript: Not available (optional)')
 
 if errors:
-    print('\\n❌ Import errors:')
+    print('\\n❌ Critical import errors:')
     for error in errors:
         print(f'  - {error}')
     sys.exit(1)

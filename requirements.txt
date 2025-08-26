@@ -1,48 +1,60 @@
 # Atlas Autonomous System Requirements
-# Core dependencies for the Atlas autonomous macOS management system
-aiosqlite
-# LLM and AI
-ollama>=0.2.0
-openai>=1.0.0
+# Оновлено: 2025-08-26 - Актуальні залежності для поточної системи
 
-# Web framework and async
-fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
-aiohttp>=3.9.0
+# ============================================================================
+# LLM та AI
+# ============================================================================
+ollama>=0.3.0
+openai>=1.35.0
 
-# System automation
+# ============================================================================
+# Web Framework та Async
+# ============================================================================
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+aiohttp>=3.9.5
+
+# ============================================================================
+# System Automation (macOS)
+# ============================================================================
 pyautogui>=0.9.54
-pynput>=1.7.6
-psutil>=5.9.0
+pynput>=1.7.7
+psutil>=6.0.0
 
-# Audio processing (TTS/STT)
-pyttsx3>=2.90
-SpeechRecognition>=3.10.0
-pyaudio>=0.2.11
+# ============================================================================
+# Audio Processing (Ukrainian TTS + Fallbacks)
+# ============================================================================
+pygame>=2.5.2
+pyttsx3>=2.91
+gtts>=2.5.1
+requests>=2.31.0
 
-# Vector database and memory
-qdrant-client>=1.6.0
-numpy>=1.24.0
-sentence-transformers>=2.2.0
+# ============================================================================
+# Data Processing та Validation
+# ============================================================================
+pydantic>=2.7.0
+numpy>=1.26.0
 
-# Data processing
-pandas>=2.0.0
-pydantic>=2.0.0
+# ============================================================================
+# Configuration та Utilities
+# ============================================================================
+python-dotenv>=1.0.1
+pyyaml>=6.0.1
 
-# Monitoring and observability
-prometheus-client>=0.17.0
+# ============================================================================
+# Monitoring та Metrics
+# ============================================================================
+prometheus-client>=0.20.0
 
-# Configuration and utilities
-python-dotenv>=1.0.0
-pyyaml>=6.0.0
-click>=8.1.0
-
-# Development and testing
-pytest>=7.4.0
-pytest-asyncio>=0.21.0
-black>=23.0.0
-flake8>=6.0.0
-
-# macOS specific (optional, will be handled gracefully if not available)
+# ============================================================================
+# macOS Specific (опціональні)
+# ============================================================================
 py-applescript>=1.0.3; sys_platform == "darwin"
-appscript>=1.2.2; sys_platform == "darwin"
+pyobjc-core>=10.3.1; sys_platform == "darwin"
+pyobjc-framework-Cocoa>=10.3.1; sys_platform == "darwin"
+
+# ============================================================================
+# Ukrainian TTS (опціональний, локальний)
+# ============================================================================
+# Раскоментувати якщо потрібно:
+# ukrainian-tts>=1.0.0
