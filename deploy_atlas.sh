@@ -170,6 +170,24 @@ EOF
     
     pip install -r "$SCRIPT_DIR/requirements_complete.txt"
     
+    # Install Task Orchestrator in the virtual environment
+    log "Installing MCP Task Orchestrator..."
+    if [ -d "$SCRIPT_DIR/mcp-task-orchestrator" ]; then
+        cd "$SCRIPT_DIR/mcp-task-orchestrator"
+        pip install -e .
+        cd "$SCRIPT_DIR"
+        
+        # Verify Task Orchestrator installation
+        log "Verifying Task Orchestrator installation..."
+        python -c "from mcp_task_orchestrator.infrastructure.mcp.tool_definitions import get_all_tools; print('✅ Task Orchestrator ready!'); print(f'Available tools: {len(get_all_tools())}')" 2>/dev/null || {
+            log "${RED}❌ Task Orchestrator installation failed${NC}"
+            exit 1
+        }
+        log "${GREEN}✅ Task Orchestrator installed successfully${NC}"
+    else
+        log "${YELLOW}⚠️  mcp-task-orchestrator directory not found${NC}"
+    fi
+    
     log "${GREEN}✅ Python environment ready${NC}"
 else
     log "${YELLOW}⏭️  Skipping Python setup${NC}"

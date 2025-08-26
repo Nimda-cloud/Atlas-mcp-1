@@ -132,29 +132,40 @@ async def initialize_orchestrator():
             raise
 
 async def get_mcp_tools_registry() -> Dict[str, Any]:
-    """Отримати registry MCP інструментів з Atlas Core"""
+    """Отримати registry MCP інструментів з Atlas Core (порт 8000) або fallback."""
+    candidate_urls = [
+        "http://localhost:8000/tools",
+        "http://localhost:8000/status"
+    ]
     try:
-        # Спробуємо отримати tools registry з Atlas через HTTP API
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
-            async with session.get("http://localhost:8080/tools") as response:
-                if response.status == 200:
-                    data = await response.json()
-                    if data.get("tools"):
-                        logger.info(f"Retrieved tools registry from Atlas: {len(data['tools'])} services")
-                        return data["tools"]
-                        
-        # Fallback: використовуємо статичний registry
+            for url in candidate_urls:
+                try:
+                    async with session.get(url) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            if isinstance(data, dict):
+                                # /tools endpoint expected structure
+                                if "tools" in data and isinstance(data["tools"], dict):
+                                    logger.info(f"Retrieved tools registry from {url}: {len(data['tools'])} services")
+                                    return data["tools"]
+                                # /status might embed tools under mcp.tools
+                                mcp = data.get("mcp") if isinstance(data.get("mcp"), dict) else None
+                                if mcp and isinstance(mcp.get("tools"), dict):
+                                    logger.info(f"Extracted tools registry from status: {len(mcp['tools'])} services")
+                                    return mcp["tools"]
+                except Exception:
+                    continue
         logger.warning("Could not retrieve tools registry from Atlas, using fallback")
-        return {
-            "task-orchestrator": ["orchestrator_plan_task", "orchestrator_execute_task", "orchestrator_get_status"],
-            "automation": ["system_launch_app", "system_quit_app", "mouseClick", "type", "key"],
-            "tts": ["say_tts", "stop_tts"],
-            "playwright": ["browserNavigate", "browserClick", "browserType", "browserScreenshot"],
-            "applescript": ["run_applescript", "system_get_frontmost_app", "notifications_send_notification"]
-        }
     except Exception as e:
         logger.error(f"Error getting tools registry: {e}")
-        return {}
+    return {
+        "task-orchestrator": ["orchestrator_plan_task", "orchestrator_execute_task", "orchestrator_get_status"],
+        "automation": ["system_launch_app", "system_quit_app", "mouseClick", "type", "key"],
+        "tts": ["say_tts", "stop_tts"],
+        "playwright": ["browserNavigate", "browserClick", "browserType", "browserScreenshot"],
+        "applescript": ["run_applescript", "system_get_frontmost_app", "notifications_send_notification"]
+    }
 
 async def validate_execution_plan(plan: Dict[str, Any], tools_registry: Dict[str, Any]) -> Dict[str, Any]:
     """Валідуємо план виконання на відповідність registry інструментів"""
@@ -221,7 +232,13 @@ async def handle_plan_task_with_llm(parameters: Dict[str, Any]) -> Dict[str, Any
             for tool in tools:
                 capabilities_text += f"  - {tool}\n"
         
-        # Інтелектуальний планувальний prompt з конкретними інструментами
+        # Побудова переліку дозволених інструментів
+        all_available_tools = []
+        for service, tools in tools_registry.items():
+            all_available_tools.extend(tools)
+        allowed_tools_line = ", ".join(sorted(set(all_available_tools))) or "system_launch_app"
+
+        # Інтелектуальний планувальний prompt (заборона вигаданих інструментів)
         planning_prompt = f"""You are an intelligent task orchestrator with access to real MCP tools. 
 
 TASK: {task_description}
@@ -231,10 +248,12 @@ CONTEXT: {context}
 
 INSTRUCTIONS:
 1. Break down the task into 3-7 concrete subtasks
-2. For each subtask, specify the EXACT tool name from the registry above
+2. For each subtask, specify the EXACT tool name from the registry above (allowed tools ONLY): {allowed_tools_line}
+    - Do NOT invent tools. If no perfect match exists for launching an app use system_launch_app or run_applescript.
 3. Include tool parameters where possible
 4. Consider dependencies between subtasks
 5. Prioritize efficiency and reliability
+6. Reject any invented tool names (e.g. macos_run_shell_command) – they are invalid.
 
 RESPONSE FORMAT (JSON only):
 {{
@@ -402,7 +421,8 @@ async def list_tools():
 async def call_tool(request: dict):
     """Call a specific tool with enhanced intelligence"""
     try:
-        tool_name = request.get("name", "")
+        # Accept both 'name' (current) and legacy 'tool_name'
+        tool_name = request.get("name") or request.get("tool_name", "")
         parameters = request.get("parameters", {})
         
         logger.info(f"🔧 Intelligent tool call: {tool_name} with params: {parameters}")

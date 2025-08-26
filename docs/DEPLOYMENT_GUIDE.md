@@ -31,9 +31,10 @@ cd Atlas-mcp-1
 
 ## 📋 Встановлювані компоненти
 
-### 🐍 Python пакети (38+ пакетів)
+### 🐍 Python пакети (45+ пакетів)
 - **Atlas Core**: fastapi, uvicorn, aiohttp, ollama, prometheus-client
 - **MCP**: mcp, anthropic, openai  
+- **Task Orchestrator**: mcp-task-orchestrator (з 32 інструментами планування і виконання)
 - **TTS**: ukrainian-tts, gTTS
 - **Automation**: pyautogui, pynput, pyobjc
 - **AI/ML**: torch, transformers, numpy
@@ -145,6 +146,18 @@ brew install python@3.11 node go
 python3 -m venv atlas_venv
 source atlas_venv/bin/activate
 pip install -r requirements_complete.txt
+
+# Встановлення Task Orchestrator (обов'язково в віртуальному середовищі)
+cd mcp-task-orchestrator
+pip install -e .
+cd ..
+```
+
+### 3. Task Orchestrator перевірка
+```bash
+# Перевірка успішності встановлення
+source atlas_venv/bin/activate
+python -c "from mcp_task_orchestrator.infrastructure.mcp.tool_definitions import get_all_tools; print('✅ Task Orchestrator ready!'); print(f'Available tools: {len(get_all_tools())}')"
 ```
 
 ### 3. NPM залежності

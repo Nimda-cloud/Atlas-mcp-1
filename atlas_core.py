@@ -578,9 +578,10 @@ Provide ONLY the English translation as a clear, detailed task description that 
                 # 🔵 PHASE 4: LLM1 звітує про результати
                 final_report = await self.generate_final_report_llm1(cleaned_response, execution_results)
                 
-                # Озвучуємо фінальний звіт
+                # Озвучуємо фінальний звіт з покращеним TTS
                 try:
-                    await self.call_mcp_tool_via_proxy("say_tts", {"text": final_report})
+                    tts_result = await self.enhanced_tts_call(final_report)
+                    logger.info(f"🔊 TTS result: {tts_result.get('method', 'unknown')}")
                 except Exception as e:
                     logger.warning(f"TTS failed: {e}")
                 
@@ -589,7 +590,8 @@ Provide ONLY the English translation as a clear, detailed task description that 
             else:
                 # Простий діалог без виконання дій
                 try:
-                    await self.call_mcp_tool_via_proxy("say_tts", {"text": cleaned_response})
+                    tts_result = await self.enhanced_tts_call(cleaned_response)
+                    logger.info(f"🔊 TTS result: {tts_result.get('method', 'unknown')}")
                 except Exception as e:
                     logger.warning(f"TTS failed: {e}")
                 
@@ -843,6 +845,23 @@ Provide ONLY the English translation as a clear, detailed task description that 
                 
                 task_data = plan_result.get("task_data", {})
                 subtasks = task_data.get("subtasks", [])
+
+                # Normalize service casing in subtasks (LLM may upper-case services)
+                service_key_map = {s.lower(): s for s in available_tools.keys()}  # existing services
+                for st in subtasks:
+                    svc = st.get("tool_service")
+                    if isinstance(svc, str) and svc:
+                        lower = svc.lower()
+                        if lower in service_key_map:
+                            st["tool_service"] = service_key_map[lower]
+                        else:
+                            # If not mapped, try to detect service by tool membership
+                            tname = st.get("tool_name")
+                            if tname:
+                                for svc_name, tools_list in available_tools.items():
+                                    if tname in tools_list:
+                                        st["tool_service"] = svc_name
+                                        break
                 
                 # Перевіряємо план на валідність
                 validation_result = await self._validate_plan_against_registry(task_data, available_tools)
@@ -1558,6 +1577,131 @@ Provide ONLY the English translation as a clear, detailed task description that 
             logger.error(f"Помилка ініціалізації MCP proxy: {e}")
             return False
 
+    async def enhanced_tts_call(self, text: str, voice: str = "mykyta", lang: str = "uk") -> dict:
+        """
+        Покращений TTS з інтелектуальною ієрархією fallback:
+        1. 🇺🇦 Ukrainian TTS (локальний)
+        2. 🌐 Google TTS API  
+        3. 📻 Google gTTS
+        4. 🔊 System say
+        5. 📝 Text fallback
+        """
+        if not text.strip():
+            return {"success": False, "error": "Empty text", "method": "none"}
+        
+        logger.info(f"🎤 Enhanced TTS: '{text[:50]}...'")
+        
+        # 1️⃣ Спробуємо стандартний MCP TTS
+        try:
+            result = await self.call_mcp_tool_via_proxy("say_tts", {"text": text, "voice": voice}, _internal_call=True)
+            if result.get("success"):
+                return {"success": True, "method": "mcp_ukrainian", "text": text}
+        except Exception as e:
+            logger.warning(f"MCP TTS failed: {e}")
+        
+        # 2️⃣ Google TTS API fallback (якщо є ключ)
+        google_api_key = os.getenv('GOOGLE_TTS_API_KEY')
+        if google_api_key:
+            try:
+                import requests
+                import base64
+                import tempfile
+                
+                url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={google_api_key}"
+                
+                payload = {
+                    "input": {"text": text},
+                    "voice": {"languageCode": "uk-UA", "name": "uk-UA-Standard-A"},
+                    "audioConfig": {"audioEncoding": "MP3"}
+                }
+                
+                response = requests.post(url, json=payload, timeout=10)
+                
+                if response.status_code == 200:
+                    response_data = response.json()
+                    if "audioContent" in response_data:
+                        # Декодуємо base64 і відтворюємо
+                        audio_data = base64.b64decode(response_data["audioContent"])
+                        
+                        with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_file:
+                            temp_file.write(audio_data)
+                            temp_path = temp_file.name
+                        
+                        # Використовуємо pygame або системний плеєр
+                        try:
+                            import pygame
+                            pygame.mixer.init()
+                            pygame.mixer.music.load(temp_path)
+                            pygame.mixer.music.play()
+                            
+                            while pygame.mixer.music.get_busy():
+                                await asyncio.sleep(0.1)
+                                
+                            os.unlink(temp_path)
+                            return {"success": True, "method": "google_api", "text": text}
+                        except:
+                            # Fallback на afplay (macOS)
+                            import subprocess
+                            subprocess.run(['afplay', temp_path])
+                            os.unlink(temp_path)
+                            return {"success": True, "method": "google_api_afplay", "text": text}
+                            
+            except Exception as e:
+                logger.warning(f"Google TTS API failed: {e}")
+        
+        # 3️⃣ Google gTTS fallback
+        try:
+            from gtts import gTTS
+            import tempfile
+            
+            tts = gTTS(text=text, lang=lang, slow=False)
+            
+            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_file:
+                temp_path = temp_file.name
+            
+            tts.save(temp_path)
+            
+            try:
+                import pygame
+                pygame.mixer.init()
+                pygame.mixer.music.load(temp_path)
+                pygame.mixer.music.play()
+                
+                while pygame.mixer.music.get_busy():
+                    await asyncio.sleep(0.1)
+                    
+                os.unlink(temp_path)
+                return {"success": True, "method": "google_gtts", "text": text}
+            except:
+                # Fallback на системний плеєр
+                import subprocess
+                subprocess.run(['afplay', temp_path])
+                os.unlink(temp_path)
+                return {"success": True, "method": "google_gtts_afplay", "text": text}
+                
+        except Exception as e:
+            logger.warning(f"Google gTTS failed: {e}")
+        
+        # 4️⃣ System say fallback
+        try:
+            process = await asyncio.create_subprocess_exec(
+                'say', text,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            await process.communicate()
+            
+            if process.returncode == 0:
+                return {"success": True, "method": "system_say", "text": text}
+        except Exception as e:
+            logger.warning(f"System say failed: {e}")
+        
+        # 5️⃣ Крайня заглушка - текстовий вивід
+        logger.warning(f"📝 All TTS failed, text output: {text}")
+        print(f"🔊 TTS: {text}")
+        return {"success": True, "method": "text_fallback", "text": text}
+
     async def call_mcp_tool_via_proxy(self, tool_name: str, args: dict, _internal_call: bool = False):
         """Call MCP tool through proxy with error handling and logging"""
         if not hasattr(self, 'mcp_proxy_url'):
@@ -2188,19 +2332,26 @@ REJECT if task involves:
     async def call_task_orchestrator_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Call a tool on the task orchestrator MCP server"""
         try:
-            # Check if task orchestrator is configured
-            if "task-orchestrator" not in self.mcp_endpoints and "orchestrator" not in self.mcp_endpoints:
-                logger.error("Task orchestrator not configured in MCP endpoints")
-                return {"success": False, "error": "Task orchestrator not available"}
+            # Try direct connection to Task Orchestrator first (bypass MCP Proxy issues)
+            direct_endpoint = "http://localhost:4006"
             
-            # Get the endpoint
-            endpoint_name = "task-orchestrator" if "task-orchestrator" in self.mcp_endpoints else "orchestrator"
-            endpoint = self.mcp_endpoints[endpoint_name]["base_url"]
+            # Check if task orchestrator is configured in MCP endpoints, otherwise use direct
+            if "task-orchestrator" in self.mcp_endpoints:
+                endpoint_name = "task-orchestrator"
+                endpoint = self.mcp_endpoints[endpoint_name]["base_url"]
+            elif "orchestrator" in self.mcp_endpoints:
+                endpoint_name = "orchestrator" 
+                endpoint = self.mcp_endpoints[endpoint_name]["base_url"]
+            else:
+                # Use direct connection as fallback
+                logger.info("Task orchestrator not in MCP endpoints, using direct connection")
+                endpoint = direct_endpoint
             
             # Prepare the request
             url = f"{endpoint}/call_tool"
+            # API contract: orchestrator HTTP server expects 'name'; previous internal draft used 'tool_name'
             payload = {
-                "tool_name": tool_name,
+                "name": tool_name,
                 "parameters": parameters
             }
             
@@ -2212,7 +2363,17 @@ REJECT if task involves:
                     if response.status == 200:
                         result = await response.json()
                         logger.info(f"🟠 [Task Orchestrator] Tool {tool_name} success: {result}")
-                        return {"success": True, **result}
+                        
+                        # Handle both list and dict responses from Task Orchestrator
+                        if isinstance(result, list) and len(result) > 0:
+                            result = result[0]  # Take first element if it's a list
+                        
+                        if isinstance(result, dict):
+                            # Derive success more intelligently: if explicit success provided use it; else infer from absence of error
+                            inferred_success = result.get("success") if "success" in result else ("error" not in result)
+                            return {"success": inferred_success, **result}
+                        else:
+                            return {"success": True, "result": result}
                     else:
                         error_text = await response.text()
                         logger.error(f"🟠 [Task Orchestrator] Tool {tool_name} failed: {response.status} {error_text}")
