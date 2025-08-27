@@ -5,10 +5,11 @@ This module provides a centralized interface for managing operational,
 vector, and graph databases in the task orchestrator.
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, cast
 import logging
 from datetime import datetime
 import asyncio
+import os
 
 from .base import DatabaseAdapter, DatabaseType, OperationalDatabaseAdapter, VectorDatabaseAdapter, GraphDatabaseAdapter
 from .adapters import DatabaseAdapterFactory
@@ -48,6 +49,19 @@ class UnifiedDatabaseManager:
                     }
                 }
         """
+        # Override config with environment variables if available
+        if "graph" in config:
+            neo4j_uri = os.getenv("NEO4J_URI")
+            neo4j_user = os.getenv("NEO4J_USER") 
+            neo4j_password = os.getenv("NEO4J_PASSWORD")
+            
+            if neo4j_uri:
+                config["graph"]["url"] = neo4j_uri
+            if neo4j_user:
+                config["graph"]["username"] = neo4j_user
+            if neo4j_password:
+                config["graph"]["password"] = neo4j_password
+                
         self.config = config
         self._adapters: Dict[DatabaseType, DatabaseAdapter] = {}
         self._initialized = False
@@ -127,17 +141,20 @@ class UnifiedDatabaseManager:
     @property
     def operational(self) -> Optional[OperationalDatabaseAdapter]:
         """Get the operational database adapter."""
-        return self._adapters.get(DatabaseType.OPERATIONAL)
+        adapter = self._adapters.get(DatabaseType.OPERATIONAL)
+        return cast(Optional[OperationalDatabaseAdapter], adapter)
     
     @property
     def vector(self) -> Optional[VectorDatabaseAdapter]:
         """Get the vector database adapter."""
-        return self._adapters.get(DatabaseType.VECTOR)
+        adapter = self._adapters.get(DatabaseType.VECTOR)
+        return cast(Optional[VectorDatabaseAdapter], adapter)
     
     @property
     def graph(self) -> Optional[GraphDatabaseAdapter]:
         """Get the graph database adapter."""
-        return self._adapters.get(DatabaseType.GRAPH)
+        adapter = self._adapters.get(DatabaseType.GRAPH)
+        return cast(Optional[GraphDatabaseAdapter], adapter)
     
     def has_database(self, db_type: DatabaseType) -> bool:
         """Check if a database type is available."""
