@@ -318,6 +318,10 @@ class AtlasCore:
 
         # Initialize subsystems
         self.setup_agents()
+        
+        # Налаштування голосової системи
+        self.current_tts_mode = "ukrainian"  # "ukrainian" або "google"
+        self.current_voice = "male"          # "male" або "female"
         self.setup_web_interface()
         if self.mcp_proxy_mode:
             logger.info("Atlas MCP Proxy mode enabled (Variant B)")
@@ -587,6 +591,10 @@ class AtlasCore:
         logger.info(f"🔵 [LLM1] Received user message: {repr(message)}")
         
         try:
+            # 🎤 PHASE 0: Перевірка команд зміни голосу
+            if await self._check_voice_change_command(message):
+                return await self._handle_voice_change(message)
+            
             # 🔵 PHASE 1: LLM1 - Interface Agent (Ukrainian communication)
             llm1_context = """Ти - LLM1 (Interface Agent) системи Atlas. 
 Твоя роль: спілкуватися з користувачем ТІЛЬКИ українською мовою і звітувати про стан.
@@ -1673,18 +1681,30 @@ Provide ONLY the English translation as a clear, detailed task description that 
 
     async def enhanced_tts_call(self, text: str, voice: str = "mykyta", lang: str = "uk") -> dict:
         """
-        Покращений TTS з інтелектуальною ієрархією fallback:
-        1. 🇺🇦 Ukrainian TTS (локальний)
-        2. 🌐 Google TTS API  
-        3. 📻 Google gTTS
-        4. 🔊 System say
-        5. 📝 Text fallback
+        Покращений TTS з інтелектуальною ієрархією fallback та підтримкою вибору голосу:
+        Використовує поточні налаштування self.current_tts_mode та self.current_voice
         """
         if not text.strip():
             return {"success": False, "error": "Empty text", "method": "none"}
         
-        logger.info(f"🎤 Enhanced TTS: '{text[:50]}...'")
+        logger.info(f"🎤 Enhanced TTS ({self.current_tts_mode}-{self.current_voice}): '{text[:50]}...'")
         
+        # Використовуємо поточний режим голосу
+        if self.current_tts_mode == "google" and self.current_voice == "female":
+            try:
+                await self._enhanced_tts_google_female(text)
+                return {"success": True, "method": "google_female", "text": text}
+            except Exception as e:
+                logger.warning(f"Google female TTS failed: {e}")
+        
+        elif self.current_tts_mode == "ukrainian" and self.current_voice == "male":
+            try:
+                await self._enhanced_tts_ukrainian_male(text)
+                return {"success": True, "method": "ukrainian_male", "text": text}
+            except Exception as e:
+                logger.warning(f"Ukrainian male TTS failed: {e}")
+        
+        # Fallback до стандартного TTS
         # 1️⃣ Спробуємо стандартний MCP TTS
         try:
             result = await self.call_mcp_tool_via_proxy("say_tts", {"text": text, "voice": voice}, _internal_call=True)
@@ -1812,32 +1832,54 @@ Provide ONLY the English translation as a clear, detailed task description that 
         """Execute non-TTS tools via MCP proxy"""
         try:
             _lat_start = time.perf_counter()
-            # Determine service and route based on tool
+            # Determine service and route based on tool - map to actual MCP service names
             service_map = {
-                "mouseClick": "automation",
-                "mouseMove": "automation", 
-                "screenshot": "automation",
-                "type": "automation",
-                "keyControl": "automation",
-                "systemCommand": "automation",
-                "run_applescript": "applescript",
-                "system_launch_app": "applescript",
-                "system_quit_app": "applescript",
-                "browser_navigate": "playwright",
-                "browser_click": "playwright",
-                "browser_type": "playwright",
-                "browser_screenshot": "playwright"
+                "mouseClick": "atlas-automation-mcp",
+                "mouseMove": "atlas-automation-mcp", 
+                "screenshot": "atlas-automation-mcp",
+                "type": "atlas-automation-mcp",
+                "keyControl": "atlas-automation-mcp",
+                "systemCommand": "atlas-automation-mcp",
+                "read_file": "atlas-automation-mcp",
+                "write_file": "atlas-automation-mcp",
+                "system_launch_app": "atlas-automation-mcp",
+                "system_quit_app": "atlas-automation-mcp",
+                "run_applescript": "atlas-applescript-mcp",
+                "calendar_add": "atlas-applescript-mcp",
+                "clipboard_set_clipboard": "atlas-applescript-mcp",
+                "finder_get_selected_files": "atlas-applescript-mcp",
+                "notifications_send_notification": "atlas-applescript-mcp",
+                "system_volume": "atlas-applescript-mcp",
+                "browserClick": "atlas-playwright-better",
+                "browserType": "atlas-playwright-better",
+                "browserNavigate": "atlas-playwright-better",
+                "browserHover": "atlas-playwright-better",
+                "getScreenshot": "atlas-playwright-better",
+                "createPage": "atlas-playwright-better",
+                "closePage": "atlas-playwright-better",
+                # Task orchestrator tools
+                "orchestrator_initialize_session": "atlas-task-orchestrator",
+                "orchestrator_plan_task": "atlas-task-orchestrator",
+                "orchestrator_execute_task": "atlas-task-orchestrator",
+                "template_create": "atlas-task-orchestrator",
+                "template_list": "atlas-task-orchestrator"
             }
             
-            service = service_map.get(tool_name, "automation")  # Default to automation
+            service = service_map.get(tool_name, "atlas-automation-mcp")  # Default to automation
             
-            # Build proxy URL
+            # Build proxy URL with proper MCP service name
             url = f"{self.mcp_proxy_url.rstrip('/')}/{service}/{tool_name}"
             
             logger.info(f"🔧 [PROXY] Calling {service}/{tool_name} via {url}")
             
+            # Add authorization token for MCP proxy
+            headers = {
+                "Authorization": "Bearer atlas-default-token",
+                "Content-Type": "application/json"
+            }
+            
             timeout = aiohttp.ClientTimeout(total=30)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
                 async with session.post(url, json=args) as response:
                     if response.status == 200:
                         result = await response.json()
@@ -1851,7 +1893,7 @@ Provide ONLY the English translation as a clear, detailed task description that 
                         }
                     else:
                         error_text = await response.text()
-                        logger.error(f"❌ [PROXY] {tool_name} failed: HTTP {response.status}")
+                        logger.error(f"❌ [PROXY] {tool_name} failed: HTTP {response.status} - {error_text}")
                         self._record_latency(service, _lat_start, error=True, last_error=f"HTTP {response.status}")
                         return {
                             "status": "error", 
@@ -2323,7 +2365,145 @@ Provide ONLY the English translation as a clear, detailed task description that 
                 logger.error(f"Failed to initialize MCP tools discovery: {e}")
                 self.mcp_tools_cache = {}
     
-    # ======= ДОПОМІЖНІ МЕТОДИ ДЛЯ НОВОЇ АРХІТЕКТУРИ =======
+    # ======= НОВІ МЕТОДИ ДЛЯ ОБРОБКИ ГОЛОСОВИХ КОМАНД =======
+    
+    async def _check_voice_change_command(self, message: str) -> bool:
+        """Перевіряє чи є в повідомленні команда зміни голосу"""
+        voice_keywords = [
+            "зміни голос", "змінити голос", "поміняй голос", "смени голос",
+            "change voice", "поставь голос", "встанови голос"
+        ]
+        
+        # Окремо перевіряємо прямі команди вибору голосу
+        direct_voice_commands = [
+            "жіночий голос", "чоловічий голос", "женский голос", "мужской голос",
+            "female voice", "male voice"
+        ]
+        
+        message_lower = message.lower().strip()
+        
+        # Перевіряємо чи це команда зміни голосу
+        has_change_command = any(keyword in message_lower for keyword in voice_keywords)
+        
+        # Або це пряма команда вибору голосу (і не просто згадка)
+        is_direct_voice_command = any(
+            message_lower.startswith(cmd) or message_lower.endswith(cmd) or 
+            message_lower == cmd for cmd in direct_voice_commands
+        )
+        
+        return has_change_command or is_direct_voice_command
+    
+    async def _handle_voice_change(self, message: str) -> str:
+        """Обробляє команду зміни голосу"""
+        try:
+            message_lower = message.lower()
+            
+            # Визначаємо тип голосу та TTS движок
+            if any(word in message_lower for word in ["жіночий", "женский", "female"]):
+                # Жіночий голос - використовуємо Google TTS
+                self.current_tts_mode = "google"
+                self.current_voice = "female"
+                response = "🎤 Змінюю на жіночий голос через Google TTS"
+                
+                # Тестуємо новий голос
+                await self._test_voice_google_female()
+                
+            elif any(word in message_lower for word in ["чоловічий", "мужской", "male"]):
+                # Чоловічий голос - використовуємо українську локальну модель
+                self.current_tts_mode = "ukrainian"
+                self.current_voice = "male"
+                response = "🎤 Змінюю на чоловічий голос через українську модель"
+                
+                # Тестуємо новий голос
+                await self._test_voice_ukrainian_male()
+                
+            else:
+                response = "🎤 Не зрозумів який голос. Скажіть 'жіночий голос' або 'чоловічий голос'"
+            
+            logger.info(f"🎤 Voice change: {self.current_tts_mode} - {self.current_voice}")
+            return response
+            
+        except Exception as e:
+            logger.error(f"Voice change error: {e}")
+            return "❌ Помилка при зміні голосу"
+    
+    async def _test_voice_google_female(self):
+        """Тестує жіночий голос Google TTS"""
+        try:
+            await self._enhanced_tts_google_female("Тепер я говорю жіночим голосом через Google")
+        except Exception as e:
+            logger.error(f"Google female voice test failed: {e}")
+    
+    async def _test_voice_ukrainian_male(self):
+        """Тестує чоловічий голос українська модель"""
+        try:
+            await self._enhanced_tts_ukrainian_male("Тепер я говорю чоловічим голосом через українську модель")
+        except Exception as e:
+            logger.error(f"Ukrainian male voice test failed: {e}")
+    
+    async def _enhanced_tts_google_female(self, text: str):
+        """Використовує Google TTS з жіночим голосом"""
+        google_api_key = os.getenv('GOOGLE_TTS_API_KEY')
+        if google_api_key:
+            try:
+                import requests
+                import base64
+                import tempfile
+                
+                url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={google_api_key}"
+                
+                payload = {
+                    "input": {"text": text},
+                    "voice": {"languageCode": "uk-UA", "name": "uk-UA-Standard-A", "ssmlGender": "FEMALE"},
+                    "audioConfig": {"audioEncoding": "MP3"}
+                }
+                
+                response = requests.post(url, json=payload, timeout=10)
+                
+                if response.status_code == 200:
+                    response_data = response.json()
+                    if "audioContent" in response_data:
+                        audio_data = base64.b64decode(response_data["audioContent"])
+                        
+                        with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_file:
+                            temp_file.write(audio_data)
+                            temp_path = temp_file.name
+                        
+                        try:
+                            import pygame
+                            pygame.mixer.init()
+                            pygame.mixer.music.load(temp_path)
+                            pygame.mixer.music.play()
+                            
+                            while pygame.mixer.music.get_busy():
+                                await asyncio.sleep(0.1)
+                                
+                            os.unlink(temp_path)
+                        except:
+                            import subprocess
+                            subprocess.run(['afplay', temp_path])
+                            os.unlink(temp_path)
+                            
+            except Exception as e:
+                logger.error(f"Google female TTS failed: {e}")
+                # Fallback на системний голос
+                import subprocess
+                subprocess.run(['say', '-v', 'Oksana', text])
+        else:
+            # Без API ключа - використовуємо системний голос
+            import subprocess
+            subprocess.run(['say', '-v', 'Oksana', text])
+    
+    async def _enhanced_tts_ukrainian_male(self, text: str):
+        """Використовує українську локальну модель з чоловічим голосом"""
+        try:
+            result = await self.call_mcp_tool_via_proxy("say_tts", {"text": text, "voice": "mykyta"}, _internal_call=True)
+            if not result.get("success"):
+                logger.error(f"Ukrainian male TTS failed - no fallback")
+        except Exception as e:
+            logger.error(f"Ukrainian male TTS failed: {e}")
+    
+    # ======= КІНЕЦЬ НОВИХ МЕТОДІВ =======
     
     async def security_check_llm3(self, task: str) -> Dict[str, Any]:
         """🔴 LLM3 - ТИМЧАСОВО ВИМКНЕНА перевірка безпеки (ВСІ КОМАНДИ ДОЗВОЛЕНІ)"""
