@@ -48,6 +48,37 @@ else
     exit 1
 fi
 
+# Check and install Neo4j if needed
+echo -e "${YELLOW}🗄️ Checking Neo4j installation...${NC}"
+if ! command -v neo4j &> /dev/null; then
+    echo -e "${YELLOW}📦 Neo4j not found. Installing via Homebrew...${NC}"
+    if command -v brew &> /dev/null; then
+        brew install neo4j
+        echo -e "${GREEN}✅ Neo4j installed successfully${NC}"
+    else
+        echo -e "${RED}❌ Homebrew not found. Please install Neo4j manually:${NC}"
+        echo "  1. Install Homebrew: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+        echo "  2. Install Neo4j: brew install neo4j"
+        exit 1
+    fi
+else
+    echo -e "${GREEN}✅ Neo4j already installed${NC}"
+fi
+
+# Start Neo4j service if not running
+echo -e "${YELLOW}🔧 Checking Neo4j service...${NC}"
+if ! brew services list | grep neo4j | grep -q started; then
+    echo -e "${YELLOW}🚀 Starting Neo4j service...${NC}"
+    brew services start neo4j
+    echo -e "${GREEN}✅ Neo4j service started${NC}"
+    
+    # Wait for Neo4j to start
+    echo -e "${YELLOW}⏳ Waiting for Neo4j to initialize...${NC}"
+    sleep 10
+else
+    echo -e "${GREEN}✅ Neo4j service already running${NC}"
+fi
+
 # Validate key imports
 echo -e "${YELLOW}🔍 Validating key imports...${NC}"
 python3 -c "

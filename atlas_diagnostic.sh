@@ -46,7 +46,49 @@ echo ""
 
 # 2. Перевірка портів
 echo_info "=== 🌐 SERVICE PORT CHECK ==="
-ports=("8000:Atlas Core" "4006:Task Orchestrator" "9090:MCP Proxy" "8080:3D Viewer")
+ports=("8000:Atlas Core" "4006:Task Orchestrator" "9090:MCP Proxy" "8080:3D Viewer" "7687:Neo4j")
+
+for port_info in "${ports[@]}"; do
+    port=$(echo $port_info | cut -d: -f1)
+    service=$(echo $port_info | cut -d: -f2)
+    
+    if lsof -i :$port > /dev/null 2>&1; then
+        echo_success "Port $port ($service) - ACTIVE"
+    else
+        echo_warning "Port $port ($service) - NOT ACTIVE"
+    fi
+done
+echo ""
+
+# 3. Neo4j перевірка
+echo_info "=== 🗄️ NEO4J DATABASE CHECK ==="
+if command -v neo4j &> /dev/null; then
+    echo_success "Neo4j binary found: $(which neo4j)"
+    
+    # Перевірка сервісу Neo4j
+    if brew services list | grep neo4j | grep -q started; then
+        echo_success "Neo4j service - RUNNING"
+        
+        # Тест підключення
+        if command -v cypher-shell &> /dev/null; then
+            echo_info "Testing Neo4j connectivity..."
+            if cypher-shell -u neo4j -p neo4j "MATCH (n) RETURN count(n) as node_count" 2>/dev/null; then
+                echo_success "Neo4j connectivity - OK"
+            else
+                echo_warning "Neo4j connectivity - Failed (may need password setup)"
+            fi
+        else
+            echo_warning "cypher-shell not found - cannot test connectivity"
+        fi
+    else
+        echo_warning "Neo4j service - NOT RUNNING"
+        echo_info "To start: brew services start neo4j"
+    fi
+else
+    echo_error "Neo4j not installed"
+    echo_info "To install: brew install neo4j"
+fi
+echo ""
 
 for port_info in "${ports[@]}"; do
     port=$(echo $port_info | cut -d':' -f1)

@@ -171,6 +171,33 @@ if [ ! -f "$ATLAS_DIR/task_orchestrator_http_server.py" ]; then
     exit 1
 fi
 
+# Валідація Neo4j
+info "🗄️ Перевірка Neo4j..."
+if ! command -v neo4j &> /dev/null; then
+    warn "Neo4j не знайдено. Запускаємо setup_environment.sh..."
+    if [ -f "$ATLAS_DIR/setup_environment.sh" ]; then
+        "$ATLAS_DIR/setup_environment.sh"
+    else
+        error "Neo4j не встановлено і setup_environment.sh не знайдено"
+        info "Встановіть Neo4j вручну: brew install neo4j"
+        exit 1
+    fi
+fi
+
+# Перевірка чи працює Neo4j
+if ! brew services list | grep neo4j | grep -q started; then
+    info "🚀 Запускаємо Neo4j сервіс..."
+    brew services start neo4j
+    sleep 5
+    if ! brew services list | grep neo4j | grep -q started; then
+        warn "Neo4j не запустився, Task Orchestrator може працювати з обмеженнями"
+    else
+        info "✅ Neo4j запущено успішно"
+    fi
+else
+    info "✅ Neo4j вже працює"
+fi
+
 # Очищення
 clean_processes
 
