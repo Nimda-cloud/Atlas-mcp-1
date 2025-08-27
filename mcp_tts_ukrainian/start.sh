@@ -17,7 +17,7 @@ source "$VENV_PATH/bin/activate"
 
 # Установка залежностей
 echo "📦 Installing Ukrainian TTS dependencies..."
-pip install -q ukrainian-tts[all] gtts pygame mcp fastapi uvicorn requests pydantic aiofiles
+pip install -q ukrainian-tts torch torchaudio gtts pygame mcp requests aiofiles numpy soundfile
 
 # Запуск MCP сервера
 echo "🎙️ Starting Ukrainian TTS MCP Server..."

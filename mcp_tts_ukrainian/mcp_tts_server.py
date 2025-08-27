@@ -42,12 +42,50 @@ class UkrainianTTSEngine:
     def _init_ukrainian_tts(self):
         """Ініціалізація українського TTS"""
         try:
-            from ukrainian_tts.tts import TTS
-            self.ukrainian_tts = TTS(device='cpu')  # Використовуємо CPU для сумісності
-            logger.info("✅ Ukrainian TTS initialized successfully")
+            # Спробуємо різні варіанти ініціалізації
+            logger.info("Trying Ukrainian TTS initialization...")
+            
+            # Варіант 1: Сучасний API з TTS класом
+            try:
+                from ukrainian_tts.tts import TTS
+                self.ukrainian_tts = TTS(device='cpu')
+                self.voices = None  # Не використовуємо Voices enum через помилки
+                logger.info("✅ Ukrainian TTS (modern API) initialized successfully")
+                return
+            except Exception as e1:
+                logger.debug(f"Modern API failed: {e1}")
+            
+            # Варіант 2: Прямий імпорт функцій
+            try:
+                from ukrainian_tts import tts as ukrainian_tts_func
+                self.ukrainian_tts_func = ukrainian_tts_func
+                self.ukrainian_tts = True  # Флаг що система доступна
+                self.voices = None
+                logger.info("✅ Ukrainian TTS (function API) initialized successfully")
+                return
+            except Exception as e2:
+                logger.debug(f"Function API failed: {e2}")
+                
+            # Варіант 3: Модульний імпорт
+            try:
+                import ukrainian_tts
+                self.ukrainian_tts_module = ukrainian_tts
+                self.ukrainian_tts = True
+                self.voices = None
+                logger.info("✅ Ukrainian TTS (module API) initialized successfully")
+                return
+            except Exception as e3:
+                logger.debug(f"Module API failed: {e3}")
+            
+            # Якщо всі варіанти не спрацювали
+            raise Exception("All Ukrainian TTS initialization methods failed")
+            
         except Exception as e:
             logger.warning(f"⚠️ Ukrainian TTS initialization failed: {e}")
             self.ukrainian_tts = None
+            self.ukrainian_tts_func = None
+            self.ukrainian_tts_module = None
+            self.voices = None
     
     def _init_pygame(self):
         """Ініціалізація pygame для відтворення звуку"""
@@ -80,8 +118,60 @@ class UkrainianTTSEngine:
                 temp_path = temp_file.name
             
             # Генерація через ukrainian-tts з правильними параметрами
-            with open(temp_path, 'wb') as output_file:
-                self.ukrainian_tts.tts(text, voice, "dictionary", output_file)
+            logger.info(f"🎙️ Generating speech with voice: {voice}")
+            
+            try:
+                # Перевіряємо який тип API доступний
+                if hasattr(self, 'ukrainian_tts_func'):
+                    # Функціональний API
+                    logger.debug("Using functional API")
+                    with open(temp_path, 'wb') as output_file:
+                        self.ukrainian_tts_func(text, voice, output_file)
+                        
+                elif hasattr(self, 'ukrainian_tts_module'):
+                    # Модульний API  
+                    logger.debug("Using module API")
+                    with open(temp_path, 'wb') as output_file:
+                        self.ukrainian_tts_module.tts(text, voice, output_file)
+                        
+                elif hasattr(self.ukrainian_tts, 'tts'):
+                    # Сучасний API (з TTS класом)
+                    logger.debug("Using class API")
+                    with open(temp_path, 'wb') as output_file:
+                        # Спробуємо різні варіанти параметрів
+                        try:
+                            # Спочатку спробуємо з stress="dictionary"
+                            self.ukrainian_tts.tts(text, voice, "dictionary", output_file)
+                        except Exception as e:
+                            logger.debug(f"Dictionary stress failed: {e}")
+                            try:
+                                # Спробуємо з stress="model"
+                                self.ukrainian_tts.tts(text, voice, "model", output_file)
+                            except Exception as e2:
+                                logger.debug(f"Model stress failed: {e2}")
+                                # Спробуємо без stress параметра
+                                self.ukrainian_tts.tts(text, voice, output_file)
+                            
+                elif hasattr(self.ukrainian_tts, 'inference'):
+                    # Використання inference методу
+                    logger.debug("Using inference API")
+                    audio = self.ukrainian_tts.inference(text, voice=voice)
+                    # Збереження аудіо у файл
+                    import torchaudio
+                    torchaudio.save(temp_path, audio, 22050)
+                else:
+                    # Fallback до Google TTS
+                    logger.warning("Ukrainian TTS API incompatible, using Google TTS")
+                    return await self.speak_google(text, lang='uk')
+            
+            except Exception as api_error:
+                logger.warning(f"Ukrainian TTS API error: {api_error}, trying fallback")
+                return await self.speak_google(text, lang='uk')
+            
+            # Перевірка, чи файл створено
+            if not Path(temp_path).exists() or Path(temp_path).stat().st_size == 0:
+                logger.warning("Ukrainian TTS produced empty file, using Google TTS")
+                return await self.speak_google(text, lang='uk')
             
             # Відтворення
             if self.pygame_initialized:
@@ -100,6 +190,11 @@ class UkrainianTTSEngine:
             
         except Exception as e:
             logger.error(f"❌ Ukrainian TTS failed: {e}")
+            # Очищення файлу у разі помилки
+            try:
+                Path(temp_path).unlink(missing_ok=True)
+            except:
+                pass
             return await self.speak_google(text, lang='uk')
     
     async def speak_google(self, text: str, lang: str = 'uk') -> bool:
