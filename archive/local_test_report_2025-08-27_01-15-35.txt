@@ -1,0 +1,118 @@
+Local GitHub Actions Test Report
+===============================
+Generated: Wed Aug 27 01:15:35 EEST 2025
+Hostname: DEVs-Mac-Studio.local
+echo ""
+
+# FINAL ANALYSIS
+echo_header "=== 📊 SIMULATION SUMMARY & ANALYSIS ==="
+
+# Підрахунок загальної успішності
+total_checks=12
+passed_checks=0
+
+# Базові перевірки
+[ -d "atlas_venv" ] && ((passed_checks++))
+[ -f "config.yaml" ] && ((passed_checks++))
+[ -f "comprehensive_atlas_tool_tester.py" ] && ((passed_checks++))
+curl -f http://localhost:8000/status > /dev/null 2>&1 && ((passed_checks++))
+curl -f http://localhost:4006/health > /dev/null 2>&1 && ((passed_checks++))
+nc -z localhost 9090 2>/dev/null && ((passed_checks++))
+[ -f ".github/workflows/test-and-merge.yml" ] && ((passed_checks++))
+[ -f ".github/workflows/validate-system.yml" ] && ((passed_checks++))
+[ -f ".github/workflows/daily-health-check.yml" ] && ((passed_checks++))
+[ -f ".github/workflows/pr-validation.yml" ] && ((passed_checks++))
+[ -f "manage_github_runner.sh" ] && ((passed_checks++))
+[ -f "atlas_diagnostic.sh" ] && ((passed_checks++))
+
+success_rate=
+
+echo_step "Local Test Results"
+echo "╔════════════════════════════════════════════════════════════════╗"
+echo "║                    🎯 TEST RESULTS SUMMARY                    ║"
+echo "╠════════════════════════════════════════════════════════════════╣"
+echo "║ Local Tests Passed: / (100.0%%)                          ║"
+echo "║                                                                ║"
+if [  -ge 10 ]; then
+    echo "║ Status: ✅ EXCELLENT - Ready for GitHub Actions deployment    ║"
+elif [  -ge 8 ]; then
+    echo "║ Status: ⚠️  GOOD - Minor issues to resolve                    ║"
+elif [  -ge 6 ]; then
+    echo "║ Status: ⚠️  FAIR - Several issues need attention             ║"
+else
+    echo "║ Status: ❌ POOR - Major issues require fixing                 ║"
+fi
+echo "╚════════════════════════════════════════════════════════════════╝"
+
+echo ""
+echo_step "GitHub Actions Readiness Assessment"
+
+workflow_count=4
+runner_status=RUNNING
+
+echo "• Workflow Files: /4 workflows configured"
+echo "• Self-hosted Runner: "
+echo "• Test Coverage: COMPREHENSIVE"
+echo "• Diagnostic Tools: AVAILABLE"
+
+echo ""
+echo_step "Recommended Next Actions"
+
+if [  -ge 10 ]; then
+    echo_success "🚀 READY TO DEPLOY"
+    echo "• Execute: git add . && git commit -m 'GitHub Actions ready' && git push origin master2"
+    echo "• Monitor: GitHub repository Actions tab"
+    echo "• Verify: Workflows execute successfully"
+    echo "• Check: ./manage_github_runner.sh logs for runner activity"
+elif [  -ge 8 ]; then
+    echo_warning "⚠️ ALMOST READY"
+    echo "• Fix missing services (check ports 8000, 4006, 9090)"
+    echo "• Ensure all required files are present"
+    echo "• Re-run: ./local_github_actions_test.sh"
+    echo "• Then deploy when all tests pass"
+else
+    echo_error "❌ NEEDS ATTENTION"
+    echo "• Start required services: ./start_atlas.sh"
+    echo "• Install missing dependencies: pip install -r requirements.txt"
+    echo "• Create missing configuration files"
+    echo "• Re-run tests until success rate improves"
+fi
+
+echo ""
+echo_step "GitHub Actions Monitoring Commands"
+echo "After deployment, use these commands to monitor:"
+echo ""
+echo "• Runner Status:    ./manage_github_runner.sh status"
+echo "• Runner Logs:      ./manage_github_runner.sh logs"
+echo "• System Health:    ./atlas_diagnostic.sh"
+echo "• Test Execution:   python comprehensive_atlas_tool_tester.py --quick"
+echo ""
+
+echo_step "Workflow URLs (after push)"
+if [ -d ".git" ]; then
+    repo_url=https://github.com/Nimda-cloud/Atlas-mcp-1
+    if [ ! -z "" ]; then
+        echo "• Actions Dashboard: /actions"
+        echo "• Workflow Runs:     /actions/workflows"
+        echo "• Runner Settings:   /settings/actions/runners"
+    fi
+fi
+
+echo ""
+echo_info "🏁 Local GitHub Actions simulation completed!"
+echo_info "Generated reports:"
+ls -la *_report_*.txt 2>/dev/null | head -5 || echo "No recent reports found"
+
+echo ""
+echo_success "Summary: / checks passed (100.0%%)"
+
+if [  -ge 10 ]; then
+    echo_success "✅ System готовий для автоматизованого GitHub Actions deployment!"
+    exit 0
+elif [  -ge 8 ]; then
+    echo_warning "⚠️ Система майже готова - виправте кілька проблем"
+    exit 1
+else
+    echo_error "❌ Потрібна увага - виправте критичні проблеми перед deployment"
+    exit 2
+fi

@@ -1,0 +1,56 @@
+
+╔═══════════════════════════════════════════════════════════════╗
+║               ATLAS MCP ADVANCED TEST REPORT                 ║
+╠═══════════════════════════════════════════════════════════════╣
+║ Date: 2025-08-27 02:36:06                                    ║
+║ Total Tests:  40 | Passed:  16 | Failed:  24                    ║
+║ Success Rate:  40.0%                                    ║
+╚═══════════════════════════════════════════════════════════════╝
+
+🎯 KEY FINDINGS:
+
+🔧 SERVICE STATUS:
+   ❌ Service: Task Orchestrator: Exception: Command '['python3', 'task_orchestrator_http_server.py']' timed out after 10 seconds
+   ❌ Service: MCP Proxy: Exception: [Errno 2] No such file or directory: './mcp-proxy/start-atlas-proxy.sh'
+   ❌ Service: Atlas Core: Failed to bind to port 8000
+
+🇺🇦 UKRAINIAN SUPPORT:
+   ❌ Ukrainian Chat 1: No success flag
+   ❌ Ukrainian Chat 2: No success flag
+   ❌ Ukrainian Chat 3: No success flag
+   ❌ Ukrainian Chat 4: Error: timed out
+   ❌ Ukrainian TTS: Ukrainian TTS: Тест українського TTS
+
+🚨 ISSUES TO FIX:
+   ❌ Service: Task Orchestrator: Exception: Command '['python3', 'task_orchestrator_http_server.py']' timed out after 10 seconds
+   ❌ Service: MCP Proxy: Exception: [Errno 2] No such file or directory: './mcp-proxy/start-atlas-proxy.sh'
+   ❌ Service: Atlas Core: Failed to bind to port 8000
+   ❌ MCP Tools: No tools data
+   ❌ Ukrainian Chat 1: No success flag
+   ❌ Ukrainian Chat 2: No success flag
+   ❌ Ukrainian Chat 3: No success flag
+   ❌ Ukrainian Chat 4: Error: timed out
+   ❌ Ukrainian TTS: Ukrainian TTS: Тест українського TTS
+   ❌ Proxy: /health: Error: <urlopen error [Errno 61] Connection refused>
+   ❌ Proxy: /status: Error: <urlopen error [Errno 61] Connection refused>
+   ❌ Proxy: /tools: Error: <urlopen error [Errno 61] Connection refused>
+   ❌ Proxy: /api/status: Error: <urlopen error [Errno 61] Connection refused>
+   ❌ Proxy: /api/tools: Error: <urlopen error [Errno 61] Connection refused>
+   ❌ Proxy: /: Error: <urlopen error [Errno 61] Connection refused>
+   ❌ MCP Server: Playwright MCP: Not running on port 3001
+   ❌ MCP Server: Atlas Coordinator: Not running on port 3002
+   ❌ MCP Server: MCP Orchestrator: Not running on port 3003
+   ❌ MCP Server: Atlas 2 Visual: Not running on port 3004
+   ❌ MCP Server: Context MCP: Not running on port 3005
+   ❌ MCP Server: macOS Automator: Not running on port 3006
+   ❌ MCP Server: Streaming TTS: Not running on port 3007
+   ❌ MCP Server: Linux Automator: Not running on port 3008
+   ❌ MCP Server: Atlas Controller: Not running on port 3009
+
+🎯 RECOMMENDATIONS:
+   1. Start missing MCP servers on ports 3001-3009
+   2. Check MCP proxy configuration for tool routing
+   3. Verify all dependencies are installed
+   4. Monitor service logs for errors
+   
+📈 SYSTEM STATUS: NEEDS WORK

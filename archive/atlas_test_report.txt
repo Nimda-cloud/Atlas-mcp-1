@@ -1,0 +1,105 @@
+
+╔═══════════════════════════════════════════════════════════════╗
+║                    ATLAS MCP COMPREHENSIVE TEST REPORT        ║
+╠═══════════════════════════════════════════════════════════════╣
+║ Date: 2025-08-27 03:49:34                                    ║
+║ Total Tests:  60 | Passed:  52 | Failed:   8                    ║
+║ Success Rate:  86.7%                                    ║
+╚═══════════════════════════════════════════════════════════════╝
+
+📋 SUMMARY BY CATEGORY:
+   SYSTEM         :  9/ 9 (100.0%)
+   SYNTAX         :  3/ 3 (100.0%)
+   CONNECTIVITY   :  6/ 8 ( 75.0%)
+   ATLAS_CORE     :  3/ 3 (100.0%)
+   TOOLS          :  6/ 6 (100.0%)
+   MCP_PROXY      :  0/ 5 (  0.0%)
+   LOGIC          :  1/ 2 ( 50.0%)
+   MCP_TOOLS      : 20/20 (100.0%)
+   DIAGNOSTICS    :  2/ 2 (100.0%)
+   FIXES          :  2/ 2 (100.0%)
+
+🔍 DETAILED RESULTS:
+   ✅ SYSTEM      : File: atlas_core.py            - Found
+   ✅ SYSTEM      : File: task_orchestrator_http_server.py - Found
+   ✅ SYSTEM      : File: requirements.txt         - Found
+   ✅ SYSTEM      : File: start_atlas.sh           - Found
+   ✅ SYSTEM      : File: stop_atlas.sh            - Found
+   ✅ SYSTEM      : Directory: mcp-task-orchestrator - Found
+   ✅ SYSTEM      : Directory: mcp-proxy           - Found
+   ✅ SYSTEM      : Directory: 3d_helmet_viewer    - Found
+   ✅ SYSTEM      : Directory: scripts             - Found
+   ✅ SYNTAX      : Syntax: atlas_core.py          - Valid Python syntax
+   ✅ SYNTAX      : Syntax: task_orchestrator_http_server.py - Valid Python syntax
+   ✅ SYNTAX      : Syntax: enhanced_tts.py        - Valid Python syntax
+   ✅ CONNECTIVITY: Port: Atlas Core               - Port 8000 accessible
+   ✅ CONNECTIVITY: Health: Atlas Core             - Service responding
+   ✅ CONNECTIVITY: Port: Task Orchestrator        - Port 4006 accessible
+   ✅ CONNECTIVITY: Health: Task Orchestrator      - Service responding
+   ✅ CONNECTIVITY: Port: MCP Proxy                - Port 9090 accessible
+   ❌ CONNECTIVITY: Health: MCP Proxy              - Health endpoint not found (404)
+   ✅ CONNECTIVITY: Port: 3D Helmet Viewer         - Port 8080 accessible
+   ❌ CONNECTIVITY: Health: 3D Helmet Viewer       - Health endpoint not found (404)
+   ✅ ATLAS_CORE  : Atlas Core Status              - Status endpoint working
+   ✅ ATLAS_CORE  : Agents Online                  - 3 agents
+   ✅ ATLAS_CORE  : Automation Ready               - True
+   ✅ TOOLS       : MCP Tools Total                - 34 tools available
+   ✅ TOOLS       : Tools: task-orchestrator       - 10 tools (expected: 35)
+   ✅ TOOLS       : Tools: tts                     - 6 tools (expected: 6)
+   ✅ TOOLS       : Tools: automation              - 9 tools (expected: 19)
+   ✅ TOOLS       : Tools: file-manager            - 5 tools (expected: 5)
+   ✅ TOOLS       : Tools: network                 - 4 tools (expected: 4)
+   ❌ MCP_PROXY   : Proxy Endpoint: /health        - Not Found (404)
+   ❌ MCP_PROXY   : Proxy Endpoint: /status        - Not Found (404)
+   ❌ MCP_PROXY   : Proxy Endpoint: /tools         - Not Found (404)
+   ❌ MCP_PROXY   : Proxy Endpoint: /              - Not Found (404)
+   ❌ MCP_PROXY   : Proxy Endpoint: /api/health    - Not Found (404)
+   ✅ LOGIC       : Chat Logic                     - Chat endpoint responding
+   ❌ LOGIC       : TTS Logic                      - Atlas Core not running
+   ✅ MCP_TOOLS   : Tool Category: task-orchestrator - 10 tools
+   ✅ MCP_TOOLS   : Tool Available: orchestrator_initialize_session - Listed in task-orchestrator
+   ✅ MCP_TOOLS   : Tool Available: orchestrator_synthesize_results - Listed in task-orchestrator
+   ✅ MCP_TOOLS   : Tool Available: orchestrator_get_status - Listed in task-orchestrator
+   ✅ MCP_TOOLS   : Tool Category: tts             - 6 tools
+   ✅ MCP_TOOLS   : Tool Available: say_tts        - Listed in tts
+   ✅ MCP_TOOLS   : Tool Available: stop_tts       - Listed in tts
+   ✅ MCP_TOOLS   : Tool Available: set_voice      - Listed in tts
+   ✅ MCP_TOOLS   : Tool Category: automation      - 9 tools
+   ✅ MCP_TOOLS   : Tool Available: mouseClick     - Listed in automation
+   ✅ MCP_TOOLS   : Tool Available: mouseMove      - Listed in automation
+   ✅ MCP_TOOLS   : Tool Available: screenshot     - Listed in automation
+   ✅ MCP_TOOLS   : Tool Category: file-manager    - 5 tools
+   ✅ MCP_TOOLS   : Tool Available: read_file      - Listed in file-manager
+   ✅ MCP_TOOLS   : Tool Available: write_file     - Listed in file-manager
+   ✅ MCP_TOOLS   : Tool Available: list_directory - Listed in file-manager
+   ✅ MCP_TOOLS   : Tool Category: network         - 4 tools
+   ✅ MCP_TOOLS   : Tool Available: ping           - Listed in network
+   ✅ MCP_TOOLS   : Tool Available: http_request   - Listed in network
+   ✅ MCP_TOOLS   : Tool Available: download_file  - Listed in network
+   ✅ DIAGNOSTICS : Diagnostic: scripts/atlas_diagnostic.sh - Executed successfully
+   ✅ DIAGNOSTICS : Diagnostic: atlas_diagnostic.sh - Executed successfully
+   ✅ FIXES       : Fix Suggestion: MCP Proxy      - Start MCP Proxy service on port 9090
+   ✅ FIXES       : Fix Suggestion: Services       - Use ./start_atlas.sh to start all services
+
+🚨 ISSUES FOUND:
+   ❌ Health: MCP Proxy: Health endpoint not found (404)
+   ❌ Health: 3D Helmet Viewer: Health endpoint not found (404)
+   ❌ Proxy Endpoint: /health: Not Found (404)
+   ❌ Proxy Endpoint: /status: Not Found (404)
+   ❌ Proxy Endpoint: /tools: Not Found (404)
+   ❌ Proxy Endpoint: /: Not Found (404)
+   ❌ Proxy Endpoint: /api/health: Not Found (404)
+   ❌ TTS Logic: Atlas Core not running
+
+🎯 RECOMMENDATIONS:
+   🚀 Run ./start_atlas.sh to start all services
+   🔧 Fix MCP Proxy 404 error by checking proxy configuration
+   📝 Verify proxy service is running on port 9090
+
+📚 NEXT STEPS:
+   1. Address any failed tests above
+   2. Ensure all services are running
+   3. Test individual MCP tools as needed
+   4. Monitor system logs for additional issues
+   
+📄 Log file: atlas_tool_test.log
